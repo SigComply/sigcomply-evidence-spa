@@ -1,0 +1,7 @@
+{
+  "frameworks": ["soc2"],
+  "storage": {
+    "show_upload_path": true,
+    "prefix": "manual-evidence"
+  }
+}
