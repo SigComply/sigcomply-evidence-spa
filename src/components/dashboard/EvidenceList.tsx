@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { CatalogEntry, EvidenceType } from "@/types/catalog";
 import { currentPeriod } from "@/lib/period";
 import { ArrowRight } from "lucide-react";
+import { TSCBadge, OptionalBadge } from "./StatusBadge";
 
 const typeDotColors: Record<EvidenceType, string> = {
   document_upload: "bg-blue-500",
@@ -56,8 +57,10 @@ function EvidenceRow({ entry, framework }: { entry: CatalogEntry; framework: str
         title={typeLabels[entry.type]}
       />
 
-      <span className="flex-1 min-w-0 text-sm truncate">
-        {entry.name}
+      <span className="flex-1 min-w-0 text-sm truncate flex items-center gap-2">
+        <span className="truncate">{entry.name}</span>
+        {entry.tsc && <TSCBadge tsc={entry.tsc} />}
+        {entry.optional && <OptionalBadge />}
       </span>
 
       <span className="hidden sm:block w-16 text-right text-xs text-muted-foreground">

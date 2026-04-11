@@ -4,7 +4,7 @@
   "entries": [
     {
       "id": "quarterly_access_review",
-      "control": "CC6.1",
+      "control": "CC6.3",
       "type": "document_upload",
       "frequency": "quarterly",
       "temporal_rule": "retrospective",
@@ -12,8 +12,13 @@
       "name": "Quarterly Access Review",
       "description": "Upload evidence of quarterly user access review including reviewer sign-off",
       "severity": "high",
-      "accepted_formats": ["pdf", "xlsx", "csv"],
-      "category": "access_control"
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_control",
+      "tsc": "security"
     },
     {
       "id": "security_awareness_training",
@@ -25,12 +30,17 @@
       "name": "Security Awareness Training",
       "description": "Upload evidence of annual security awareness training completion for all employees",
       "severity": "high",
-      "accepted_formats": ["pdf", "xlsx", "csv"],
-      "category": "configuration_management"
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "configuration_management",
+      "tsc": "security"
     },
     {
       "id": "incident_response_test",
-      "control": "CC7.2",
+      "control": "CC7.4",
       "type": "checklist",
       "frequency": "yearly",
       "temporal_rule": "retrospective",
@@ -38,7 +48,6 @@
       "name": "Incident Response Plan Test",
       "description": "Complete checklist confirming annual incident response plan testing",
       "severity": "high",
-      "category": "logging",
       "items": [
         {
           "id": "plan_tested",
@@ -60,7 +69,9 @@
           "text": "Lessons learned were documented and plan updated accordingly",
           "required": false
         }
-      ]
+      ],
+      "category": "logging",
+      "tsc": "security"
     },
     {
       "id": "risk_acceptance_signoff",
@@ -73,7 +84,311 @@
       "description": "Declare that quarterly risk assessment has been reviewed and accepted by management",
       "severity": "high",
       "declaration_text": "I confirm that the quarterly risk assessment has been reviewed, all identified risks have been evaluated, and appropriate risk treatment decisions have been made and approved by management.",
-      "category": "vulnerability_management"
+      "category": "vulnerability_management",
+      "tsc": "security"
+    },
+    {
+      "id": "background_check",
+      "control": "CC1.4",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Background Check Summary",
+      "description": "Declare that background checks were completed for all new hires in this period, or that no new hires joined",
+      "severity": "high",
+      "declaration_text": "I confirm that background checks have been completed for all new hires during this period, or that no new hires joined the organization during this period.",
+      "category": "hr_governance",
+      "tsc": "security"
+    },
+    {
+      "id": "performance_review_security",
+      "control": "CC1.5",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Performance Review (Security Adherence)",
+      "description": "Upload summary of annual performance reviews covering security policy adherence",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "hr_governance",
+      "tsc": "security",
+      "optional": true
+    },
+    {
+      "id": "board_security_review",
+      "control": "CC1.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Board Security Review Minutes",
+      "description": "Upload minutes of quarterly board review of information security posture",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "hr_governance",
+      "tsc": "security"
+    },
+    {
+      "id": "annual_risk_assessment",
+      "control": "CC3.2",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Annual Risk Assessment Report",
+      "description": "Upload the annual enterprise risk assessment report",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "docx"
+      ],
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "significant_change_analysis",
+      "control": "CC3.4",
+      "type": "declaration",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Significant Change Impact Analysis",
+      "description": "Declare that significant changes affecting internal controls were analyzed this period, or that none occurred",
+      "severity": "high",
+      "declaration_text": "I confirm that any significant changes affecting the system of internal controls during this period have been analyzed and documented, or that no such significant changes occurred.",
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "vendor_soc2_review",
+      "control": "CC9.2",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Vendor SOC 2 Report Review",
+      "description": "Complete checklist confirming annual review of critical vendor SOC 2 reports",
+      "severity": "high",
+      "items": [
+        {
+          "id": "all_vendors_reviewed",
+          "text": "SOC 2 (or equivalent) reports for all critical vendors have been reviewed",
+          "required": true
+        },
+        {
+          "id": "exceptions_documented",
+          "text": "Any exceptions or qualifications noted in vendor reports were documented",
+          "required": true
+        },
+        {
+          "id": "cuecs_addressed",
+          "text": "Complementary User Entity Controls (CUECs) have been identified and addressed",
+          "required": true
+        },
+        {
+          "id": "remediation_tracked",
+          "text": "Remediation items for vendor issues are being tracked",
+          "required": false
+        }
+      ],
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "cyber_liability_insurance",
+      "control": "CC9.1",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "anytime",
+      "grace_period": "30d",
+      "name": "Cyber Liability Insurance Certificate",
+      "description": "Upload current cyber liability insurance certificate",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf"
+      ],
+      "category": "risk_compliance",
+      "tsc": "security",
+      "optional": true
+    },
+    {
+      "id": "privileged_access_log",
+      "control": "CC6.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Privileged Access Justification Log",
+      "description": "Upload quarterly log of privileged access grants with business justifications",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "visitor_log",
+      "control": "CC6.4",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Physical Office Visitor Log",
+      "description": "Upload the quarterly physical office visitor log snapshot",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "office_walkthrough",
+      "control": "CC6.4",
+      "type": "checklist",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Office Security Walkthrough",
+      "description": "Complete quarterly office security walkthrough checklist",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "it_closet_locked",
+          "text": "IT/server closet was locked and access-restricted",
+          "required": true
+        },
+        {
+          "id": "clean_desk",
+          "text": "Clean-desk policy was observed across the office",
+          "required": true
+        },
+        {
+          "id": "cctv_functioning",
+          "text": "CCTV cameras were functioning and recording",
+          "required": true
+        },
+        {
+          "id": "no_violations",
+          "text": "No physical security violations were observed",
+          "required": true
+        }
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "incident_post_mortem",
+      "control": "CC7.4",
+      "type": "declaration",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Incident Post-Mortem Summary",
+      "description": "Declare that all security incidents this period have post-mortem documentation, or that none occurred",
+      "severity": "high",
+      "declaration_text": "I confirm that all security incidents that occurred during this period have documented post-mortem summaries, or that no security incidents occurred during this period.",
+      "category": "system_ops_bcdr",
+      "tsc": "security"
+    },
+    {
+      "id": "dr_test_report",
+      "control": "A1.3",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Disaster Recovery Test Report",
+      "description": "Upload the annual disaster recovery test report",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "system_ops_bcdr",
+      "tsc": "availability"
+    },
+    {
+      "id": "backup_restoration_log",
+      "control": "A1.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Backup Restoration Log",
+      "description": "Upload the quarterly backup restoration test log",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "system_ops_bcdr",
+      "tsc": "availability"
+    },
+    {
+      "id": "capacity_review",
+      "control": "A1.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Quarterly Capacity Review",
+      "description": "Upload the quarterly capacity review report",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "xlsx"
+      ],
+      "category": "system_ops_bcdr",
+      "tsc": "availability"
+    },
+    {
+      "id": "data_classification_registry",
+      "control": "C1.1",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Data Classification Registry",
+      "description": "Upload the annual data classification registry listing data assets and their confidentiality levels",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "data_protection",
+      "tsc": "confidentiality"
+    },
+    {
+      "id": "media_sanitization",
+      "control": "CC6.5",
+      "type": "declaration",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Media Sanitization Certificate",
+      "description": "Declare that all decommissioned media was sanitized or destroyed this period, with certificates attached for any such events",
+      "severity": "high",
+      "declaration_text": "I confirm that no media decommissioning events occurred this period, or that all such events that did occur have sanitization/destruction certificates attached.",
+      "category": "data_protection",
+      "tsc": "security"
     }
   ]
 }

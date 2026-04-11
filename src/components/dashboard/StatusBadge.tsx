@@ -34,3 +34,25 @@ export function SeverityBadge({ severity }: { severity: string }) {
     </Badge>
   );
 }
+
+const tscColors: Record<string, string> = {
+  security: "bg-red-50 text-red-700 hover:bg-red-50",
+  availability: "bg-blue-50 text-blue-700 hover:bg-blue-50",
+  confidentiality: "bg-purple-50 text-purple-700 hover:bg-purple-50",
+};
+
+export function TSCBadge({ tsc }: { tsc: string }) {
+  return (
+    <Badge variant="secondary" className={tscColors[tsc] ?? ""}>
+      {tsc}
+    </Badge>
+  );
+}
+
+export function OptionalBadge() {
+  return (
+    <Badge variant="outline" className="text-xs">
+      Optional
+    </Badge>
+  );
+}

@@ -24,6 +24,8 @@ export interface CatalogEntry {
   items?: ChecklistItem[];
   declaration_text?: string;
   category?: string;
+  tsc?: string;
+  optional?: boolean;
 }
 
 export interface Catalog {

@@ -25,6 +25,15 @@ export function Dashboard() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<EvidenceType | null>(null);
   const [frequencyFilter, setFrequencyFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    if (!catalog) return [] as string[];
+    const unique = new Set(
+      catalog.entries.map((e) => e.category).filter((c): c is string => Boolean(c))
+    );
+    return Array.from(unique).sort();
+  }, [catalog]);
 
   const filteredEntries = useMemo(() => {
     if (!catalog) return [];
@@ -34,6 +43,7 @@ export function Dashboard() {
     return catalog.entries.filter((entry) => {
       if (typeFilter && entry.type !== typeFilter) return false;
       if (frequencyFilter && entry.frequency !== frequencyFilter) return false;
+      if (categoryFilter && entry.category !== categoryFilter) return false;
       if (query) {
         const haystack =
           `${entry.name} ${entry.description} ${entry.control} ${entry.id}`.toLowerCase();
@@ -41,9 +51,9 @@ export function Dashboard() {
       }
       return true;
     });
-  }, [catalog, search, typeFilter, frequencyFilter]);
+  }, [catalog, search, typeFilter, frequencyFilter, categoryFilter]);
 
-  const hasActiveFilters = search || typeFilter || frequencyFilter;
+  const hasActiveFilters = search || typeFilter || frequencyFilter || categoryFilter;
 
   return (
     <div className="space-y-4 max-w-5xl">
@@ -107,6 +117,7 @@ export function Dashboard() {
                   setSearch("");
                   setTypeFilter(null);
                   setFrequencyFilter(null);
+                  setCategoryFilter(null);
                 }}
               >
                 Clear
@@ -114,6 +125,22 @@ export function Dashboard() {
             </>
           )}
         </div>
+
+        {categories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">Category:</span>
+            {categories.map((c) => (
+              <Badge
+                key={c}
+                variant={categoryFilter === c ? "default" : "outline"}
+                className="cursor-pointer text-xs"
+                onClick={() => setCategoryFilter(categoryFilter === c ? null : c)}
+              >
+                {c.replace(/_/g, " ")}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Loading */}
