@@ -1,22 +1,11 @@
-import { Button } from "@/components/ui/button";
-import { PanelLeft } from "lucide-react";
+import { Shield } from "lucide-react";
 
-interface HeaderProps {
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-}
-
-export function Header({ sidebarOpen, onToggleSidebar }: HeaderProps) {
+export function Header() {
   return (
-    <header className="flex h-14 items-center justify-between border-b px-4">
-      <div className="flex items-center gap-2">
-        {!sidebarOpen && (
-          <Button variant="ghost" size="icon-sm" onClick={onToggleSidebar}>
-            <PanelLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <h1 className="text-lg font-semibold">SigComply Evidence</h1>
-      </div>
+    <header className="flex h-14 items-center border-b px-6">
+      <Shield className="h-5 w-5 text-primary" />
+      <span className="ml-2 font-semibold">SigComply</span>
+      <span className="ml-2 text-sm text-muted-foreground">Evidence Portal</span>
     </header>
   );
 }

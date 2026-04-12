@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { CatalogEntry, EvidenceType } from "@/types/catalog";
 import { currentPeriod } from "@/lib/period";
@@ -16,29 +17,60 @@ const typeLabels: Record<EvidenceType, string> = {
   declaration: "Declaration",
 };
 
+function formatCategory(raw: string): string {
+  return raw
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 interface EvidenceListProps {
   entries: CatalogEntry[];
   framework: string;
 }
 
 export function EvidenceList({ entries, framework }: EvidenceListProps) {
+  const grouped = useMemo(() => {
+    const groups: Record<string, CatalogEntry[]> = {};
+    for (const entry of entries) {
+      const cat = entry.category ?? "uncategorized";
+      (groups[cat] ??= []).push(entry);
+    }
+    // Sort categories alphabetically, entries by name within each
+    return Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, items]) => ({
+        category,
+        label: formatCategory(category),
+        entries: items.sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  }, [entries]);
+
   if (entries.length === 0) return null;
 
   return (
-    <div className="border rounded-lg divide-y">
-      {/* Column headers */}
-      <div className="flex items-center gap-3 px-4 py-2 text-xs text-muted-foreground font-medium bg-muted/30">
-        <span className="w-2.5" />
-        <span className="flex-1">Name</span>
-        <span className="hidden sm:block w-16 text-right">Control</span>
-        <span className="hidden md:block w-16">Type</span>
-        <span className="hidden md:block w-20">Frequency</span>
-        <span className="hidden lg:block w-20">Period</span>
-        <span className="hidden lg:block w-14">Severity</span>
-        <span className="w-4" />
-      </div>
-      {entries.map((entry) => (
-        <EvidenceRow key={entry.id} entry={entry} framework={framework} />
+    <div className="space-y-4">
+      {grouped.map((group) => (
+        <div key={group.category}>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+            {group.label} ({group.entries.length})
+          </h3>
+          <div className="border rounded-lg divide-y">
+            {/* Column headers */}
+            <div className="flex items-center gap-3 px-4 py-2 text-xs text-muted-foreground font-medium bg-muted/30">
+              <span className="w-2.5" />
+              <span className="flex-1">Name</span>
+              <span className="hidden sm:block w-16 text-right">Control</span>
+              <span className="hidden md:block w-16">Type</span>
+              <span className="hidden md:block w-20">Frequency</span>
+              <span className="hidden lg:block w-20">Period</span>
+              <span className="hidden lg:block w-14">Severity</span>
+              <span className="w-4" />
+            </div>
+            {group.entries.map((entry) => (
+              <EvidenceRow key={entry.id} entry={entry} framework={framework} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );

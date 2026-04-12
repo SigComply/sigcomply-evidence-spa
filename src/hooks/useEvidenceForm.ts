@@ -33,7 +33,14 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     accepted: false,
   });
 
-  const [completedBy, setCompletedBy] = useState("");
+  const [completedBy, setCompletedByRaw] = useState(
+    () => localStorage.getItem("sigcomply:completed-by") ?? ""
+  );
+
+  const setCompletedBy = useCallback((value: string) => {
+    setCompletedByRaw(value);
+    localStorage.setItem("sigcomply:completed-by", value);
+  }, []);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   const setChecklistItem = useCallback(

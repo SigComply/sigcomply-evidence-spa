@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DocumentUploadForm } from "@/components/forms/DocumentUploadForm";
 import { ChecklistForm } from "@/components/forms/ChecklistForm";
 import { DeclarationForm } from "@/components/forms/DeclarationForm";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useEvidenceForm } from "@/hooks/useEvidenceForm";
-import { ArrowLeft, Download, CheckCircle2, Upload } from "lucide-react";
+import { ArrowLeft, Download, CheckCircle2, Upload, Pencil } from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
 
 export function EvidenceForm() {
@@ -19,8 +20,8 @@ export function EvidenceForm() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <Skeleton className="h-6 w-32" />
+      <div className="mx-auto max-w-2xl space-y-4">
+        <Skeleton className="h-9 w-24" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -29,10 +30,8 @@ export function EvidenceForm() {
 
   if (error) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <Link to="/" className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
+      <div className="mx-auto max-w-2xl space-y-4">
+        <BackButton />
         <p className="text-sm text-destructive">{error}</p>
       </div>
     );
@@ -42,16 +41,32 @@ export function EvidenceForm() {
 
   if (!entry) {
     return (
-      <div className="max-w-2xl space-y-4">
-        <Link to="/" className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
-        <p>Evidence entry not found.</p>
+      <div className="mx-auto max-w-2xl space-y-4">
+        <BackButton />
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          Evidence entry not found.
+        </p>
       </div>
     );
   }
 
   return <EvidenceFormContent entry={entry} framework={framework} />;
+}
+
+function BackButton() {
+  const navigate = useNavigate();
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="gap-1.5 -ml-2 text-muted-foreground"
+      onClick={() => navigate("/")}
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back to list
+    </Button>
+  );
 }
 
 function EvidenceFormContent({
@@ -72,39 +87,44 @@ function EvidenceFormContent({
 
   if (form.downloadSuccess) {
     return (
-      <div className="max-w-2xl space-y-6">
-        <Link to="/" className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
+      <div className="mx-auto max-w-2xl space-y-6">
+        <BackButton />
 
-        <div className="flex items-start gap-3 py-8">
-          <CheckCircle2 className="h-6 w-6 text-green-600 mt-0.5 shrink-0" />
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">evidence.json downloaded</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload it to your storage at:
-              </p>
+        <div className="rounded-lg border bg-card p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
-
-            <code className="block text-sm bg-muted rounded-md px-3 py-2 break-all">
-              {form.uploadPath}
-            </code>
-
-            {entry.type === "document_upload" && (
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Upload className="h-4 w-4 mt-0.5 shrink-0" />
-                <p>Place your supporting documents in the same folder.</p>
+            <div className="space-y-4 flex-1 min-w-0">
+              <div>
+                <h2 className="text-lg font-semibold">evidence.json downloaded</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Upload it to your storage at:
+                </p>
               </div>
-            )}
 
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => form.setDownloadSuccess(false)}>
-                Edit & re-download
-              </Button>
-              <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:underline">
-                Back to list
-              </Link>
+              <code className="block text-sm bg-muted rounded-md px-3 py-2.5 break-all font-mono">
+                {form.uploadPath}
+              </code>
+
+              {entry.type === "document_upload" && (
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Upload className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p>Place your supporting documents in the same folder.</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => form.setDownloadSuccess(false)}>
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  Edit & re-download
+                </Button>
+                <Link to="/">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground">
+                    Back to list
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -113,65 +133,77 @@ function EvidenceFormContent({
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <Link to="/" className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Link>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <BackButton />
 
-      <div>
-        <h2 className="text-xl font-semibold">{entry.name}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{entry.description}</p>
-        <div className="flex gap-4 text-xs text-muted-foreground mt-3">
-          <span>Control: {entry.control}</span>
-          <span className="capitalize">{entry.frequency}</span>
-          <span>Period: {form.period.key}</span>
-          <span className="capitalize">Severity: {entry.severity}</span>
+      {/* Entry header */}
+      <div className="rounded-lg border bg-card p-6 space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">{entry.name}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{entry.description}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="text-xs">
+            {entry.control}
+          </Badge>
+          <Badge variant="outline" className="text-xs capitalize">
+            {entry.frequency}
+          </Badge>
+          <Badge variant="outline" className="text-xs font-mono">
+            {form.period.key}
+          </Badge>
+          <Badge variant="outline" className="text-xs capitalize">
+            {entry.severity}
+          </Badge>
         </div>
       </div>
 
-      <Separator />
+      {/* Form content */}
+      <div className="rounded-lg border bg-card p-6 space-y-6">
+        {entry.type === "document_upload" && (
+          <DocumentUploadForm entry={entry} />
+        )}
 
-      {entry.type === "document_upload" && (
-        <DocumentUploadForm entry={entry} />
-      )}
+        {entry.type === "checklist" && (
+          <ChecklistForm
+            entry={entry}
+            checklistItems={form.checklistItems}
+            setChecklistItem={form.setChecklistItem}
+            setChecklistNotes={form.setChecklistNotes}
+          />
+        )}
 
-      {entry.type === "checklist" && (
-        <ChecklistForm
-          entry={entry}
-          checklistItems={form.checklistItems}
-          setChecklistItem={form.setChecklistItem}
-          setChecklistNotes={form.setChecklistNotes}
-        />
-      )}
+        {entry.type === "declaration" && (
+          <DeclarationForm
+            entry={entry}
+            accepted={form.accepted}
+            setAccepted={form.setAccepted}
+          />
+        )}
 
-      {entry.type === "declaration" && (
-        <DeclarationForm
-          entry={entry}
-          accepted={form.accepted}
-          setAccepted={form.setAccepted}
-        />
-      )}
+        <Separator />
 
-      <Separator />
+        <div className="space-y-2">
+          <Label htmlFor="completed-by">Completed by</Label>
+          <Input
+            id="completed-by"
+            value={form.completedBy}
+            onChange={(e) => form.setCompletedBy(e.target.value)}
+            placeholder="jane@company.com"
+          />
+        </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="completed-by">Completed by</Label>
-        <Input
-          id="completed-by"
-          value={form.completedBy}
-          onChange={(e) => form.setCompletedBy(e.target.value)}
-          placeholder="jane@company.com"
-        />
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={handleSubmit} size="lg">
+            <Download className="mr-2 h-4 w-4" />
+            Download evidence.json
+          </Button>
+        </div>
       </div>
-
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
-
-      <Button onClick={handleSubmit} className="w-full">
-        <Download className="mr-2 h-4 w-4" />
-        Download evidence.json
-      </Button>
     </div>
   );
 }

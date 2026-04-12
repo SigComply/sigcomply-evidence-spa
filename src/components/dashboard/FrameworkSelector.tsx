@@ -19,8 +19,6 @@ interface FrameworkSelectorProps {
 }
 
 export function FrameworkSelector({ value, onChange, frameworks }: FrameworkSelectorProps) {
-  if (frameworks.length <= 1) return null;
-
   return (
     <Select
       value={value}
@@ -28,7 +26,7 @@ export function FrameworkSelector({ value, onChange, frameworks }: FrameworkSele
         if (val !== null) onChange(val);
       }}
     >
-      <SelectTrigger className="w-[220px]">
+      <SelectTrigger className="w-[180px]">
         <SelectValue placeholder="Select framework" />
       </SelectTrigger>
       <SelectContent>
