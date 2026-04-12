@@ -39,6 +39,7 @@ const tscColors: Record<string, string> = {
   security: "bg-red-50 text-red-700 hover:bg-red-50",
   availability: "bg-blue-50 text-blue-700 hover:bg-blue-50",
   confidentiality: "bg-purple-50 text-purple-700 hover:bg-purple-50",
+  privacy: "bg-pink-50 text-pink-700 hover:bg-pink-50",
 };
 
 export function TSCBadge({ tsc }: { tsc: string }) {

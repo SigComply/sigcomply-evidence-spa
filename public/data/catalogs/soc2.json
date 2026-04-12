@@ -389,6 +389,467 @@
       "declaration_text": "I confirm that no media decommissioning events occurred this period, or that all such events that did occur have sanitization/destruction certificates attached.",
       "category": "data_protection",
       "tsc": "security"
+    },
+    {
+      "id": "employee_nda",
+      "control": "CC1.1",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Employee NDA Acknowledgment",
+      "description": "Declare that all employees have acknowledged the current NDA and code-of-conduct during this period",
+      "severity": "high",
+      "declaration_text": "I confirm that all current employees have signed or re-acknowledged the organization's NDA and code-of-conduct during this period.",
+      "category": "hr_governance",
+      "tsc": "security"
+    },
+    {
+      "id": "user_onboarding_log",
+      "control": "CC6.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "User Onboarding Access Grants Log",
+      "description": "Upload the quarterly log of user onboarding access grants, including approver and role assignments",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "hr_governance",
+      "tsc": "security"
+    },
+    {
+      "id": "user_termination_log",
+      "control": "CC6.3",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "User Termination Access Revocation Log",
+      "description": "Upload the quarterly log of user terminations showing timely revocation of access across systems",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "hr_governance",
+      "tsc": "security"
+    },
+    {
+      "id": "policy_review_log",
+      "control": "CC5.3",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Annual Policy Review Log",
+      "description": "Upload the annual log documenting review (and any updates) of all information security policies",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "docx"
+      ],
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "fraud_risk_assessment",
+      "control": "CC3.3",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Fraud Risk Assessment",
+      "description": "Upload the annual fraud risk assessment identifying potential fraud scenarios and mitigating controls",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "security_comm_channel",
+      "control": "CC2.2",
+      "type": "declaration",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Security Communication Channel Evidence",
+      "description": "Declare that a security communication channel is active and has been used this period to communicate security updates",
+      "severity": "medium",
+      "declaration_text": "I confirm that a dedicated security communication channel (Slack channel, mailing list, or intranet page) exists and has been used this period to communicate security updates and alerts to employees.",
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "vendor_risk_directory",
+      "control": "CC9.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Vendor Risk Directory Snapshot",
+      "description": "Upload the quarterly vendor risk directory snapshot listing all active vendors with data classification and risk tier",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "risk_compliance",
+      "tsc": "security"
+    },
+    {
+      "id": "office_badge_access_review",
+      "control": "CC6.4",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Office Badge Access Review",
+      "description": "Upload the quarterly office badge access review listing active badge holders and access levels",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "secure_hardware_storage_log",
+      "control": "CC6.5",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Secure Hardware Storage Log",
+      "description": "Upload the quarterly log of hardware assets stored in secure locations including check-in/check-out records",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "asset_inventory_hardware",
+      "control": "CC6.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Hardware Asset Inventory",
+      "description": "Upload the quarterly hardware asset inventory listing all company-owned devices with assigned owners and locations",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "access_physical",
+      "tsc": "security"
+    },
+    {
+      "id": "change_approval_log",
+      "control": "CC8.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Change Approval Log",
+      "description": "Upload the quarterly change approval log showing all production changes with approver sign-off",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "change_management",
+      "tsc": "security"
+    },
+    {
+      "id": "emergency_change_procedure",
+      "control": "CC8.1",
+      "type": "declaration",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Emergency Change Procedure Declaration",
+      "description": "Declare that emergency change procedures are documented and were followed for any emergency changes this period",
+      "severity": "high",
+      "declaration_text": "I confirm that documented emergency change procedures exist and were followed for all emergency changes this period, or that no emergency changes occurred.",
+      "category": "change_management",
+      "tsc": "security"
+    },
+    {
+      "id": "vuln_remediation_tracker",
+      "control": "CC7.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Vulnerability Remediation Tracker",
+      "description": "Upload the quarterly vulnerability remediation tracker showing open/closed vulnerabilities and remediation timelines",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "vulnerability_management",
+      "tsc": "security"
+    },
+    {
+      "id": "hardening_standards_doc",
+      "control": "CC6.8",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Hardening Standards Document",
+      "description": "Upload the current hardening standards document covering OS, database, and application baseline configurations",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "vulnerability_management",
+      "tsc": "security"
+    },
+    {
+      "id": "vuln_scan_results",
+      "control": "CC7.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Vulnerability Scan Results",
+      "description": "Upload the quarterly vulnerability scan results from internal or external scanning tools",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "vulnerability_management",
+      "tsc": "security"
+    },
+    {
+      "id": "fim_configuration",
+      "control": "CC7.1",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "File Integrity Monitoring Configuration",
+      "description": "Upload the current file integrity monitoring (FIM) configuration showing monitored paths and alerting rules",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "vulnerability_management",
+      "tsc": "security"
+    },
+    {
+      "id": "privacy_notice_proof",
+      "control": "P1.1",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Privacy Notice Publication Proof",
+      "description": "Upload proof that the privacy notice is published and accessible (screenshot, URL, or archived copy)",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "png",
+        "jpg"
+      ],
+      "category": "privacy",
+      "tsc": "privacy"
+    },
+    {
+      "id": "dsar_fulfillment_log",
+      "control": "P5.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "DSAR Fulfillment Log",
+      "description": "Upload the quarterly DSAR fulfillment log showing all data subject requests received and their resolution status",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "privacy",
+      "tsc": "privacy"
+    },
+    {
+      "id": "marketing_optin_proof",
+      "control": "P2.1",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Marketing Opt-In Consent Proof",
+      "description": "Upload proof that marketing communications only go to users who have given explicit opt-in consent",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "png",
+        "xlsx"
+      ],
+      "category": "privacy",
+      "tsc": "privacy"
+    },
+    {
+      "id": "quarterly_privacy_review",
+      "control": "P1.1",
+      "type": "checklist",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Quarterly Privacy Program Review",
+      "description": "Complete the quarterly privacy program review checklist",
+      "severity": "high",
+      "items": [
+        {
+          "id": "notice_reviewed",
+          "text": "Privacy notice reviewed and confirmed current",
+          "required": true
+        },
+        {
+          "id": "dsar_log_reviewed",
+          "text": "DSAR log reviewed and all requests resolved or in progress",
+          "required": true
+        },
+        {
+          "id": "consent_audited",
+          "text": "Consent records audited for completeness",
+          "required": true
+        },
+        {
+          "id": "minimization_reviewed",
+          "text": "Data minimization practices reviewed",
+          "required": true
+        }
+      ],
+      "category": "privacy",
+      "tsc": "privacy"
+    },
+    {
+      "id": "data_minimization_proof",
+      "control": "P3.1",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Data Minimization Proof",
+      "description": "Declare that personal data collection is limited to what is necessary as described in the privacy notice",
+      "severity": "medium",
+      "declaration_text": "I confirm that the organization collects only the personal information necessary for the purposes identified in the privacy notice, and that a review of data collection practices has been completed for this period.",
+      "category": "privacy",
+      "tsc": "privacy"
+    },
+    {
+      "id": "business_continuity_plan",
+      "control": "A1.2",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Business Continuity Plan",
+      "description": "Upload the current business continuity plan documenting recovery procedures and business impact analysis",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "docx"
+      ],
+      "category": "system_ops_bcdr",
+      "tsc": "availability"
+    },
+    {
+      "id": "data_retention_disposal_log",
+      "control": "C1.2",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Data Retention \u0026 Disposal Log",
+      "description": "Upload the quarterly data retention and disposal log showing data disposed per the retention schedule",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "data_protection",
+      "tsc": "confidentiality"
+    },
+    {
+      "id": "crypto_key_log",
+      "control": "CC6.7",
+      "type": "document_upload",
+      "frequency": "quarterly",
+      "temporal_rule": "retrospective",
+      "grace_period": "15d",
+      "name": "Cryptographic Key Management Log",
+      "description": "Upload the quarterly cryptographic key management log covering key generation, rotation, and retirement",
+      "severity": "high",
+      "accepted_formats": [
+        "pdf",
+        "xlsx",
+        "csv"
+      ],
+      "category": "data_protection",
+      "tsc": "security"
+    },
+    {
+      "id": "architecture_diagram",
+      "control": "CC2.1",
+      "type": "document_upload",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "System Architecture Diagram",
+      "description": "Upload the current system architecture diagram showing major components, data flows, and trust boundaries",
+      "severity": "medium",
+      "accepted_formats": [
+        "pdf",
+        "png",
+        "jpg"
+      ],
+      "category": "configuration_management",
+      "tsc": "security"
+    },
+    {
+      "id": "customer_data_segregation",
+      "control": "C1.1",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Customer Data Segregation Attestation",
+      "description": "Declare that customer data is logically or physically segregated and that controls prevent cross-tenant access",
+      "severity": "high",
+      "declaration_text": "I confirm that customer data is logically or physically segregated, and that access controls are in place to prevent unauthorized cross-tenant data access.",
+      "category": "data_protection",
+      "tsc": "confidentiality"
     }
   ]
 }
