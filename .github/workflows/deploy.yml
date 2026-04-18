@@ -29,16 +29,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install sigcomply CLI
-        run: |
-          curl -sSL https://github.com/sigcomply/sigcomply-cli/releases/latest/download/sigcomply-linux-amd64 -o /usr/local/bin/sigcomply
-          chmod +x /usr/local/bin/sigcomply
-          sigcomply --version
-
       - run: npm ci
-
-      - name: Fetch catalogs
-        run: npm run prebuild
 
       - name: Build
         run: npx vite build
