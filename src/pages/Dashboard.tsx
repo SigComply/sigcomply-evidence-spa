@@ -8,15 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
-import type { EvidenceType } from "@/types/catalog";
 
 const STORAGE_KEY = "sigcomply:framework";
-
-const typeFilters: { value: EvidenceType; label: string }[] = [
-  { value: "document_upload", label: "Upload" },
-  { value: "checklist", label: "Checklist" },
-  { value: "declaration", label: "Declaration" },
-];
 
 const frequencyFilters = ["daily", "weekly", "monthly", "quarterly", "yearly"] as const;
 
@@ -34,9 +27,13 @@ export function Dashboard() {
   const { catalog, loading, error } = useCatalog(framework);
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<EvidenceType | null>(null);
   const [frequencyFilter, setFrequencyFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  const declarationEntries = useMemo(
+    () => catalog?.entries.filter((e) => e.type === "declaration") ?? [],
+    [catalog]
+  );
 
   const handleFrameworkChange = useCallback((value: string) => {
     setFramework(value);
@@ -49,20 +46,16 @@ export function Dashboard() {
   }, [handleFrameworkChange]);
 
   const categories = useMemo(() => {
-    if (!catalog) return [] as string[];
     const unique = new Set(
-      catalog.entries.map((e) => e.category).filter((c): c is string => Boolean(c))
+      declarationEntries.map((e) => e.category).filter((c): c is string => Boolean(c))
     );
     return Array.from(unique).sort();
-  }, [catalog]);
+  }, [declarationEntries]);
 
   const filteredEntries = useMemo(() => {
-    if (!catalog) return [];
-
     const query = search.toLowerCase().trim();
 
-    return catalog.entries.filter((entry) => {
-      if (typeFilter && entry.type !== typeFilter) return false;
+    return declarationEntries.filter((entry) => {
       if (frequencyFilter && entry.frequency !== frequencyFilter) return false;
       if (categoryFilter && entry.category !== categoryFilter) return false;
       if (query) {
@@ -72,24 +65,23 @@ export function Dashboard() {
       }
       return true;
     });
-  }, [catalog, search, typeFilter, frequencyFilter, categoryFilter]);
+  }, [declarationEntries, search, frequencyFilter, categoryFilter]);
 
   const stats = useMemo(() => {
-    if (!catalog) return null;
-    const entries = catalog.entries;
+    if (declarationEntries.length === 0) return null;
     const bySeverity: Record<string, number> = {};
     let optionalCount = 0;
-    for (const e of entries) {
+    for (const e of declarationEntries) {
       if (e.optional) {
         optionalCount++;
       } else {
         bySeverity[e.severity] = (bySeverity[e.severity] ?? 0) + 1;
       }
     }
-    return { total: entries.length, bySeverity, optionalCount };
-  }, [catalog]);
+    return { total: declarationEntries.length, bySeverity, optionalCount };
+  }, [declarationEntries]);
 
-  const hasActiveFilters = search || typeFilter || frequencyFilter || categoryFilter;
+  const hasActiveFilters = search || frequencyFilter || categoryFilter;
 
   return (
     <div className="space-y-4">
@@ -102,9 +94,9 @@ export function Dashboard() {
       {/* Header row: title + search + framework */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Manual Evidence</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Declarations</h2>
           <p className="text-muted-foreground text-sm">
-            Compliance evidence collection
+            Compliance declarations requiring user attestation
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -128,19 +120,6 @@ export function Dashboard() {
       {/* Filters */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {typeFilters.map((t) => (
-            <Badge
-              key={t.value}
-              variant={typeFilter === t.value ? "default" : "outline"}
-              className="cursor-pointer text-xs"
-              onClick={() => setTypeFilter(typeFilter === t.value ? null : t.value)}
-            >
-              {t.label}
-            </Badge>
-          ))}
-
-          <span className="w-px h-4 bg-border mx-1" />
-
           {frequencyFilters.map((f) => (
             <Badge
               key={f}
@@ -159,7 +138,6 @@ export function Dashboard() {
                 className="text-xs text-muted-foreground hover:text-foreground underline"
                 onClick={() => {
                   setSearch("");
-                  setTypeFilter(null);
                   setFrequencyFilter(null);
                   setCategoryFilter(null);
                 }}
@@ -190,7 +168,7 @@ export function Dashboard() {
       {/* Stats bar */}
       {stats && (
         <p className="text-xs text-muted-foreground">
-          {stats.total} entries
+          {stats.total} declarations
           {Object.entries(stats.bySeverity)
             .sort(([, a], [, b]) => b - a)
             .map(([severity, count]) => ` · ${count} ${severity}`)}
@@ -217,7 +195,7 @@ export function Dashboard() {
         <>
           {hasActiveFilters && catalog && (
             <p className="text-xs text-muted-foreground">
-              {filteredEntries.length} of {catalog.entries.length} entries
+              {filteredEntries.length} of {declarationEntries.length} declarations
             </p>
           )}
 
@@ -225,7 +203,9 @@ export function Dashboard() {
 
           {filteredEntries.length === 0 && catalog && (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              No evidence entries match your filters.
+              {declarationEntries.length === 0
+                ? "No declaration-based controls in this framework."
+                : "No declarations match your filters."}
             </p>
           )}
         </>

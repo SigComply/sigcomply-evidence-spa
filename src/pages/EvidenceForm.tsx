@@ -6,12 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DocumentUploadForm } from "@/components/forms/DocumentUploadForm";
-import { ChecklistForm } from "@/components/forms/ChecklistForm";
 import { DeclarationForm } from "@/components/forms/DeclarationForm";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useEvidenceForm } from "@/hooks/useEvidenceForm";
-import { ArrowLeft, Download, CheckCircle2, Upload, Pencil } from "lucide-react";
+import { ArrowLeft, Download, CheckCircle2, Pencil } from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
 
 export function EvidenceForm() {
@@ -39,12 +37,14 @@ export function EvidenceForm() {
 
   const entry = catalog?.entries.find((e) => e.id === evidenceId);
 
-  if (!entry) {
+  if (!entry || entry.type !== "declaration") {
     return (
       <div className="mx-auto max-w-2xl space-y-4">
         <BackButton />
         <p className="text-sm text-muted-foreground py-8 text-center">
-          Evidence entry not found.
+          {!entry
+            ? "Evidence entry not found."
+            : "This evidence is uploaded directly to your storage bucket — no declaration form needed."}
         </p>
       </div>
     );
@@ -107,13 +107,6 @@ function EvidenceFormContent({
                 {form.uploadPath}
               </code>
 
-              {entry.type === "document_upload" && (
-                <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <Upload className="h-4 w-4 mt-0.5 shrink-0" />
-                  <p>Place your supporting documents in the same folder.</p>
-                </div>
-              )}
-
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" size="sm" onClick={() => form.setDownloadSuccess(false)}>
                   <Pencil className="mr-1.5 h-3.5 w-3.5" />
@@ -160,26 +153,11 @@ function EvidenceFormContent({
 
       {/* Form content */}
       <div className="rounded-lg border bg-card p-6 space-y-6">
-        {entry.type === "document_upload" && (
-          <DocumentUploadForm entry={entry} />
-        )}
-
-        {entry.type === "checklist" && (
-          <ChecklistForm
-            entry={entry}
-            checklistItems={form.checklistItems}
-            setChecklistItem={form.setChecklistItem}
-            setChecklistNotes={form.setChecklistNotes}
-          />
-        )}
-
-        {entry.type === "declaration" && (
-          <DeclarationForm
-            entry={entry}
-            accepted={form.accepted}
-            setAccepted={form.setAccepted}
-          />
-        )}
+        <DeclarationForm
+          entry={entry}
+          accepted={form.accepted}
+          setAccepted={form.setAccepted}
+        />
 
         <Separator />
 
