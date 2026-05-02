@@ -1,6 +1,8 @@
 # SigComply Evidence SPA — Claude Context
 
-Static React SPA that renders manual-evidence forms. Users fill in a checklist / declaration / document-upload form, download an `evidence.json`, and upload it (plus any supporting files) to their own storage bucket. The CLI picks it up on the next run.
+Static React SPA that renders **declaration forms only**. The user accepts a declaration, downloads an `evidence.json`, and uploads it to their own storage bucket. The CLI picks it up on the next run.
+
+Document/screenshot evidence does NOT flow through this SPA — customers upload PDFs/images directly into their evidence bucket. The SPA exists only for controls that require a structured user attestation with no underlying file.
 
 This app has **no backend** — it only reads a pre-built catalog JSON and writes JSON files to the user's disk via browser download.
 
@@ -47,7 +49,7 @@ src/
   components/
     layout/                ← AppLayout, Header
     dashboard/             ← EvidenceList, FrameworkSelector, FrameworkPickerDialog, StatusBadge
-    forms/                 ← DocumentUploadForm, ChecklistForm, DeclarationForm
+    forms/                 ← DeclarationForm  (only declarations are rendered)
     common/LoadingSpinner.tsx
     ui/                    ← shadcn primitives — do NOT hand-edit; regenerate via `npx shadcn add <name>`
   types/
@@ -62,8 +64,8 @@ src/
 
 1. **Build time** — `prebuild` runs `scripts/fetch-catalogs.ts`, which shells out to `sigcomply evidence catalog --framework <fw>` and writes `src/data/catalogs/{fw}.json`. Also fetches `schema.json` via `sigcomply evidence schema`. Vite then emits these into `dist/data/catalogs/`.
 2. **App start** — `main.tsx` calls `loadConfig()` which fetches `/config.json` (frameworks available, storage prefix). Cached on module.
-3. **Dashboard** — reads `getConfig().frameworks`, picks one (from localStorage or picker dialog), calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`.
-4. **Evidence form** — `useEvidenceForm` manages form state, validates on submit, calls `downloadJson()` to trigger a browser download of `evidence.json`, then shows the upload-path instructions screen.
+3. **Dashboard** — reads `getConfig().frameworks`, picks one (from localStorage or picker dialog), calls `useCatalog(framework)`, and **filters the catalog to `evidence_type === "declaration"`**. Document-upload and checklist entries are hidden from the UI; the CLI catalog command still emits them so other tooling can see what exists.
+4. **Evidence form** — only renders for declaration entries. `useEvidenceForm` manages accept/completed-by state, validates on submit, calls `downloadJson()` to trigger a browser download of `evidence.json`, then shows the upload-path instructions screen. A guard in `EvidenceForm` redirects any non-declaration `evidenceId` with a "uploaded directly to your bucket" message.
 
 Flow is one-way: catalog → form → downloaded JSON. **Nothing is ever uploaded from the browser.** The user moves the file to their own bucket manually (or via any tool they like).
 
@@ -120,7 +122,8 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 ## Conventions
 
 - **Add a UI primitive** → `npx shadcn add <name>` (writes to `src/components/ui/`). Do not hand-author.
-- **Add a new form type** → add component under `src/components/forms/`, wire it in `pages/EvidenceForm.tsx`'s type switch, extend `useEvidenceForm` state + validate + submit branches, update `SubmittedEvidence` type if the output shape changes.
+- **Add a new declaration entry** → it comes from the CLI catalog automatically; nothing to add here.
+- **Need a new evidence-input flow that isn't a declaration?** → first ask whether the evidence already exists as a file (PDF/screenshot). If yes, the customer should upload it directly to the bucket — do NOT add a new form type to this SPA. The SPA is intentionally scoped to declarations only.
 - **Add a new framework** → list it in `public/config.json` `frameworks` and in `scripts/fetch-catalogs.ts`. Catalog JSON is sourced from the CLI, not hand-written.
 - **localStorage keys** — namespaced `sigcomply:*` (e.g. `sigcomply:framework`, `sigcomply:completed-by`). Keep that prefix.
 - **Imports** — use `@/…` not relative `../../`.

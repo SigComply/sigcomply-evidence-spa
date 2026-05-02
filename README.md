@@ -1,6 +1,8 @@
 # sigcomply-evidence-spa
 
-Static React SPA for collecting **manual compliance evidence** — the human-input half of [SigComply](https://github.com/SigComply). Renders forms for checklists, declarations, and document uploads; produces an `evidence.json` the user uploads to their own storage bucket, where the SigComply CLI picks it up on the next run.
+Static React SPA for collecting **compliance declarations** — controls that require a structured user attestation but have no underlying evidence file. The SPA renders a declaration form, produces an `evidence.json` the user uploads to their own storage bucket, and the SigComply CLI picks it up on the next run.
+
+PDFs, screenshots, and other document evidence do not flow through this SPA — customers upload those files directly to their evidence bucket.
 
 There is no backend. Nothing is sent to a server. The browser only reads a pre-built catalog and triggers a file download.
 
