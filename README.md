@@ -47,24 +47,9 @@ Deploys can override `config.json` in the hosting bucket without rebuilding.
 
 ## How it fits
 
-```
-User attestation (declaration / checklist)
-  └─ fills form ──▶ SPA renders evidence.pdf via @react-pdf/renderer
-                          │
-                          ▼
-                Customer's S3 / GCS / local at:
-                {prefix}/{framework}/{evidence_id}/{period}/evidence.pdf
-                          ▲
-                          │  (or: customer uploads own PDF directly for
-                          │   externally-sourced evidence — type: document_upload)
-                          │
-                          ▼
-                  sigcomply CLI (CI/CD)
-                  reads, hashes, mirrors, evaluates,
-                  attests, submits results
-```
+The user fills a form here → SPA renders `evidence.pdf` → user uploads to `{prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run, hashes it, evaluates the policy, and submits aggregated results to the Compliance Dashboard.
 
-See `CLAUDE.md` in this repo for development conventions and the cross-repo contracts.
+See [`CLAUDE.md`](CLAUDE.md) for development conventions, cross-repo contracts, and the wider product architecture.
 
 ## Stack
 

@@ -1,12 +1,36 @@
 # SigComply Evidence SPA — Claude Context
 
+## Product Overview
+
+**SigComply** is an open-source, zero-trust, non-custodial compliance engine — "Evidence without Access." It enables SOC 2 / ISO 27001 / HIPAA readiness without granting third-party vendors access to production data or infrastructure.
+
+The product spans **4 logical components across 5 repositories**, all cloned as siblings under the same parent directory. Full architecture: [parent CLAUDE.md](../CLAUDE.md).
+
+1. **The Engine (CLI)** — Go binary that runs in customer CI/CD; executes OPA/Rego policies; collects and signs evidence locally.
+   - Local: `../sigcomply-cli/`
+   - Origin: `git@github.com:SigComply/sigcomply-cli.git`
+
+2. **The Compliance Dashboard (Web App)** — Rails 8.1.1 / Ruby 3.3.6. Stores only aggregated policy results (counts, scores). Never raw evidence, never PII.
+   - Local: `../sigcomply/`
+   - Origin: `git@github.com:SigComply/sigcomply.git`
+
+3. **Manual Evidence SPA** — React 19 + TypeScript + Vite. Static helper that lets users produce PDFs for declaration/checklist forms. No backend. **(this repo)**
+   - Local: `./` (this repo)
+   - Origin: `git@github.com:SigComply/sigcomply-evidence-spa.git`
+
+4. **CLI E2E Testing** — Two repos that simulate real customers running the CLI in CI against test-org credentials.
+   - GitHub Actions: `../sigcomply-cli-testing-project-github/` · `git@github.com:SigComply/sigcomply-cli-testing-project-github.git`
+   - GitLab CI: `../sigcomply-cli-testing-project-gitlab/` · `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git`
+
+---
+
+## This Repo's Role
+
 Static React SPA that helps users produce **manual-evidence PDFs** for catalog entries that are user attestations. The user fills in a declaration or a checklist form, the SPA renders a PDF in the browser via `@react-pdf/renderer`, and the user downloads `evidence.pdf` and uploads it to their storage bucket. The CLI picks it up on the next run.
 
 This app has **no backend** — it only reads a pre-built catalog JSON and writes PDF files to the user's disk via browser download.
 
 **Scope** — the SPA is a *utility* for user-attestation entries: anything where the user's contribution is a sign-off (single statement → catalog `type: declaration`) or a multi-step sign-off (catalog `type: checklist`). A checklist is conceptually a multi-point declaration; both flow through the same form pipeline and produce the same shape of PDF. For evidence sourced externally (HR exports, training certificates, scanned documents, anything with `type: document_upload`) the user produces the PDF themselves; the SPA does not render a form — those entries are filtered out of the dashboard.
-
-Parent context: [../CLAUDE.md](../CLAUDE.md) — product overview and cross-repo contracts.
 
 ---
 
