@@ -39,12 +39,6 @@ function main() {
     }
   }
 
-  console.log("Fetching schema...");
-  const schema = run("sigcomply evidence schema");
-  JSON.parse(schema); // validate
-  writeFileSync(join(dataDir, "schema.json"), schema + "\n");
-  console.log("  -> src/data/schema.json");
-
   console.log("Done.");
 }
 

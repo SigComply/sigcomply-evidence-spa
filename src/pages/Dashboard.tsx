@@ -13,6 +13,11 @@ const STORAGE_KEY = "sigcomply:framework";
 
 const frequencyFilters = ["daily", "weekly", "monthly", "quarterly", "yearly"] as const;
 
+// Catalog types the SPA renders as a clickable form. Other types
+// (e.g. document_upload) are uploaded directly by the customer and are
+// hidden from this dashboard.
+const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
+
 function getStoredFramework(available: string[]): string | null {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored && available.includes(stored)) return stored;
@@ -31,7 +36,7 @@ export function Dashboard() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const declarationEntries = useMemo(
-    () => catalog?.entries.filter((e) => e.type === "declaration") ?? [],
+    () => catalog?.entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type)) ?? [],
     [catalog]
   );
 
@@ -94,9 +99,9 @@ export function Dashboard() {
       {/* Header row: title + search + framework */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Declarations</h2>
+          <h2 className="text-2xl font-bold tracking-tight">User attestations</h2>
           <p className="text-muted-foreground text-sm">
-            Compliance declarations requiring user attestation
+            Declarations and checklists that require user sign-off — produces evidence.pdf
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -168,7 +173,7 @@ export function Dashboard() {
       {/* Stats bar */}
       {stats && (
         <p className="text-xs text-muted-foreground">
-          {stats.total} declarations
+          {stats.total} attestations
           {Object.entries(stats.bySeverity)
             .sort(([, a], [, b]) => b - a)
             .map(([severity, count]) => ` · ${count} ${severity}`)}
@@ -195,7 +200,7 @@ export function Dashboard() {
         <>
           {hasActiveFilters && catalog && (
             <p className="text-xs text-muted-foreground">
-              {filteredEntries.length} of {declarationEntries.length} declarations
+              {filteredEntries.length} of {declarationEntries.length} attestations
             </p>
           )}
 
@@ -204,8 +209,8 @@ export function Dashboard() {
           {filteredEntries.length === 0 && catalog && (
             <p className="text-sm text-muted-foreground py-8 text-center">
               {declarationEntries.length === 0
-                ? "No declaration-based controls in this framework."
-                : "No declarations match your filters."}
+                ? "No user-attestation controls in this framework."
+                : "No attestations match your filters."}
             </p>
           )}
         </>
