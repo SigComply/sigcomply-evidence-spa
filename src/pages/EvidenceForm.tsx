@@ -7,10 +7,16 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeclarationForm } from "@/components/forms/DeclarationForm";
+import { ChecklistForm } from "@/components/forms/ChecklistForm";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useEvidenceForm } from "@/hooks/useEvidenceForm";
 import { ArrowLeft, Download, CheckCircle2, Pencil } from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
+
+// SPA-renderable types: a user-attestation form the SPA produces a PDF for.
+// Other catalog types (e.g. document_upload) are external — the user supplies
+// the PDF themselves and uploads it to the same storage path.
+const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
 export function EvidenceForm() {
   const { framework = "", evidenceId = "" } = useParams();
@@ -37,14 +43,14 @@ export function EvidenceForm() {
 
   const entry = catalog?.entries.find((e) => e.id === evidenceId);
 
-  if (!entry || entry.type !== "declaration") {
+  if (!entry || !SPA_RENDERABLE_TYPES.has(entry.type)) {
     return (
       <div className="mx-auto max-w-2xl space-y-4">
         <BackButton />
         <p className="text-sm text-muted-foreground py-8 text-center">
           {!entry
             ? "Evidence entry not found."
-            : "This evidence is uploaded directly to your storage bucket — no declaration form needed."}
+            : "This evidence is uploaded directly to your storage bucket — produce the PDF yourself and upload to the path shown on the dashboard."}
         </p>
       </div>
     );
@@ -79,9 +85,9 @@ function EvidenceFormContent({
   const form = useEvidenceForm(entry, framework);
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setError(null);
-    const err = form.submit();
+    const err = await form.submit();
     if (err) setError(err);
   }
 
@@ -97,7 +103,7 @@ function EvidenceFormContent({
             </div>
             <div className="space-y-4 flex-1 min-w-0">
               <div>
-                <h2 className="text-lg font-semibold">evidence.json downloaded</h2>
+                <h2 className="text-lg font-semibold">evidence.pdf downloaded</h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Upload it to your storage at:
                 </p>
@@ -140,6 +146,9 @@ function EvidenceFormContent({
             {entry.control}
           </Badge>
           <Badge variant="outline" className="text-xs capitalize">
+            {entry.type}
+          </Badge>
+          <Badge variant="outline" className="text-xs capitalize">
             {entry.frequency}
           </Badge>
           <Badge variant="outline" className="text-xs font-mono">
@@ -153,11 +162,19 @@ function EvidenceFormContent({
 
       {/* Form content */}
       <div className="rounded-lg border bg-card p-6 space-y-6">
-        <DeclarationForm
-          entry={entry}
-          accepted={form.accepted}
-          setAccepted={form.setAccepted}
-        />
+        {entry.type === "declaration" ? (
+          <DeclarationForm
+            entry={entry}
+            accepted={form.accepted}
+            setAccepted={form.setAccepted}
+          />
+        ) : (
+          <ChecklistForm
+            entry={entry}
+            items={form.items}
+            setItem={form.setItem}
+          />
+        )}
 
         <Separator />
 
@@ -176,9 +193,9 @@ function EvidenceFormContent({
         )}
 
         <div className="flex justify-end pt-2">
-          <Button onClick={handleSubmit} size="lg">
+          <Button onClick={handleSubmit} size="lg" disabled={form.submitting}>
             <Download className="mr-2 h-4 w-4" />
-            Download evidence.json
+            {form.submitting ? "Generating PDF…" : "Download evidence.pdf"}
           </Button>
         </div>
       </div>
