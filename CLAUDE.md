@@ -6,13 +6,13 @@ Full product architecture (engine, dashboard, two flows, privacy invariants) liv
 
 The five SigComply repos are cloned as siblings under the same parent directory:
 
-| Repo | Local | Origin |
-|------|-------|--------|
-| Engine (Go CLI) | `../sigcomply-cli/` | `git@github.com:SigComply/sigcomply-cli.git` |
-| Compliance Dashboard (Rails) | `../sigcomply/` | `git@github.com:SigComply/sigcomply.git` |
-| Manual Evidence SPA (this repo) | `./` | `git@github.com:SigComply/sigcomply-evidence-spa.git` |
-| E2E — GitHub | `../sigcomply-cli-testing-project-github/` | `git@github.com:SigComply/sigcomply-cli-testing-project-github.git` |
-| E2E — GitLab | `../sigcomply-cli-testing-project-gitlab/` | `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git` |
+| Repo | Goal | Local | Origin |
+|------|------|-------|--------|
+| Engine (Go CLI) | Runs OPA/Rego policies locally in customer CI/CD; signs evidence to the customer's own bucket — raw evidence never leaves their environment. | `../sigcomply-cli/` | `git@github.com:SigComply/sigcomply-cli.git` |
+| Compliance Dashboard (Rails) | Receives only aggregated counts/scores from the CLI; powers customer & auditor dashboards. No raw evidence, no PII. | `../sigcomply/` | `git@github.com:SigComply/sigcomply.git` |
+| Manual Evidence SPA (this repo) | Static helper that turns declaration/checklist forms into PDFs and verifies CLI-signed envelopes in-browser. No backend. | `./` | `git@github.com:SigComply/sigcomply-evidence-spa.git` |
+| E2E — GitHub | Simulated customer repo that runs the full CLI pipeline in GitHub Actions against test-org credentials. | `../sigcomply-cli-testing-project-github/` | `git@github.com:SigComply/sigcomply-cli-testing-project-github.git` |
+| E2E — GitLab | Simulated customer repo that runs the full CLI pipeline in GitLab CI against test-org credentials. | `../sigcomply-cli-testing-project-gitlab/` | `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git` |
 
 ---
 
