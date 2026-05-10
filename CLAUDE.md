@@ -18,14 +18,16 @@ The five SigComply repos are cloned as siblings under the same parent directory:
 
 ## This Repo's Role
 
+This SPA is a **purely optional helper utility**. The CLI does not talk to it, depend on it, or require it — every piece of manual evidence can be produced and uploaded without this app ever being opened. It is off the end-to-end compliance pipeline; it just makes a subset of manual entries (the click-through ones) easier to fill in a browser.
+
 Two unrelated, fully client-side features served from the same Vite SPA:
 
-1. **Evidence form → PDF** (`/`, `/evidence/:framework/:evidenceId`) — for catalog entries that are user attestations, the user fills a form, the SPA renders a PDF in the browser via `@react-pdf/renderer`, and the user downloads `evidence.pdf` and uploads it to their storage bucket. The CLI picks it up on the next run.
+1. **Evidence form → PDF** (`/`, `/evidence/:framework/:evidenceId`) — for catalog entries that are user attestations, the user fills a form, the SPA renders a PDF in the browser via `@react-pdf/renderer`, and the user downloads `evidence.pdf` and uploads it to their storage bucket. The CLI picks it up on the next run as it would any other manual PDF.
 2. **Public envelope verifier** (`/verify`) — drops in a CLI-signed `EvidenceEnvelope` JSON (and optionally the matching `evidence.pdf`), verifies the Ed25519 signature with Web Crypto, and re-hashes the PDF to confirm `file_hash`. Auditor-facing; intentionally has no auth and never phones home.
 
 This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to the user's disk via browser download, and verifies envelopes locally. Nothing is ever uploaded to a server.
 
-**Scope of the form generator** — only catalog entries that are user attestations: a single statement (`type: declaration`) or a multi-step sign-off (`type: checklist`). A checklist is conceptually a multi-point declaration; both flow through the same form pipeline and produce the same shape of PDF. For evidence sourced externally (HR exports, training certificates, scanned documents — `type: document_upload`) the user produces the PDF themselves; the SPA hides those from the dashboard.
+**Scope of the form generator** — only catalog entries that are user attestations: a single statement (`type: declaration`) or a multi-step sign-off (`type: checklist`). A checklist is conceptually a multi-point declaration; both flow through the same form pipeline and produce the same shape of PDF. For evidence sourced externally (HR exports, training certificates, scanned documents, signed NDAs from a counterparty — catalog `type: document_upload`) the user produces the PDF themselves and uploads it directly to the storage path; the SPA is not involved and hides those entries from the dashboard. From the CLI's perspective both arrive as the same kind of file at the same path — at evaluator level the only types are `automated` and `manual`, and for manual entries the CLI only checks presence + temporal window. The catalog `type` distinction is a SPA-side template hint, not something the CLI evaluator branches on.
 
 ---
 
