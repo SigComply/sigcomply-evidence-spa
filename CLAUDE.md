@@ -1,36 +1,31 @@
 # SigComply Evidence SPA — Claude Context
 
-## Product Overview
+## Sibling Repos
 
-**SigComply** is an open-source, zero-trust, non-custodial compliance engine — "Evidence without Access." It enables SOC 2 / ISO 27001 / HIPAA readiness without granting third-party vendors access to production data or infrastructure.
+Full product architecture (engine, dashboard, two flows, privacy invariants) lives in the [parent CLAUDE.md](../CLAUDE.md). Don't repeat it here.
 
-The product spans **4 logical components across 5 repositories**, all cloned as siblings under the same parent directory. Full architecture: [parent CLAUDE.md](../CLAUDE.md).
+The five SigComply repos are cloned as siblings under the same parent directory:
 
-1. **The Engine (CLI)** — Go binary that runs in customer CI/CD; executes OPA/Rego policies; collects and signs evidence locally.
-   - Local: `../sigcomply-cli/`
-   - Origin: `git@github.com:SigComply/sigcomply-cli.git`
-
-2. **The Compliance Dashboard (Web App)** — Rails 8.1.1 / Ruby 3.3.6. Stores only aggregated policy results (counts, scores). Never raw evidence, never PII.
-   - Local: `../sigcomply/`
-   - Origin: `git@github.com:SigComply/sigcomply.git`
-
-3. **Manual Evidence SPA** — React 19 + TypeScript + Vite. Static helper that lets users produce PDFs for declaration/checklist forms. No backend. **(this repo)**
-   - Local: `./` (this repo)
-   - Origin: `git@github.com:SigComply/sigcomply-evidence-spa.git`
-
-4. **CLI E2E Testing** — Two repos that simulate real customers running the CLI in CI against test-org credentials.
-   - GitHub Actions: `../sigcomply-cli-testing-project-github/` · `git@github.com:SigComply/sigcomply-cli-testing-project-github.git`
-   - GitLab CI: `../sigcomply-cli-testing-project-gitlab/` · `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git`
+| Repo | Local | Origin |
+|------|-------|--------|
+| Engine (Go CLI) | `../sigcomply-cli/` | `git@github.com:SigComply/sigcomply-cli.git` |
+| Compliance Dashboard (Rails) | `../sigcomply/` | `git@github.com:SigComply/sigcomply.git` |
+| Manual Evidence SPA (this repo) | `./` | `git@github.com:SigComply/sigcomply-evidence-spa.git` |
+| E2E — GitHub | `../sigcomply-cli-testing-project-github/` | `git@github.com:SigComply/sigcomply-cli-testing-project-github.git` |
+| E2E — GitLab | `../sigcomply-cli-testing-project-gitlab/` | `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git` |
 
 ---
 
 ## This Repo's Role
 
-Static React SPA that helps users produce **manual-evidence PDFs** for catalog entries that are user attestations. The user fills in a declaration or a checklist form, the SPA renders a PDF in the browser via `@react-pdf/renderer`, and the user downloads `evidence.pdf` and uploads it to their storage bucket. The CLI picks it up on the next run.
+Two unrelated, fully client-side features served from the same Vite SPA:
 
-This app has **no backend** — it only reads a pre-built catalog JSON and writes PDF files to the user's disk via browser download.
+1. **Evidence form → PDF** (`/`, `/evidence/:framework/:evidenceId`) — for catalog entries that are user attestations, the user fills a form, the SPA renders a PDF in the browser via `@react-pdf/renderer`, and the user downloads `evidence.pdf` and uploads it to their storage bucket. The CLI picks it up on the next run.
+2. **Public envelope verifier** (`/verify`) — drops in a CLI-signed `EvidenceEnvelope` JSON (and optionally the matching `evidence.pdf`), verifies the Ed25519 signature with Web Crypto, and re-hashes the PDF to confirm `file_hash`. Auditor-facing; intentionally has no auth and never phones home.
 
-**Scope** — the SPA is a *utility* for user-attestation entries: anything where the user's contribution is a sign-off (single statement → catalog `type: declaration`) or a multi-step sign-off (catalog `type: checklist`). A checklist is conceptually a multi-point declaration; both flow through the same form pipeline and produce the same shape of PDF. For evidence sourced externally (HR exports, training certificates, scanned documents, anything with `type: document_upload`) the user produces the PDF themselves; the SPA does not render a form — those entries are filtered out of the dashboard.
+This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to the user's disk via browser download, and verifies envelopes locally. Nothing is ever uploaded to a server.
+
+**Scope of the form generator** — only catalog entries that are user attestations: a single statement (`type: declaration`) or a multi-step sign-off (`type: checklist`). A checklist is conceptually a multi-point declaration; both flow through the same form pipeline and produce the same shape of PDF. For evidence sourced externally (HR exports, training certificates, scanned documents — `type: document_upload`) the user produces the PDF themselves; the SPA hides those from the dashboard.
 
 ---
 
@@ -39,7 +34,8 @@ This app has **no backend** — it only reads a pre-built catalog JSON and write
 - React 19 + TypeScript, Vite 8
 - React Router v7 (BrowserRouter)
 - Tailwind v4 + shadcn/ui (Base UI primitives, `base-nova` style)
-- `@react-pdf/renderer` for PDF generation (lazy-loaded behind `/evidence/*` route — ~480 KB gz, kept out of the dashboard bundle)
+- `@react-pdf/renderer` for PDF generation (~400 KB gz, lazy-imported inside the form-submit handler so the dashboard and `/verify` chunks stay light)
+- Web Crypto API (`crypto.subtle`) for Ed25519 envelope verification — no JS crypto library
 - `date-fns` for ISO week math
 - `lucide-react` for icons
 - Path alias: `@/*` → `src/*`
@@ -51,14 +47,15 @@ This app has **no backend** — it only reads a pre-built catalog JSON and write
 ```
 public/
   config.json              ← runtime config (frameworks list, storage prefix)
-  data/catalogs/           ← pre-built catalog JSONs (committed, regenerated at build)
+  data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets
 scripts/
-  fetch-catalogs.ts        ← prebuild: shells out to `sigcomply evidence catalog`
+  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog` to regenerate catalogs
+                              (NOTE: currently writes to src/data/catalogs/ — see Gotchas)
 src/
   main.tsx                 ← loads config.json, mounts <App>
-  App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId"
+  App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
   config/runtime.ts        ← loadConfig() / getConfig() singleton
-  data/index.ts            ← fetchCatalog(framework) — reads /data/catalogs/{fw}.json
+  data/index.ts            ← fetchCatalog(framework) — fetch()es /data/catalogs/{fw}.json from public/
   hooks/
     useCatalog.ts          ← fetches catalog, returns { catalog, loading, error }
     useEvidenceForm.ts     ← form state + validation + lazy PDF render + download
@@ -74,9 +71,13 @@ src/
       shared.tsx           ← <Header>, <Footer>, <MetadataBlock>
       metadata.ts          ← metadataKeywords() — fixed key=value; PDF Info string
       styles.ts            ← StyleSheet.create({...})
+    verification/
+      verify.ts            ← verifyEnvelopeSignature() + sha256Hex() (Web Crypto Ed25519)
+      canonical.ts         ← canonicalJSON() — sorted keys, HTML-safe escapes, matches CLI exactly
   pages/
     Dashboard.tsx          ← attestation list (declaration + checklist), filters, framework picker
     EvidenceForm.tsx       ← per-entry form + download-success screen
+    Verify.tsx             ← public auditor-facing envelope verifier (drag-drop JSON + optional PDF)
     NotFound.tsx
   components/
     layout/                ← AppLayout, Header
@@ -87,6 +88,7 @@ src/
   types/
     catalog.ts             ← CatalogEntry, ChecklistItem, EvidenceType, Frequency
     pdf-input.ts           ← PdfInput (input shape for renderEvidencePdf)
+    envelope.ts            ← EvidenceEnvelope, SignedPayload, Signature, ManualManifest (mirrors CLI)
     config.ts              ← RuntimeConfig
 ```
 
@@ -94,12 +96,25 @@ src/
 
 ## How Data Flows
 
-1. **Build time** — `prebuild` runs `scripts/fetch-catalogs.ts`, which shells out to `sigcomply evidence catalog --framework <fw>` and writes `src/data/catalogs/{fw}.json`. Vite then emits these into `dist/data/catalogs/`. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
+### Form → PDF flow
+
+1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw>`). There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
 2. **App start** — `main.tsx` calls `loadConfig()` which fetches `/config.json` (frameworks available, storage prefix). Cached on module.
 3. **Dashboard** — reads `getConfig().frameworks`, picks one (from localStorage or picker dialog), calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`, then **filters the catalog to the SPA-renderable types** (`declaration` and `checklist`). `document_upload` entries are hidden — the customer produces those PDFs externally.
 4. **Evidence form** — for `declaration` and `checklist` entries, `useEvidenceForm` manages form state, validates on submit, lazy-imports `@/lib/pdf/render`, calls `renderEvidencePdf(input)` to produce a `Blob`, calls `downloadBlob(blob, "evidence.pdf")`, then shows the upload-path instructions screen. For any other type, `EvidenceForm` shows a "uploaded directly to your bucket" message instead of rendering a form.
 
 Flow is one-way: catalog → form → downloaded PDF. **Nothing is ever uploaded from the browser.** The user moves the file to their own bucket manually (or via any tool they like).
+
+### Verify flow (`/verify`)
+
+Independent of the form generator. The user (typically an auditor) supplies an `EvidenceEnvelope` JSON file and optionally the matching `evidence.pdf`:
+
+1. `Verify.tsx` parses the JSON, calls `isEvidenceEnvelope()` to type-guard it, then `verifyEnvelopeSignature()` from `lib/verification/verify.ts`.
+2. `canonicalJSON(envelope.signed)` (sorted keys at every nesting, HTML-safe `<`/`>`/`&` escapes — matches the CLI's `internal/core/attestation/canonical.go` byte-for-byte) produces the bytes that were signed.
+3. `crypto.subtle.importKey("raw", publicKey, { name: "Ed25519" }, …)` then `crypto.subtle.verify` validates the 64-byte signature against those bytes. Requires Chrome 113+, Safari 17+, or Firefox 130+.
+4. If `signed.evidence.file_hash` is present (manual flow), `getManualManifest()` extracts it; the user can then drop in the PDF and the page re-hashes it via SHA-256 and compares.
+
+No network calls. No PII leaves the browser.
 
 ---
 
@@ -123,13 +138,18 @@ These are the only cross-repo contracts. Break them at your peril.
 
 | What | Shape | Producer | Consumer |
 |------|-------|----------|----------|
-| Catalog JSON | `Catalog` in `src/types/catalog.ts` | `sigcomply-cli` (`evidence catalog`) | this SPA |
-| PDF filename | `evidence.pdf` (strict lowercase, fixed; see `EVIDENCE_PDF_FILENAME`) | this SPA | CLI `internal/data_sources/manual/reader.go` |
-| Storage path | `{prefix}/{framework}/{evidenceId}/{period}/evidence.pdf` | `src/lib/storage-path.ts` | CLI `internal/data_sources/manual/reader.go` |
-| Period key format | `2026`, `2026-Q1`, `2026-03`, `2026-W14`, `2026-04-18` | `src/lib/period.ts` | CLI `internal/core/manual/period.go` |
-| PDF metadata anchors | `keywords` Info field as `key=value; …` (see `metadataKeywords()`) | this SPA | future CLI text-extraction policies |
+| Catalog JSON | `Catalog` in `src/types/catalog.ts` ↔ `Catalog` in CLI `internal/core/manual/catalog.go` | CLI `evidence catalog` subcommand | this SPA |
+| Evidence types | `declaration` \| `checklist` \| `document_upload` | CLI catalog | this SPA filters dashboard to declaration + checklist |
+| Frequency values | `daily` \| `weekly` \| `monthly` \| `quarterly` \| `yearly` | CLI catalog | both, drives `currentPeriod()` |
+| PDF filename | `evidence.pdf` (strict lowercase, fixed; `EVIDENCE_PDF_FILENAME`) ↔ CLI `EvidencePDFFilename` in `internal/core/manual/manual.go` | this SPA | CLI `internal/data_sources/manual/reader.go` |
+| Path template | `{framework}/{evidence_id}/{period}/{filename}` (CLI default in `internal/core/manual/path.go`). The SPA additionally prepends `config.storage.prefix` when displaying the upload path; the CLI doesn't know about that prefix — it's resolved per-framework by the storage backend (`manual_evidence.frameworks.<framework>` config). | this SPA (display) / CLI (lookup) | mutual |
+| Period key format | `2026`, `2026-Q1`, `2026-03`, `2026-W14`, `2026-04-18` | `src/lib/period.ts` ↔ CLI `internal/core/manual/period.go` | mutual |
+| PDF metadata anchors | `keywords` Info field as `key=value; …` (see `metadataKeywords()`) | this SPA | future CLI text-extraction policies (CLI v1 doesn't parse PDF contents) |
+| EvidenceEnvelope shape | `src/types/envelope.ts` ↔ CLI `internal/core/attestation/types.go` | CLI signing | this SPA's `/verify` |
+| Canonical JSON for signing | sorted keys at every level; HTML-safe escapes (`<` → `<`, `>` → `>`, `&` → `&`, matching Go's default `json.Marshal`); no whitespace | CLI `internal/core/attestation/canonical.go` | `src/lib/verification/canonical.ts` must match byte-for-byte |
+| Signature scheme | Ed25519 (RFC 8032), 32-byte raw public key + 64-byte signature, both base64-encoded; `signature.algorithm: "ed25519"` | CLI `internal/core/attestation/ed25519.go` | this SPA's `verifyEnvelopeSignature` (Web Crypto) |
 
-If the catalog `Catalog` shape changes, update the Go types in `sigcomply-cli` in the same PR. The catalog still carries `type`, `items`, `declaration_text`, `accepted_formats` — those drive how this SPA renders the form (or whether it can render at all). The CLI ignores them at evaluation time.
+If the `Catalog` shape changes, update the Go types in `sigcomply-cli` in the same PR. The catalog still carries `type`, `items`, `declaration_text`, `accepted_formats` — those drive how this SPA renders the form (or whether it can render at all). The CLI ignores them at evaluation time. If the envelope shape or canonicalization changes on either side, the verify page silently breaks — keep `canonical.ts` and `canonical.go` in lockstep.
 
 ---
 
@@ -151,14 +171,14 @@ Missing `config.json` → falls back to the default in `src/config/runtime.ts`. 
 ## Commands
 
 ```bash
-npm run dev              # vite dev server (no prebuild — uses committed catalogs)
-npm run fetch-catalogs   # regenerate src/data/catalogs/*.json from local sigcomply CLI
+npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json
+npm run fetch-catalogs   # regenerate catalogs from the local sigcomply CLI (see Gotchas)
 npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build
 npm run lint             # eslint
 npm run preview          # serve dist/
 ```
 
-`fetch-catalogs` requires `sigcomply` on PATH. If unavailable, use the pre-committed JSONs in `src/data/catalogs/`.
+`fetch-catalogs` requires `sigcomply` on PATH. If unavailable, the committed `public/data/catalogs/*.json` files are sufficient for both `dev` and `preview`.
 
 Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a subpath.
 
@@ -173,7 +193,8 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - **localStorage keys** — namespaced `sigcomply:*` (e.g. `sigcomply:framework`, `sigcomply:completed-by`). Keep that prefix.
 - **Imports** — use `@/…` not relative `../../`.
 - **No data fetching libraries** — plain `fetch` + `useEffect` is enough here; don't introduce React Query / SWR for two endpoints.
-- **Lazy-load `@react-pdf/renderer`** — it's the heaviest dependency (~480 KB gz). Always import the renderer dynamically inside the submit handler (see `useEvidenceForm.submit`), not at module top, so the dashboard route stays light. Vite splits it into its own chunk automatically.
+- **Lazy-load `@react-pdf/renderer`** — it's the heaviest dependency (~400 KB gz). Always import the renderer dynamically inside the submit handler (see `useEvidenceForm.submit`), not at module top, so neither the dashboard nor the `/verify` route pay for it. Vite splits it into its own chunk automatically.
+- **Verifier crypto stays in Web Crypto** — don't pull in `noble-ed25519`, `tweetnacl`, or any JS Ed25519 implementation. The verifier must use `crypto.subtle` so the canonicalization + signature path is browser-native (and minimal in code surface). Browser support gating belongs in `verify.ts`, not in a polyfill.
 
 ---
 
@@ -182,6 +203,9 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - `useCatalog` resets `catalog` to `null` in its effect cleanup. Components must handle the loading state even on framework switch — don't assume catalog persists.
 - `currentPeriod()` uses local time, not UTC. Period boundaries are the browser's midnight. This matches CLI behaviour as long as the CI runner's timezone matches the user's — revisit if we hit drift.
 - Catalog fetch is cached in `catalogCache` Map (module-level). Hard refresh clears it.
-- `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or pre-commit the catalog JSONs and skip the prebuild.
+- `scripts/fetch-catalogs.ts` currently writes to `src/data/catalogs/`, which is **not** where the runtime fetches from (`fetchCatalog` reads `/data/catalogs/...` i.e. `public/data/catalogs/`). The committed `public/data/catalogs/*.json` is the only source-of-truth at runtime. Treat the script as stale until it's pointed at `public/data/catalogs/` — for now, regenerating catalogs requires manually moving the output, or invoking `sigcomply evidence catalog --framework <fw> -o json > public/data/catalogs/<fw>.json` directly.
+- `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or rely on the pre-committed `public/data/catalogs/*.json` and skip the prebuild.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
 - `@react-pdf/renderer` bundles `pdfkit` + `fontkit` and is large. Always lazy-load.
+- `crypto.subtle.importKey("Ed25519")` is the browser-support choke point for `/verify`. Older Chrome/Safari/Firefox throw `NotSupportedError`. `WebCryptoUnsupportedError` in `verify.ts` surfaces this; the page renders a graceful "upgrade your browser" message rather than a crash.
+- The verifier's `canonical.ts` mirrors Go's default `json.Marshal` HTML-escaping (`<` → `<`, `>` → `>`, `&` → `&`). If the CLI ever switches to `json.Encoder` with `SetEscapeHTML(false)`, signature verification will silently break for any payload containing `<`, `>`, or `&`. Keep the two implementations in sync.
