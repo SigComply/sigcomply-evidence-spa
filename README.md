@@ -5,7 +5,7 @@ Static React SPA that ships two unrelated, fully client-side features for [SigCo
 1. **Evidence form → PDF** — for catalog entries that are user attestations (single-statement `declaration` or multi-step `checklist`), the SPA renders a form, generates an `evidence.pdf` via `@react-pdf/renderer`, and the user uploads it to their own storage bucket. The SigComply CLI picks it up on the next run.
 2. **Public envelope verifier** at `/verify` — drop in a CLI-signed `EvidenceEnvelope` JSON (and optionally the matching PDF) to verify the Ed25519 signature and re-hash the file via Web Crypto. Auditor-facing; no auth, no network calls.
 
-The form generator is a *utility*, not the only upload path. Manual evidence sourced externally (HR exports, training certificates, scanned documents — catalog `type: document_upload`) is produced by the user themselves and uploaded directly to the same path; the SPA does not render forms for those.
+The form generator is a *purely optional utility*, not part of the CLI's end-to-end workflow. The SigComply CLI never talks to this SPA. Users can collect every piece of manual evidence — including declarations and checklists — without ever opening this app, by producing the PDF themselves and uploading it directly to the storage path. The SPA simply makes declaration- and checklist-style entries clickable in a browser. Manual evidence sourced externally (HR exports, training certificates, scanned documents, signed NDAs, etc.) is always produced by the user themselves and uploaded directly to the same path; the SPA does not render forms for those.
 
 There is no backend. Nothing is sent to a server. The browser only reads a pre-built catalog, triggers a file download, and verifies envelopes locally.
 
@@ -50,7 +50,7 @@ Deploys can override `config.json` in the hosting bucket without rebuilding.
 
 ## How it fits
 
-The user fills a form here → SPA renders `evidence.pdf` → user uploads to `{prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run, hashes it, evaluates the policy, and submits aggregated results to the Compliance Dashboard.
+This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → user uploads to `{prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. Users who skip the SPA upload the same `evidence.pdf` to the same path themselves; the CLI sees no difference.
 
 See [`CLAUDE.md`](CLAUDE.md) for development conventions, cross-repo contracts, and the wider product architecture.
 
