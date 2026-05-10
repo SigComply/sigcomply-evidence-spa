@@ -24,8 +24,6 @@ Open http://localhost:5173.
 npm run fetch-catalogs
 ```
 
-(See `CLAUDE.md` § Gotchas — the script currently writes to `src/data/catalogs/`, which is out of step with the runtime fetch path; copy the output to `public/data/catalogs/` until the script is fixed.)
-
 ## Build
 
 ```bash

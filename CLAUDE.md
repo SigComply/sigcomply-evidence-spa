@@ -49,8 +49,7 @@ public/
   config.json              ← runtime config (frameworks list, storage prefix)
   data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets
 scripts/
-  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog` to regenerate catalogs
-                              (NOTE: currently writes to src/data/catalogs/ — see Gotchas)
+  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, writes public/data/catalogs/{fw}.json
 src/
   main.tsx                 ← loads config.json, mounts <App>
   App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
@@ -172,7 +171,7 @@ Missing `config.json` → falls back to the default in `src/config/runtime.ts`. 
 
 ```bash
 npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json
-npm run fetch-catalogs   # regenerate catalogs from the local sigcomply CLI (see Gotchas)
+npm run fetch-catalogs   # regenerate public/data/catalogs/*.json from the local sigcomply CLI
 npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build
 npm run lint             # eslint
 npm run preview          # serve dist/
@@ -203,7 +202,6 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - `useCatalog` resets `catalog` to `null` in its effect cleanup. Components must handle the loading state even on framework switch — don't assume catalog persists.
 - `currentPeriod()` uses local time, not UTC. Period boundaries are the browser's midnight. This matches CLI behaviour as long as the CI runner's timezone matches the user's — revisit if we hit drift.
 - Catalog fetch is cached in `catalogCache` Map (module-level). Hard refresh clears it.
-- `scripts/fetch-catalogs.ts` currently writes to `src/data/catalogs/`, which is **not** where the runtime fetches from (`fetchCatalog` reads `/data/catalogs/...` i.e. `public/data/catalogs/`). The committed `public/data/catalogs/*.json` is the only source-of-truth at runtime. Treat the script as stale until it's pointed at `public/data/catalogs/` — for now, regenerating catalogs requires manually moving the output, or invoking `sigcomply evidence catalog --framework <fw> -o json > public/data/catalogs/<fw>.json` directly.
 - `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or rely on the pre-committed `public/data/catalogs/*.json` and skip the prebuild.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
 - `@react-pdf/renderer` bundles `pdfkit` + `fontkit` and is large. Always lazy-load.

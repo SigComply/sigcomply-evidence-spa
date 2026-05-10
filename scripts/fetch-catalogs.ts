@@ -4,8 +4,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dataDir = join(__dirname, "..", "src", "data");
-const catalogsDir = join(dataDir, "catalogs");
+const catalogsDir = join(__dirname, "..", "public", "data", "catalogs");
 
 function run(cmd: string): string {
   return execSync(cmd, { encoding: "utf-8" }).trim();
@@ -33,7 +32,7 @@ function main() {
       const json = run(`sigcomply evidence catalog --framework ${fw} -o json`);
       JSON.parse(json); // validate
       writeFileSync(join(catalogsDir, `${fw}.json`), json + "\n");
-      console.log(`  -> src/data/catalogs/${fw}.json`);
+      console.log(`  -> public/data/catalogs/${fw}.json`);
     } catch {
       console.warn(`  ⚠ No manual catalog available for ${fw}, skipping.`);
     }
