@@ -48,6 +48,30 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // `attempted` flips on the first submit press so inline field errors only
+  // appear after the user has tried, not on a pristine form. The errors
+  // themselves are derived every render so they clear as the user fixes them.
+  const [attempted, setAttempted] = useState(false);
+
+  const fieldErrors = (() => {
+    const errors: { completedBy?: string; attestation?: string } = {};
+    if (!completedBy.trim()) errors.completedBy = "Enter who completed this";
+    if (entry.type === "declaration") {
+      if (!accepted)
+        errors.attestation = "You must accept the declaration to continue";
+    } else if (entry.type === "checklist") {
+      const requiredIds = (entry.items ?? [])
+        .filter((i) => i.required)
+        .map((i) => i.id);
+      const checkedIds = new Set(
+        items.filter((i) => i.checked).map((i) => i.id),
+      );
+      if (requiredIds.some((id) => !checkedIds.has(id)))
+        errors.attestation = "Tick every required item (marked *)";
+    }
+    return errors;
+  })();
+
   const validate = useCallback((): string | null => {
     if (!completedBy.trim()) return "Completed by is required";
 
@@ -74,6 +98,7 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   }, [completedBy, accepted, items, entry]);
 
   const submit = useCallback(async (): Promise<string | null> => {
+    setAttempted(true);
     const error = validate();
     if (error) return error;
     if (entry.type !== "declaration" && entry.type !== "checklist") {
@@ -154,6 +179,8 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     validate,
     submit,
     submitting,
+    attempted,
+    fieldErrors,
     downloadSuccess,
     setDownloadSuccess,
     uploadPath,

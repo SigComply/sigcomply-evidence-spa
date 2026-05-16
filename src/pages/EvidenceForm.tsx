@@ -3,14 +3,28 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeclarationForm } from "@/components/forms/DeclarationForm";
 import { ChecklistForm } from "@/components/forms/ChecklistForm";
+import { SeverityBadge } from "@/components/dashboard/StatusBadge";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useEvidenceForm } from "@/hooks/useEvidenceForm";
-import { ArrowLeft, Download, CheckCircle2, Pencil } from "lucide-react";
+import { currentPeriod, formatPeriodRange } from "@/lib/period";
+import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "@/lib/storage-path";
+import { copyText } from "@/lib/clipboard";
+import { getConfig } from "@/config/runtime";
+import {
+  ArrowLeft,
+  Download,
+  CheckCircle2,
+  Pencil,
+  Copy,
+  Check,
+  AlertCircle,
+  CalendarClock,
+  ShieldCheck,
+} from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
 
 // SPA-renderable types: a user-attestation form the SPA produces a PDF for.
@@ -24,36 +38,41 @@ export function EvidenceForm() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
+      <div className="mx-auto max-w-3xl space-y-4">
+        <Skeleton className="h-9 w-28" />
+        <Skeleton className="h-28 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         <BackButton />
-        <p className="text-sm text-destructive">{error}</p>
+        <Callout tone="error" title="Could not load the catalog">
+          {error}
+        </Callout>
       </div>
     );
   }
 
   const entry = catalog?.entries.find((e) => e.id === evidenceId);
 
-  if (!entry || !SPA_RENDERABLE_TYPES.has(entry.type)) {
+  if (!entry) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         <BackButton />
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          {!entry
-            ? "Evidence entry not found."
-            : "This evidence is uploaded directly to your storage bucket — produce the PDF yourself and upload to the path shown on the dashboard."}
-        </p>
+        <Callout tone="error" title="Evidence entry not found">
+          No catalog entry “{evidenceId}” in {framework}. It may have been
+          renamed — go back to the list and pick it again.
+        </Callout>
       </div>
     );
+  }
+
+  if (!SPA_RENDERABLE_TYPES.has(entry.type)) {
+    return <ExternalEvidence entry={entry} framework={framework} />;
   }
 
   return <EvidenceFormContent entry={entry} framework={framework} />;
@@ -61,17 +80,170 @@ export function EvidenceForm() {
 
 function BackButton() {
   const navigate = useNavigate();
-
   return (
     <Button
       variant="ghost"
       size="sm"
-      className="gap-1.5 -ml-2 text-muted-foreground"
+      className="-ml-2 gap-1.5 text-muted-foreground"
       onClick={() => navigate("/")}
     >
       <ArrowLeft className="h-4 w-4" />
       Back to list
     </Button>
+  );
+}
+
+function Callout({
+  tone,
+  title,
+  children,
+}: {
+  tone: "error" | "info";
+  title: string;
+  children: React.ReactNode;
+}) {
+  const isError = tone === "error";
+  return (
+    <div
+      className={[
+        "flex items-start gap-3 rounded-lg border p-4 text-sm",
+        isError
+          ? "border-destructive/30 bg-destructive/5"
+          : "border-border bg-muted/40",
+      ].join(" ")}
+    >
+      <AlertCircle
+        className={[
+          "mt-0.5 h-4 w-4 shrink-0",
+          isError ? "text-destructive" : "text-muted-foreground",
+        ].join(" ")}
+      />
+      <div>
+        <p
+          className={[
+            "font-medium",
+            isError ? "text-destructive" : "text-foreground",
+          ].join(" ")}
+        >
+          {title}
+        </p>
+        <p className="mt-0.5 text-muted-foreground">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+// Section wraps one step of the guided flow with a number + title.
+function Section({
+  step,
+  title,
+  description,
+  children,
+}: {
+  step: number;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border bg-card">
+      <div className="flex items-start gap-3 border-b px-5 py-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          {step}
+        </span>
+        <div>
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {description && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+// CopyField renders a monospace value with a one-click copy button. This is
+// the heart of "keep the upload hop, but make it obvious".
+function CopyField({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  async function onCopy() {
+    if (await copyText(value)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  }
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex items-stretch gap-2">
+        <code className="min-w-0 flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
+          {value}
+        </code>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onCopy}
+          className="shrink-0"
+        >
+          {copied ? (
+            <>
+              <Check className="mr-1.5 h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              Copy
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ExternalEvidence handles entries the SPA does not render a form for (e.g.
+// document_upload — normally filtered out at catalog build time, but reachable
+// by direct URL). Instead of a dead-end sentence, show exactly where the file
+// goes so the user can still act.
+function ExternalEvidence({
+  entry,
+  framework,
+}: {
+  entry: CatalogEntry;
+  framework: string;
+}) {
+  const period = currentPeriod(entry.frequency);
+  const uploadPath = computeUploadPath(
+    getConfig().storage.prefix,
+    framework,
+    entry.id,
+    period.key,
+  );
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      <BackButton />
+      <div className="rounded-lg border bg-card p-6 space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">{entry.name}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {entry.description}
+          </p>
+        </div>
+        <Callout tone="info" title="Uploaded directly to your storage">
+          This evidence is a document you already have (export, scan,
+          certificate). The SPA doesn’t generate it — produce the PDF
+          yourself and upload it to the path below for period{" "}
+          <span className="font-mono">{period.key}</span> (
+          {formatPeriodRange(period)}).
+        </Callout>
+        <CopyField value={uploadPath} label="Upload path" />
+      </div>
+    </div>
   );
 }
 
@@ -93,56 +265,33 @@ function EvidenceFormContent({
 
   if (form.downloadSuccess) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <BackButton />
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="space-y-4 flex-1 min-w-0">
-              <div>
-                <h2 className="text-lg font-semibold">evidence.pdf downloaded</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Upload it to your storage at:
-                </p>
-              </div>
-
-              <code className="block text-sm bg-muted rounded-md px-3 py-2.5 break-all font-mono">
-                {form.uploadPath}
-              </code>
-
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" size="sm" onClick={() => form.setDownloadSuccess(false)}>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                  Edit & re-download
-                </Button>
-                <Link to="/">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground">
-                    Back to list
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <UploadHandoff
+        entry={entry}
+        framework={framework}
+        period={form.period}
+        uploadPath={form.uploadPath}
+        onEdit={() => form.setDownloadSuccess(false)}
+      />
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5">
       <BackButton />
 
       {/* Entry header */}
-      <div className="rounded-lg border bg-card p-6 space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">{entry.name}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{entry.description}</p>
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold">{entry.name}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {entry.description}
+            </p>
+          </div>
+          <SeverityBadge severity={entry.severity} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="text-xs">
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Badge variant="outline" className="font-mono text-xs">
             {entry.control}
           </Badge>
           <Badge variant="outline" className="text-xs capitalize">
@@ -151,17 +300,50 @@ function EvidenceFormContent({
           <Badge variant="outline" className="text-xs capitalize">
             {entry.frequency}
           </Badge>
-          <Badge variant="outline" className="text-xs font-mono">
-            {form.period.key}
-          </Badge>
-          <Badge variant="outline" className="text-xs capitalize">
-            {entry.severity}
-          </Badge>
+          {entry.optional && (
+            <Badge variant="outline" className="text-xs">
+              Optional
+            </Badge>
+          )}
         </div>
       </div>
 
-      {/* Form content */}
-      <div className="rounded-lg border bg-card p-6 space-y-6">
+      {/* 1 — Period context */}
+      <Section
+        step={1}
+        title="Period this evidence covers"
+        description="The CLI evaluates the uploaded PDF against this window."
+      >
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            <span className="font-mono font-medium">{form.period.key}</span>
+            <span className="text-muted-foreground">
+              {formatPeriodRange(form.period)}
+            </span>
+          </div>
+          {entry.grace_period && (
+            <span className="text-xs text-muted-foreground">
+              {entry.grace_period} grace period
+            </span>
+          )}
+          {entry.temporal_rule === "retrospective" && (
+            <span className="text-xs text-muted-foreground">
+              retrospective — attests to the period just ended
+            </span>
+          )}
+        </div>
+      </Section>
+
+      {/* 2 — Attestation */}
+      <Section
+        step={2}
+        title={
+          entry.type === "declaration"
+            ? "Review and accept"
+            : "Confirm each step"
+        }
+      >
         {entry.type === "declaration" ? (
           <DeclarationForm
             entry={entry}
@@ -175,30 +357,193 @@ function EvidenceFormContent({
             setItem={form.setItem}
           />
         )}
+        {form.attempted && form.fieldErrors.attestation && (
+          <p className="mt-3 text-sm text-destructive">
+            {form.fieldErrors.attestation}
+          </p>
+        )}
+      </Section>
 
-        <Separator />
-
-        <div className="space-y-2">
+      {/* 3 — Sign-off */}
+      <Section
+        step={3}
+        title="Sign-off"
+        description="Recorded in the PDF and remembered on this device for next time."
+      >
+        <div className="max-w-sm space-y-2">
           <Label htmlFor="completed-by">Completed by</Label>
           <Input
             id="completed-by"
             value={form.completedBy}
             onChange={(e) => form.setCompletedBy(e.target.value)}
             placeholder="jane@company.com"
+            aria-invalid={
+              form.attempted && Boolean(form.fieldErrors.completedBy)
+            }
           />
+          {form.attempted && form.fieldErrors.completedBy && (
+            <p className="text-sm text-destructive">
+              {form.fieldErrors.completedBy}
+            </p>
+          )}
         </div>
+      </Section>
 
+      {/* 4 — Generate */}
+      <Section
+        step={4}
+        title="Generate evidence.pdf"
+        description="Renders in your browser and downloads — nothing is uploaded."
+      >
         {error && (
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="mb-3 text-sm text-destructive">{error}</p>
         )}
+        <Button
+          onClick={handleSubmit}
+          size="lg"
+          disabled={form.submitting}
+          className="w-full sm:w-auto"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {form.submitting ? "Generating PDF…" : "Download evidence.pdf"}
+        </Button>
+      </Section>
+    </div>
+  );
+}
 
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSubmit} size="lg" disabled={form.submitting}>
-            <Download className="mr-2 h-4 w-4" />
-            {form.submitting ? "Generating PDF…" : "Download evidence.pdf"}
-          </Button>
+// UploadHandoff is the post-download screen — the moment the user has the
+// file and must move it to their bucket. Make that unmissable.
+function UploadHandoff({
+  entry,
+  framework,
+  period,
+  uploadPath,
+  onEdit,
+}: {
+  entry: CatalogEntry;
+  framework: string;
+  period: { key: string };
+  uploadPath: string;
+  onEdit: () => void;
+}) {
+  const parts = [
+    getConfig().storage.prefix,
+    framework,
+    entry.id,
+    period.key,
+    EVIDENCE_PDF_FILENAME,
+  ];
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      <BackButton />
+
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold">
+              evidence.pdf downloaded
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Two steps left — it isn’t counted until it’s in your bucket.
+            </p>
+          </div>
         </div>
       </div>
+
+      <ol className="space-y-3">
+        <HandoffStep n={1} title="Find evidence.pdf in your downloads">
+          Your browser just saved it as{" "}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+            {EVIDENCE_PDF_FILENAME}
+          </code>
+          . Rename it if you like — only the upload path below matters to the
+          CLI.
+        </HandoffStep>
+
+        <HandoffStep n={2} title="Upload it to this exact path in your storage">
+          <div className="mt-2 space-y-3">
+            <CopyField value={uploadPath} label="Full object key" />
+            <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              {parts.map((p, i) => (
+                <span key={i} className="flex items-center gap-1">
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono">
+                    {p}
+                  </code>
+                  {i < parts.length - 1 && (
+                    <span aria-hidden>/</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        </HandoffStep>
+
+        <HandoffStep
+          n={3}
+          title="The CLI picks it up on its next run"
+          last
+        >
+          On the next <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">sigcomply check</code>{" "}
+          the file is found at that path, hashed, and counted for period{" "}
+          <span className="font-mono">{period.key}</span>. Nothing is sent
+          from this page.
+        </HandoffStep>
+      </ol>
+
+      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+          Edit &amp; re-download
+        </Button>
+        <Link to="/">
+          <Button variant="ghost" size="sm" className="text-muted-foreground">
+            Back to list
+          </Button>
+        </Link>
+        <Link to="/verify" className="ml-auto">
+          <Button variant="ghost" size="sm" className="text-muted-foreground">
+            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+            Verify a signed envelope
+          </Button>
+        </Link>
+      </div>
     </div>
+  );
+}
+
+function HandoffStep({
+  n,
+  title,
+  children,
+  last,
+}: {
+  n: number;
+  title: string;
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <li className="relative rounded-lg border bg-card p-5">
+      <div className="flex gap-4">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold">
+          {n}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="mt-1 text-sm text-muted-foreground">{children}</div>
+        </div>
+      </div>
+      {!last && (
+        <span
+          aria-hidden
+          className="absolute left-[2.6rem] top-[3.5rem] h-[calc(100%-2rem)] w-px bg-border"
+        />
+      )}
+    </li>
   );
 }
