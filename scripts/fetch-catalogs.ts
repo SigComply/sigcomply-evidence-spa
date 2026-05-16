@@ -25,14 +25,27 @@ function main() {
   mkdirSync(catalogsDir, { recursive: true });
 
   const frameworks = ["soc2", "iso27001"];
+  // SPA only renders user-attestation entries. document_upload entries are
+  // produced externally and uploaded directly to the bucket — filter them
+  // out at build time so they never reach the browser.
+  const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
   for (const fw of frameworks) {
     console.log(`Fetching catalog for ${fw}...`);
     try {
       const json = run(`sigcomply evidence catalog --framework ${fw} -o json`);
-      JSON.parse(json); // validate
-      writeFileSync(join(catalogsDir, `${fw}.json`), json + "\n");
-      console.log(`  -> public/data/catalogs/${fw}.json`);
+      const catalog = JSON.parse(json);
+      const entries: Array<{ type: string }> = catalog.entries ?? [];
+      const before = entries.length;
+      catalog.entries = entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type));
+      const after = catalog.entries.length;
+      writeFileSync(
+        join(catalogsDir, `${fw}.json`),
+        JSON.stringify(catalog, null, 2) + "\n"
+      );
+      console.log(
+        `  -> public/data/catalogs/${fw}.json (${after}/${before} entries, ${before - after} document_upload filtered)`
+      );
     } catch {
       console.warn(`  ⚠ No manual catalog available for ${fw}, skipping.`);
     }
