@@ -13,6 +13,7 @@ import { useEvidenceForm } from "@/hooks/useEvidenceForm";
 import { currentPeriod, formatPeriodRange } from "@/lib/period";
 import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "@/lib/storage-path";
 import { copyText } from "@/lib/clipboard";
+import { getDeviceRecord, setUploadedAck } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
 import {
   ArrowLeft,
@@ -435,6 +436,15 @@ function UploadHandoff({
     EVIDENCE_PDF_FILENAME,
   ];
 
+  const [acked, setAcked] = useState(
+    Boolean(getDeviceRecord(framework, entry.id, period.key)?.uploadedAt),
+  );
+  function toggleAck() {
+    const next = !acked;
+    setAcked(next);
+    setUploadedAck(framework, entry.id, period.key, next);
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <BackButton />
@@ -494,6 +504,29 @@ function UploadHandoff({
           from this page.
         </HandoffStep>
       </ol>
+
+      {/* Local-only acknowledgement. Deliberately worded so it never reads
+          as compliance status — the SPA cannot see the bucket. */}
+      <div className="rounded-lg border border-dashed bg-muted/30 p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={acked}
+            onChange={toggleAck}
+            className="mt-0.5 h-4 w-4 accent-primary"
+          />
+          <span className="text-sm">
+            <span className="font-medium">
+              I’ve uploaded this to my bucket
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Saves a reminder to <strong>this browser only</strong>. It is
+              not proof of upload and not compliance status — the SigComply
+              CLI and your bucket remain the source of truth.
+            </span>
+          </span>
+        </label>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t pt-4">
         <Button variant="outline" size="sm" onClick={onEdit}>
