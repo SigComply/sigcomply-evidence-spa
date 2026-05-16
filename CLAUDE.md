@@ -51,7 +51,7 @@ public/
   config.json              ← runtime config (frameworks list, storage prefix)
   data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets
 scripts/
-  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, writes public/data/catalogs/{fw}.json
+  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json
 src/
   main.tsx                 ← loads config.json, mounts <App>
   App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
@@ -99,9 +99,9 @@ src/
 
 ### Form → PDF flow
 
-1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw>`). There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
+1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw>`). `fetch-catalogs` filters the CLI output down to the SPA-renderable types (`declaration` + `checklist`) before writing — `document_upload` entries are dropped at build time and never reach the browser. The committed JSONs therefore contain only renderable entries. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
 2. **App start** — `main.tsx` calls `loadConfig()` which fetches `/config.json` (frameworks available, storage prefix). Cached on module.
-3. **Dashboard** — reads `getConfig().frameworks`, picks one (from localStorage or picker dialog), calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`, then **filters the catalog to the SPA-renderable types** (`declaration` and `checklist`). `document_upload` entries are hidden — the customer produces those PDFs externally.
+3. **Dashboard** — reads `getConfig().frameworks`, picks one (from localStorage or picker dialog), calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`. The fetched catalog already contains only `declaration` + `checklist` entries (filtered at build time by `fetch-catalogs`). `useCatalog` re-applies the same type filter as a defensive backstop — it's a no-op against correctly-built catalogs, but keeps the dashboard correct if a hand-edited or stale catalog ever carries `document_upload` entries.
 4. **Evidence form** — for `declaration` and `checklist` entries, `useEvidenceForm` manages form state, validates on submit, lazy-imports `@/lib/pdf/render`, calls `renderEvidencePdf(input)` to produce a `Blob`, calls `downloadBlob(blob, "evidence.pdf")`, then shows the upload-path instructions screen. For any other type, `EvidenceForm` shows a "uploaded directly to your bucket" message instead of rendering a form.
 
 Flow is one-way: catalog → form → downloaded PDF. **Nothing is ever uploaded from the browser.** The user moves the file to their own bucket manually (or via any tool they like).
@@ -140,7 +140,7 @@ These are the only cross-repo contracts. Break them at your peril.
 | What | Shape | Producer | Consumer |
 |------|-------|----------|----------|
 | Catalog JSON | `Catalog` in `src/types/catalog.ts` ↔ `Catalog` in CLI `internal/core/manual/catalog.go` | CLI `evidence catalog` subcommand | this SPA |
-| Evidence types | `declaration` \| `checklist` \| `document_upload` | CLI catalog | this SPA filters dashboard to declaration + checklist |
+| Evidence types | `declaration` \| `checklist` \| `document_upload` | CLI catalog | `fetch-catalogs` drops `document_upload` at build time; SPA only ever sees declaration + checklist |
 | Frequency values | `daily` \| `weekly` \| `monthly` \| `quarterly` \| `yearly` | CLI catalog | both, drives `currentPeriod()` |
 | PDF filename | `evidence.pdf` (strict lowercase, fixed; `EVIDENCE_PDF_FILENAME`) ↔ CLI `EvidencePDFFilename` in `internal/core/manual/manual.go` | this SPA | CLI `internal/data_sources/manual/reader.go` |
 | Path template | `{framework}/{evidence_id}/{period}/{filename}` (CLI default in `internal/core/manual/path.go`). The SPA additionally prepends `config.storage.prefix` when displaying the upload path; the CLI doesn't know about that prefix — it's resolved per-framework by the storage backend (`manual_evidence.frameworks.<framework>` config). | this SPA (display) / CLI (lookup) | mutual |
