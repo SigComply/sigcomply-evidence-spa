@@ -8,6 +8,7 @@ import {
   EVIDENCE_PDF_FILENAME,
 } from "@/lib/storage-path";
 import { downloadBlob } from "@/lib/download";
+import { markGenerated } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
 
 // useEvidenceForm manages local form state for one catalog entry, validates on
@@ -148,6 +149,9 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
       const { renderEvidencePdf } = await import("@/lib/pdf/render");
       const blob = await renderEvidencePdf(input);
       downloadBlob(blob, EVIDENCE_PDF_FILENAME);
+
+      // Local-only breadcrumb (this browser): never authoritative status.
+      markGenerated(framework, entry.id, period.key);
 
       setDownloadSuccess(true);
       return null;

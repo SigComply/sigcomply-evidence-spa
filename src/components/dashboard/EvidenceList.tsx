@@ -4,8 +4,10 @@ import type { CatalogEntry } from "@/types/catalog";
 import { currentPeriod, formatPeriodRange } from "@/lib/period";
 import { computeUploadPath } from "@/lib/storage-path";
 import { copyText } from "@/lib/clipboard";
+import { getDeviceRecord } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowRight, Check, Copy, PencilLine } from "lucide-react";
 import { SeverityDot, TSCBadge, OptionalBadge } from "./StatusBadge";
 
 function formatCategory(raw: string): string {
@@ -68,6 +70,7 @@ function EvidenceRow({
   framework: string;
 }) {
   const period = currentPeriod(entry.frequency);
+  const device = getDeviceRecord(framework, entry.id, period.key);
   const [copied, setCopied] = useState(false);
 
   const uploadPath = computeUploadPath(
@@ -103,6 +106,22 @@ function EvidenceRow({
           <span className="truncate text-sm font-medium">{entry.name}</span>
           {entry.tsc && <TSCBadge tsc={entry.tsc} />}
           {entry.optional && <OptionalBadge />}
+          {device?.generatedAt && (
+            <span
+              title={
+                "Drafted in this browser on " +
+                format(new Date(device.generatedAt), "PP p") +
+                (device.uploadedAt
+                  ? `; you marked it uploaded on ${format(new Date(device.uploadedAt), "PP")}`
+                  : "") +
+                ". Personal note on this device only — not proof of upload and not compliance status. The CLI is the source of truth."
+              }
+              className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+            >
+              <PencilLine className="h-2.5 w-2.5" />
+              {device.uploadedAt ? "marked uploaded here" : "drafted here"}
+            </span>
+          )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span className="font-mono">{entry.control}</span>
