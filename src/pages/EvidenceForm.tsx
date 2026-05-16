@@ -168,7 +168,15 @@ function Section({
 
 // CopyField renders a monospace value with a one-click copy button. This is
 // the heart of "keep the upload hop, but make it obvious".
-function CopyField({ value, label }: { value: string; label: string }) {
+function CopyField({
+  value,
+  label,
+  note,
+}: {
+  value: string;
+  label: string;
+  note?: React.ReactNode;
+}) {
   const [copied, setCopied] = useState(false);
   async function onCopy() {
     if (await copyText(value)) {
@@ -203,6 +211,53 @@ function CopyField({ value, label }: { value: string; label: string }) {
           )}
         </Button>
       </div>
+      {note && (
+        <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>
+      )}
+    </div>
+  );
+}
+
+// PathNote explains, honestly, what the displayed path is and isn't: the
+// leading prefix is this deployment's config, the rest is the fixed CLI
+// layout, and nothing about the bucket itself is known here.
+function pathNote(prefix: string): React.ReactNode {
+  return (
+    <>
+      Path <em>inside</em> your evidence bucket. The leading{" "}
+      <code className="rounded bg-muted px-1 py-0.5 font-mono">{prefix}</code>{" "}
+      segment is this deployment’s configured prefix; the rest is the fixed
+      SigComply layout. The bucket, provider and credentials are never known
+      to this page.
+    </>
+  );
+}
+
+// FixedLayoutOnly is shown when a deployment sets show_upload_path:false —
+// the concrete prefix would be misleading, so only the provider-agnostic
+// layout the CLI looks for is shown.
+function FixedLayoutOnly({
+  framework,
+  entry,
+  periodKey,
+}: {
+  framework: string;
+  entry: CatalogEntry;
+  periodKey: string;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-muted-foreground">
+        Path inside your evidence bucket
+      </p>
+      <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
+        {`${framework}/${entry.id}/${periodKey}/${EVIDENCE_PDF_FILENAME}`}
+      </code>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        This deployment hides the full path because the prefix is
+        site-specific. This is the fixed layout the CLI looks for; prepend
+        whatever prefix your SigComply storage config uses.
+      </p>
     </div>
   );
 }
@@ -219,8 +274,9 @@ function ExternalEvidence({
   framework: string;
 }) {
   const period = currentPeriod(entry.frequency);
+  const cfg = getConfig().storage;
   const uploadPath = computeUploadPath(
-    getConfig().storage.prefix,
+    cfg.prefix,
     framework,
     entry.id,
     period.key,
@@ -242,7 +298,19 @@ function ExternalEvidence({
           <span className="font-mono">{period.key}</span> (
           {formatPeriodRange(period)}).
         </Callout>
-        <CopyField value={uploadPath} label="Upload path" />
+        {cfg.show_upload_path ? (
+          <CopyField
+            value={uploadPath}
+            label="Path inside your evidence bucket"
+            note={pathNote(cfg.prefix)}
+          />
+        ) : (
+          <FixedLayoutOnly
+            framework={framework}
+            entry={entry}
+            periodKey={period.key}
+          />
+        )}
       </div>
     </div>
   );
@@ -428,8 +496,9 @@ function UploadHandoff({
   uploadPath: string;
   onEdit: () => void;
 }) {
+  const cfg = getConfig().storage;
   const parts = [
-    getConfig().storage.prefix,
+    cfg.prefix,
     framework,
     entry.id,
     period.key,
@@ -475,22 +544,49 @@ function UploadHandoff({
           CLI.
         </HandoffStep>
 
-        <HandoffStep n={2} title="Upload it to this exact path in your storage">
-          <div className="mt-2 space-y-3">
-            <CopyField value={uploadPath} label="Full object key" />
-            <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              {parts.map((p, i) => (
-                <span key={i} className="flex items-center gap-1">
-                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono">
-                    {p}
-                  </code>
-                  {i < parts.length - 1 && (
-                    <span aria-hidden>/</span>
-                  )}
-                </span>
-              ))}
+        <HandoffStep
+          n={2}
+          title="Upload it inside your evidence bucket at this path"
+        >
+          {cfg.show_upload_path ? (
+            <div className="mt-2 space-y-3">
+              <CopyField
+                value={uploadPath}
+                label="Path inside your evidence bucket"
+                note={pathNote(cfg.prefix)}
+              />
+              <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                {parts.map((p, i) => (
+                  <span key={i} className="flex items-center gap-1">
+                    <code
+                      className={[
+                        "rounded px-1.5 py-0.5 font-mono",
+                        i === 0
+                          ? "bg-muted/60 italic"
+                          : "bg-muted",
+                      ].join(" ")}
+                      title={
+                        i === 0
+                          ? "Configured prefix for this deployment — may differ for your setup"
+                          : "Fixed SigComply layout the CLI looks for"
+                      }
+                    >
+                      {p}
+                    </code>
+                    {i < parts.length - 1 && <span aria-hidden>/</span>}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-2">
+              <FixedLayoutOnly
+                framework={framework}
+                entry={entry}
+                periodKey={period.key}
+              />
+            </div>
+          )}
         </HandoffStep>
 
         <HandoffStep

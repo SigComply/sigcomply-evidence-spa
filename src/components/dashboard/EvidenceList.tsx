@@ -73,8 +73,9 @@ function EvidenceRow({
   const device = getDeviceRecord(framework, entry.id, period.key);
   const [copied, setCopied] = useState(false);
 
+  const cfg = getConfig().storage;
   const uploadPath = computeUploadPath(
-    getConfig().storage.prefix,
+    cfg.prefix,
     framework,
     entry.id,
     period.key,
@@ -156,19 +157,21 @@ function EvidenceRow({
           severity={entry.severity}
           className="pointer-events-none w-16 sm:w-20"
         />
-        <button
-          type="button"
-          onClick={handleCopy}
-          title={`Copy upload path: ${uploadPath}`}
-          aria-label="Copy upload path"
-          className="relative flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-        </button>
+        {cfg.show_upload_path && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            title={`Copy the path inside your evidence bucket — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config; the rest is the fixed SigComply layout. The bucket, provider and credentials are never known here.`}
+            aria-label="Copy path inside your evidence bucket"
+            className="relative flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
         <ArrowRight className="pointer-events-none h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
     </div>
