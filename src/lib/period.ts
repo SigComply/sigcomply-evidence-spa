@@ -1,10 +1,30 @@
-import { getISOWeek, getISOWeekYear } from "date-fns";
+import { format, getISOWeek, getISOWeekYear } from "date-fns";
 import type { Frequency } from "@/types/catalog";
 
 export interface Period {
   key: string;
   start: Date;
   end: Date;
+}
+
+// formatPeriodRange renders a Period as a human window. `end` is exclusive
+// (it is the next period's start), so the displayed last day is end − 1ms.
+// Examples: "Apr 18, 2026" (daily), "Apr 1 – Jun 30, 2026" (quarterly),
+// "Dec 29, 2025 – Jan 4, 2026" (a week spanning the year boundary).
+export function formatPeriodRange(p: Period): string {
+  const lastDay = new Date(p.end.getTime() - 1);
+
+  const sameDay =
+    p.start.getFullYear() === lastDay.getFullYear() &&
+    p.start.getMonth() === lastDay.getMonth() &&
+    p.start.getDate() === lastDay.getDate();
+  if (sameDay) return format(p.start, "MMM d, yyyy");
+
+  const sameYear = p.start.getFullYear() === lastDay.getFullYear();
+  if (sameYear) {
+    return `${format(p.start, "MMM d")} – ${format(lastDay, "MMM d, yyyy")}`;
+  }
+  return `${format(p.start, "MMM d, yyyy")} – ${format(lastDay, "MMM d, yyyy")}`;
 }
 
 export function currentPeriod(freq: Frequency, now: Date = new Date()): Period {
