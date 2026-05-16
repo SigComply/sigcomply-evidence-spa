@@ -6,13 +6,28 @@ import { computeUploadPath } from "@/lib/storage-path";
 import { copyText } from "@/lib/clipboard";
 import { getDeviceRecord } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { ArrowRight, Check, Copy, PencilLine } from "lucide-react";
-import { SeverityDot, TSCBadge, OptionalBadge } from "./StatusBadge";
+import {
+  ChevronRight,
+  Check,
+  Copy,
+  PencilLine,
+  FileText,
+  ListChecks,
+} from "lucide-react";
+import { TSCBadge, OptionalBadge } from "./StatusBadge";
+import { severityRailClass } from "@/lib/severity";
 
 function formatCategory(raw: string): string {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+const META_DOT = (
+  <span aria-hidden className="text-muted-foreground/40">
+    •
+  </span>
+);
 
 interface EvidenceListProps {
   entries: CatalogEntry[];
@@ -38,16 +53,19 @@ export function EvidenceList({ entries, framework }: EvidenceListProps) {
   if (entries.length === 0) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {grouped.map((group) => (
         <section key={group.category}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {group.label}
-            <span className="ml-1.5 font-normal normal-case">
-              ({group.entries.length})
+          <div className="mb-2.5 flex items-center gap-3">
+            <h3 className="text-sm font-semibold tracking-tight">
+              {group.label}
+            </h3>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {group.entries.length}
             </span>
-          </h3>
-          <div className="divide-y overflow-hidden rounded-lg border bg-card">
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm">
             {group.entries.map((entry) => (
               <EvidenceRow
                 key={entry.id}
@@ -71,9 +89,9 @@ function EvidenceRow({
 }) {
   const period = currentPeriod(entry.frequency);
   const device = getDeviceRecord(framework, entry.id, period.key);
+  const cfg = getConfig().storage;
   const [copied, setCopied] = useState(false);
 
-  const cfg = getConfig().storage;
   const uploadPath = computeUploadPath(
     cfg.prefix,
     framework,
@@ -90,89 +108,103 @@ function EvidenceRow({
     }
   }
 
+  const TypeIcon = entry.type === "checklist" ? ListChecks : FileText;
+
   return (
-    <div className="group relative flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-4">
-      {/* Stretched link: covers the whole row for navigation/middle-click,
-          while the copy button (relative + higher z) stays clickable and
-          is not nested inside the anchor (which would be invalid HTML). */}
+    <div className="group relative flex items-stretch transition-colors hover:bg-muted/40">
+      {/* Severity accent rail — the primary at-a-glance cue. The severity
+          word is still in the meta line so this never relies on colour. */}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-y-0 left-0 w-[3px]",
+          severityRailClass(entry.severity),
+        )}
+      />
+
+      {/* Stretched link: whole-row navigation + middle-click, kept out of
+          the anchor so the copy button is valid + independently clickable. */}
       <Link
         to={`/evidence/${framework}/${entry.id}`}
         aria-label={`Open ${entry.name}`}
-        className="absolute inset-0 z-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+        className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
       />
 
-      {/* Name + badges */}
-      <div className="pointer-events-none min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{entry.name}</span>
-          {entry.tsc && <TSCBadge tsc={entry.tsc} />}
-          {entry.optional && <OptionalBadge />}
-          {device?.generatedAt && (
-            <span
-              title={
-                "Drafted in this browser on " +
-                format(new Date(device.generatedAt), "PP p") +
-                (device.uploadedAt
-                  ? `; you marked it uploaded on ${format(new Date(device.uploadedAt), "PP")}`
-                  : "") +
-                ". Personal note on this device only — not proof of upload and not compliance status. The CLI is the source of truth."
-              }
-              className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-            >
-              <PencilLine className="h-2.5 w-2.5" />
-              {device.uploadedAt ? "marked uploaded here" : "drafted here"}
+      <div className="pointer-events-none flex min-w-0 flex-1 items-start gap-3.5 py-3.5 pl-4 pr-3 sm:items-center">
+        {/* Type glyph */}
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:mt-0">
+          <TypeIcon className="size-4" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="truncate text-sm font-medium">{entry.name}</span>
+            {entry.tsc && <TSCBadge tsc={entry.tsc} />}
+            {entry.optional && <OptionalBadge />}
+            {device?.generatedAt && (
+              <span
+                title={
+                  "Drafted in this browser on " +
+                  format(new Date(device.generatedAt), "PP p") +
+                  (device.uploadedAt
+                    ? `; you marked it uploaded on ${format(new Date(device.uploadedAt), "PP")}`
+                    : "") +
+                  ". Personal note on this device only — not proof of upload and not compliance status. The CLI is the source of truth."
+                }
+                className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                <PencilLine className="size-2.5" />
+                {device.uploadedAt ? "marked uploaded here" : "drafted here"}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="font-mono">{entry.control}</span>
+            {META_DOT}
+            <span className="capitalize">{entry.frequency}</span>
+            {META_DOT}
+            <span className="font-mono">{period.key}</span>
+            <span className="hidden items-center gap-x-2 sm:flex">
+              {META_DOT}
+              <span>{formatPeriodRange(period)}</span>
             </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          <span className="font-mono">{entry.control}</span>
-          <span aria-hidden>·</span>
-          <span className="capitalize">{entry.frequency}</span>
-          <span aria-hidden>·</span>
-          <span className="font-mono">{period.key}</span>
-          <span className="hidden sm:inline" aria-hidden>
-            ·
-          </span>
-          <span className="hidden sm:inline">
-            {formatPeriodRange(period)}
-          </span>
-          {entry.grace_period && (
-            <>
-              <span aria-hidden>·</span>
-              <span>{entry.grace_period} grace</span>
-            </>
-          )}
-          {entry.temporal_rule === "retrospective" && (
-            <>
-              <span aria-hidden>·</span>
-              <span>retrospective</span>
-            </>
-          )}
+            {entry.grace_period && (
+              <>
+                {META_DOT}
+                <span>{entry.grace_period} grace</span>
+              </>
+            )}
+            {entry.temporal_rule === "retrospective" && (
+              <>
+                {META_DOT}
+                <span>retrospective</span>
+              </>
+            )}
+            {META_DOT}
+            <span className="capitalize">{entry.severity}</span>
+          </div>
         </div>
       </div>
 
-      {/* Right side */}
-      <div className="z-[1] flex items-center gap-3 sm:gap-4">
-        <SeverityDot
-          severity={entry.severity}
-          className="pointer-events-none w-16 sm:w-20"
-        />
+      {/* Right actions */}
+      <div className="z-[1] flex shrink-0 items-center gap-1 pr-3">
         {cfg.show_upload_path && (
           <button
             type="button"
             onClick={handleCopy}
             title={`Copy the path inside your evidence bucket — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config; the rest is the fixed SigComply layout. The bucket, provider and credentials are never known here.`}
             aria-label="Copy path inside your evidence bucket"
-            className="relative flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+              <Check className="size-4 text-green-600 dark:text-green-400" />
             ) : (
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="size-3.5" />
             )}
           </button>
         )}
-        <ArrowRight className="pointer-events-none h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        <ChevronRight className="pointer-events-none size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
       </div>
     </div>
   );
