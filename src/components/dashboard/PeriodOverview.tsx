@@ -17,14 +17,13 @@ interface PeriodOverviewProps {
   onSelectFrequency: (f: string | null) => void;
 }
 
-// PeriodOverview reframes the dashboard around the compliance period rather
-// than a flat catalog list. For every frequency present in the catalog it
-// shows the *current* period window + how many attestations fall under it.
-//
-// Wording is deliberately honest: this is a static helper with no bucket
-// access, so it can only say how many attestations *need* a signed
-// evidence.pdf this period — never how many are done. Clicking a card
-// filters the list to that frequency.
+// PeriodOverview orients the dashboard around the *current period* for each
+// cadence the catalog uses. Both numbers are generic catalog facts, NOT
+// customer status: the period key is a calendar fact, and the count is
+// simply "how many entries in this (generic, our-built) catalog use this
+// cadence". This static helper has no bucket access — it cannot and must
+// not imply anything is owed, due, done, or overdue for a given customer.
+// Clicking a card filters the list to that frequency.
 export function PeriodOverview({
   entries,
   activeFrequency,
@@ -49,7 +48,13 @@ export function PeriodOverview({
   if (cards.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Current period per cadence. Counts are how many entries the catalog
+        defines at that cadence — not your outstanding work (this tool can’t
+        see your storage).
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map((c) => {
         const active = activeFrequency === c.frequency;
         return (
@@ -77,11 +82,12 @@ export function PeriodOverview({
             <div className="text-xs text-muted-foreground">{c.range}</div>
             <div className="mt-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">{c.count}</span>{" "}
-              attestation{c.count === 1 ? "" : "s"} due
+              attestation{c.count === 1 ? "" : "s"} in catalog
             </div>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
