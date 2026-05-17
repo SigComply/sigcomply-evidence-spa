@@ -1,17 +1,18 @@
 import { useState, useMemo, useCallback } from "react";
 import { FrameworkSelector } from "@/components/dashboard/FrameworkSelector";
 import { FrameworkPickerDialog } from "@/components/dashboard/FrameworkPickerDialog";
+import { PeriodOverview } from "@/components/dashboard/PeriodOverview";
 import { EvidenceList } from "@/components/dashboard/EvidenceList";
 import { useCatalog } from "@/hooks/useCatalog";
 import { getConfig } from "@/config/runtime";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search } from "lucide-react";
+import { Search, X, FileText, AlertCircle } from "lucide-react";
 
 const STORAGE_KEY = "sigcomply:framework";
 
-const frequencyFilters = ["daily", "weekly", "monthly", "quarterly", "yearly"] as const;
+const SEVERITY_ORDER = ["high", "medium", "low"];
 
 // Catalog types the SPA renders as a clickable form. Other types
 // (e.g. document_upload) are uploaded directly by the customer and are
@@ -27,17 +28,26 @@ function getStoredFramework(available: string[]): string | null {
 export function Dashboard() {
   const config = getConfig();
   const stored = getStoredFramework(config.frameworks);
-  const [framework, setFramework] = useState(stored ?? config.frameworks[0] ?? "soc2");
-  const [showPicker, setShowPicker] = useState(stored === null);
+  const [framework, setFramework] = useState(
+    stored ?? config.frameworks[0] ?? "soc2",
+  );
+  // Only prompt when there's a genuine choice to make. With a single
+  // configured framework the picker is pure friction, and it must never
+  // block the app — Verify is framework-agnostic and reachable from here.
+  const [showPicker, setShowPicker] = useState(
+    stored === null && config.frameworks.length > 1,
+  );
   const { catalog, loading, error } = useCatalog(framework);
 
   const [search, setSearch] = useState("");
   const [frequencyFilter, setFrequencyFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<string | null>(null);
+  const [requiredOnly, setRequiredOnly] = useState(false);
 
-  const declarationEntries = useMemo(
+  const attestations = useMemo(
     () => catalog?.entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type)) ?? [],
-    [catalog]
+    [catalog],
   );
 
   const handleFrameworkChange = useCallback((value: string) => {
@@ -45,24 +55,40 @@ export function Dashboard() {
     localStorage.setItem(STORAGE_KEY, value);
   }, []);
 
-  const handlePickerSelect = useCallback((value: string) => {
-    handleFrameworkChange(value);
+  const handlePickerSelect = useCallback(
+    (value: string) => {
+      handleFrameworkChange(value);
+      setShowPicker(false);
+    },
+    [handleFrameworkChange],
+  );
+
+  // Dismissing (Esc / backdrop / close) keeps the current default and
+  // persists it so the prompt doesn't nag — it never traps the user.
+  const handlePickerDismiss = useCallback(() => {
+    handleFrameworkChange(framework);
     setShowPicker(false);
-  }, [handleFrameworkChange]);
+  }, [handleFrameworkChange, framework]);
 
   const categories = useMemo(() => {
     const unique = new Set(
-      declarationEntries.map((e) => e.category).filter((c): c is string => Boolean(c))
+      attestations.map((e) => e.category).filter((c): c is string => Boolean(c)),
     );
     return Array.from(unique).sort();
-  }, [declarationEntries]);
+  }, [attestations]);
+
+  const severities = useMemo(() => {
+    const present = new Set(attestations.map((e) => e.severity));
+    return SEVERITY_ORDER.filter((s) => present.has(s));
+  }, [attestations]);
 
   const filteredEntries = useMemo(() => {
     const query = search.toLowerCase().trim();
-
-    return declarationEntries.filter((entry) => {
+    return attestations.filter((entry) => {
       if (frequencyFilter && entry.frequency !== frequencyFilter) return false;
       if (categoryFilter && entry.category !== categoryFilter) return false;
+      if (severityFilter && entry.severity !== severityFilter) return false;
+      if (requiredOnly && entry.optional) return false;
       if (query) {
         const haystack =
           `${entry.name} ${entry.description} ${entry.control} ${entry.id}`.toLowerCase();
@@ -70,148 +96,233 @@ export function Dashboard() {
       }
       return true;
     });
-  }, [declarationEntries, search, frequencyFilter, categoryFilter]);
+  }, [
+    attestations,
+    search,
+    frequencyFilter,
+    categoryFilter,
+    severityFilter,
+    requiredOnly,
+  ]);
 
-  const stats = useMemo(() => {
-    if (declarationEntries.length === 0) return null;
-    const bySeverity: Record<string, number> = {};
-    let optionalCount = 0;
-    for (const e of declarationEntries) {
-      if (e.optional) {
-        optionalCount++;
-      } else {
-        bySeverity[e.severity] = (bySeverity[e.severity] ?? 0) + 1;
-      }
-    }
-    return { total: declarationEntries.length, bySeverity, optionalCount };
-  }, [declarationEntries]);
+  const activeFilters = useMemo(() => {
+    const f: { label: string; clear: () => void }[] = [];
+    if (search)
+      f.push({ label: `“${search}”`, clear: () => setSearch("") });
+    if (frequencyFilter)
+      f.push({
+        label: frequencyFilter,
+        clear: () => setFrequencyFilter(null),
+      });
+    if (severityFilter)
+      f.push({
+        label: severityFilter,
+        clear: () => setSeverityFilter(null),
+      });
+    if (categoryFilter)
+      f.push({
+        label: categoryFilter.replace(/_/g, " "),
+        clear: () => setCategoryFilter(null),
+      });
+    if (requiredOnly)
+      f.push({ label: "required only", clear: () => setRequiredOnly(false) });
+    return f;
+  }, [
+    search,
+    frequencyFilter,
+    severityFilter,
+    categoryFilter,
+    requiredOnly,
+  ]);
 
-  const hasActiveFilters = search || frequencyFilter || categoryFilter;
+  const clearAll = useCallback(() => {
+    setSearch("");
+    setFrequencyFilter(null);
+    setCategoryFilter(null);
+    setSeverityFilter(null);
+    setRequiredOnly(false);
+  }, []);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <FrameworkPickerDialog
         open={showPicker}
         frameworks={config.frameworks}
         onSelect={handlePickerSelect}
+        onDismiss={handlePickerDismiss}
       />
 
-      {/* Header row: title + search + framework */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* Title + framework */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">User attestations</h2>
-          <p className="text-muted-foreground text-sm">
-            Declarations and checklists that require user sign-off — produces evidence.pdf
+          <h2 className="text-2xl font-bold tracking-tight">
+            User attestations
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Declarations and checklists that need a person to sign off. Fill
+            one in to generate an{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              evidence.pdf
+            </code>{" "}
+            you upload to your own storage — nothing is sent anywhere.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search evidence..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-          <FrameworkSelector
-            value={framework}
-            onChange={handleFrameworkChange}
-            frameworks={config.frameworks}
-          />
-        </div>
+        <FrameworkSelector
+          value={framework}
+          onChange={handleFrameworkChange}
+          frameworks={config.frameworks}
+        />
       </div>
 
-      {/* Filters */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {frequencyFilters.map((f) => (
-            <Badge
-              key={f}
-              variant={frequencyFilter === f ? "default" : "outline"}
-              className="cursor-pointer capitalize text-xs"
-              onClick={() => setFrequencyFilter(frequencyFilter === f ? null : f)}
-            >
-              {f}
-            </Badge>
-          ))}
+      {!loading && !error && attestations.length > 0 && (
+        <PeriodOverview
+          entries={attestations}
+          activeFrequency={frequencyFilter}
+          onSelectFrequency={setFrequencyFilter}
+        />
+      )}
 
-          {hasActiveFilters && (
-            <>
-              <span className="w-px h-4 bg-border mx-1" />
-              <button
-                className="text-xs text-muted-foreground hover:text-foreground underline"
-                onClick={() => {
-                  setSearch("");
-                  setFrequencyFilter(null);
-                  setCategoryFilter(null);
-                }}
-              >
-                Clear
-              </button>
-            </>
-          )}
-        </div>
+      {/* Filter bar */}
+      {!loading && !error && attestations.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[16rem] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, control, or ID…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
 
-        {categories.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground mr-1">Category:</span>
-            {categories.map((c) => (
+            {severities.map((s) => (
               <Badge
-                key={c}
-                variant={categoryFilter === c ? "default" : "outline"}
-                className="cursor-pointer text-xs"
-                onClick={() => setCategoryFilter(categoryFilter === c ? null : c)}
+                key={s}
+                variant={severityFilter === s ? "default" : "outline"}
+                className="cursor-pointer capitalize"
+                onClick={() =>
+                  setSeverityFilter(severityFilter === s ? null : s)
+                }
               >
-                {c.replace(/_/g, " ")}
+                {s}
               </Badge>
             ))}
-          </div>
-        )}
-      </div>
 
-      {/* Stats bar */}
-      {stats && (
-        <p className="text-xs text-muted-foreground">
-          {stats.total} attestations
-          {Object.entries(stats.bySeverity)
-            .sort(([, a], [, b]) => b - a)
-            .map(([severity, count]) => ` · ${count} ${severity}`)}
-          {stats.optionalCount > 0 && ` · ${stats.optionalCount} optional`}
-        </p>
+            <Badge
+              variant={requiredOnly ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setRequiredOnly((v) => !v)}
+            >
+              Required only
+            </Badge>
+          </div>
+
+          {categories.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs text-muted-foreground">
+                Category
+              </span>
+              {categories.map((c) => (
+                <Badge
+                  key={c}
+                  variant={categoryFilter === c ? "default" : "outline"}
+                  className="cursor-pointer text-xs"
+                  onClick={() =>
+                    setCategoryFilter(categoryFilter === c ? null : c)
+                  }
+                >
+                  {c.replace(/_/g, " ")}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">
+                {filteredEntries.length} of {attestations.length} ·
+              </span>
+              {activeFilters.map((f) => (
+                <button
+                  key={f.label}
+                  onClick={f.clear}
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {f.label}
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+              <button
+                onClick={clearAll}
+                className="text-xs text-muted-foreground underline hover:text-foreground"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
           <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-48 w-full" />
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <p className="text-sm text-destructive py-4">{error}</p>
+        <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-destructive">
+              Could not load the {framework} catalog
+            </p>
+            <p className="mt-0.5 text-muted-foreground">{error}</p>
+          </div>
+        </div>
       )}
 
       {/* Results */}
       {!loading && !error && (
         <>
-          {hasActiveFilters && catalog && (
-            <p className="text-xs text-muted-foreground">
-              {filteredEntries.length} of {declarationEntries.length} attestations
-            </p>
-          )}
-
           <EvidenceList entries={filteredEntries} framework={framework} />
 
-          {filteredEntries.length === 0 && catalog && (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              {declarationEntries.length === 0
-                ? "No user-attestation controls in this framework."
-                : "No attestations match your filters."}
-            </p>
+          {filteredEntries.length === 0 && (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
+              <FileText className="h-8 w-8 text-muted-foreground/60" />
+              {attestations.length === 0 ? (
+                <div className="max-w-sm space-y-1">
+                  <p className="text-sm font-medium">
+                    No user attestations in this framework
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Document-style evidence (HR exports, scans, certificates)
+                    is uploaded straight to your storage bucket — it never
+                    appears here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    No attestations match your filters.
+                  </p>
+                  <button
+                    onClick={clearAll}
+                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                  >
+                    Clear all filters
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
