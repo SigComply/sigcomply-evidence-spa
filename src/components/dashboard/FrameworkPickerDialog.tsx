@@ -26,12 +26,25 @@ interface FrameworkPickerDialogProps {
   open: boolean;
   frameworks: string[];
   onSelect: (framework: string) => void;
+  /** Called when the dialog is closed without an explicit choice
+   *  (Esc, backdrop, or the close button). Keeps the dialog escapable. */
+  onDismiss?: () => void;
 }
 
-export function FrameworkPickerDialog({ open, frameworks, onSelect }: FrameworkPickerDialogProps) {
+export function FrameworkPickerDialog({
+  open,
+  frameworks,
+  onSelect,
+  onDismiss,
+}: FrameworkPickerDialogProps) {
   return (
-    <Dialog open={open}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onDismiss?.();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
