@@ -31,7 +31,12 @@ export function Dashboard() {
   const [framework, setFramework] = useState(
     stored ?? config.frameworks[0] ?? "soc2",
   );
-  const [showPicker, setShowPicker] = useState(stored === null);
+  // Only prompt when there's a genuine choice to make. With a single
+  // configured framework the picker is pure friction, and it must never
+  // block the app — Verify is framework-agnostic and reachable from here.
+  const [showPicker, setShowPicker] = useState(
+    stored === null && config.frameworks.length > 1,
+  );
   const { catalog, loading, error } = useCatalog(framework);
 
   const [search, setSearch] = useState("");
@@ -57,6 +62,13 @@ export function Dashboard() {
     },
     [handleFrameworkChange],
   );
+
+  // Dismissing (Esc / backdrop / close) keeps the current default and
+  // persists it so the prompt doesn't nag — it never traps the user.
+  const handlePickerDismiss = useCallback(() => {
+    handleFrameworkChange(framework);
+    setShowPicker(false);
+  }, [handleFrameworkChange, framework]);
 
   const categories = useMemo(() => {
     const unique = new Set(
@@ -137,6 +149,7 @@ export function Dashboard() {
         open={showPicker}
         frameworks={config.frameworks}
         onSelect={handlePickerSelect}
+        onDismiss={handlePickerDismiss}
       />
 
       {/* Title + framework */}
