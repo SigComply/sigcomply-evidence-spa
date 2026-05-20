@@ -36,7 +36,7 @@ This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to 
 - React 19 + TypeScript, Vite 8
 - React Router v7 (BrowserRouter)
 - Tailwind v4 + shadcn/ui (Base UI primitives, `base-nova` style)
-- `@react-pdf/renderer` for PDF generation (~400 KB gz, lazy-imported inside the form-submit handler so the dashboard and `/verify` chunks stay light)
+- `@react-pdf/renderer` for PDF generation (the heaviest dependency in the bundle, lazy-imported inside the form-submit handler so the dashboard and `/verify` chunks stay light)
 - Web Crypto API (`crypto.subtle`) for Ed25519 envelope verification — no JS crypto library
 - `date-fns` for ISO week math
 - `lucide-react` for icons
@@ -51,7 +51,7 @@ public/
   config.json              ← runtime config (frameworks list, storage prefix)
   data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets
 scripts/
-  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json
+  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json. Two parallel hardcoded lists must be kept in sync when adding a framework: (1) the `frameworks` array in `public/config.json` (what the SPA's UI exposes), (2) the `frameworks` const in `scripts/fetch-catalogs.ts` (what gets pre-fetched at build time).
 src/
   main.tsx                 ← loads config.json, mounts <App>
   App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
@@ -112,7 +112,7 @@ Independent of the form generator. The user (typically an auditor) supplies an `
 
 1. `Verify.tsx` parses the JSON, calls `isEvidenceEnvelope()` to type-guard it, then `verifyEnvelopeSignature()` from `lib/verification/verify.ts`.
 2. `canonicalJSON(envelope.signed)` (sorted keys at every nesting, HTML-safe `<`/`>`/`&` escapes — matches the CLI's `internal/core/attestation/canonical.go` byte-for-byte) produces the bytes that were signed.
-3. `crypto.subtle.importKey("raw", publicKey, { name: "Ed25519" }, …)` then `crypto.subtle.verify` validates the 64-byte signature against those bytes. Requires Chrome 113+, Safari 17+, or Firefox 130+.
+3. `crypto.subtle.importKey("raw", publicKey, { name: "Ed25519" }, …)` then `crypto.subtle.verify` validates the 64-byte signature against those bytes. Browser support is determined at runtime via feature detection — the verifier checks for `crypto.subtle.verify` with the `Ed25519` algorithm and surfaces `WebCryptoUnsupportedError` if unavailable. Concrete browser-version floors shift as Web Crypto's Ed25519 support rolls out.
 4. If `signed.evidence.file_hash` is present (manual flow), `getManualManifest()` extracts it; the user can then drop in the PDF and the page re-hashes it via SHA-256 and compares.
 
 UX contract (verdict-first — don't regress): the page is a single column, not a numbered card wizard. Signature verification runs **automatically** the instant a valid envelope is parsed — there is no "Verify" button; the `"verifying"` transition is set in `handleParse` (not the effect) so it stays out of the effect body. On a valid envelope the input collapses to a one-line source bar (`Verify another` resets) and a large pass/fail/error `VerdictBanner` takes over, with envelope details and canonical bytes behind `<details>`. Pasting or loading a file pretty-prints the JSON (`handleParse(..., { reformat: true })`); typing does not (would jump the caret). Reformatting is cosmetic only — signed bytes are always re-derived via `canonicalJSON(envelope.signed)`, independent of pasted whitespace. Parse errors carry a line/column locus (`describeJsonError`).
@@ -192,11 +192,11 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - **Add a UI primitive** → `npx shadcn add <name>` (writes to `src/components/ui/`). Do not hand-author.
 - **Add a new evidence template** → add a `<Foo>Pdf.tsx` component under `src/lib/pdf/`, wire it in `renderEvidencePdf`'s switch on catalog `type`. Declaration and checklist already share `useEvidenceForm`; new template variants would extend that hook similarly.
 - **Need a new evidence-input flow that isn't a user attestation?** → first ask whether the evidence already exists as a file (PDF/screenshot). If yes, the customer should upload it directly to the bucket — do NOT add a new form type to this SPA. The SPA is intentionally scoped to user attestations (declarations + checklists) only.
-- **Add a new framework** → list it in `public/config.json` `frameworks` and in `scripts/fetch-catalogs.ts`. Catalog JSON is sourced from the CLI, not hand-written.
+- **Add a new framework** → Two parallel hardcoded lists must be kept in sync when adding a framework: (1) the `frameworks` array in `public/config.json` (what the SPA's UI exposes), (2) the `frameworks` const in `scripts/fetch-catalogs.ts` (what gets pre-fetched at build time). Catalog JSON is sourced from the CLI, not hand-written.
 - **localStorage keys** — namespaced `sigcomply:*` (e.g. `sigcomply:framework`, `sigcomply:completed-by`). Keep that prefix.
 - **Imports** — use `@/…` not relative `../../`.
 - **No data fetching libraries** — plain `fetch` + `useEffect` is enough here; don't introduce React Query / SWR for two endpoints.
-- **Lazy-load `@react-pdf/renderer`** — it's the heaviest dependency (~400 KB gz). Always import the renderer dynamically inside the submit handler (see `useEvidenceForm.submit`), not at module top, so neither the dashboard nor the `/verify` route pay for it. Vite splits it into its own chunk automatically.
+- **Lazy-load `@react-pdf/renderer`** — it's the heaviest dependency in the bundle. Always import the renderer dynamically inside the submit handler (see `useEvidenceForm.submit`), not at module top, so neither the dashboard nor the `/verify` route pay for it. Vite splits it into its own chunk automatically.
 - **Verifier crypto stays in Web Crypto** — don't pull in `noble-ed25519`, `tweetnacl`, or any JS Ed25519 implementation. The verifier must use `crypto.subtle` so the canonicalization + signature path is browser-native (and minimal in code surface). Browser support gating belongs in `verify.ts`, not in a polyfill.
 - **Framework picker must stay non-blocking** — never make `FrameworkPickerDialog` a hard modal or a route guard, and never gate `/verify` on a framework. Prompt only when there's a real choice (`frameworks.length > 1` and nothing stored); a single-framework config must reach the dashboard (and Verify) with zero clicks.
 - **Verify stays button-free and dep-free** — keep the verdict-first auto-verify (parse → verdict, no "Verify" button). Don't add a JSON editor/viewer library (Monaco/CodeMirror) for the paste box: the input is machine output the auditor doesn't edit, it collapses on a valid parse, and a heavy dep on the `/verify` chunk contradicts the lazy-load discipline above. Prettify/locus stay zero-dep (`JSON.stringify` + `describeJsonError`).
