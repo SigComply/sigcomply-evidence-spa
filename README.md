@@ -31,7 +31,7 @@ npm run build     # prebuild (fetch-catalogs) + tsc -b + vite build
 npm run preview   # serve dist/
 ```
 
-The prebuild step calls `sigcomply evidence catalog --framework <fw>`, so the CLI must be on `PATH` when building from scratch. CI should either install the CLI first or commit the catalog JSONs and skip the prebuild.
+The prebuild step calls `sigcomply evidence catalog -o json` per framework (the active framework comes from the CLI's config / `SIGCOMPLY_FRAMEWORK` env var — `sigcomply evidence` subcommands do not take a `--framework` flag), so the CLI must be on `PATH` when building from scratch. CI should either install the CLI first or commit the catalog JSONs and skip the prebuild.
 
 Set `VITE_BASE_PATH` if deploying to a subpath.
 
