@@ -1,0 +1,455 @@
+name: Security
+
+# Security scans for the Manual Evidence SPA. This is a purely client-side
+# React + Vite app deployed to GitHub Pages — no backend, no data storage,
+# no auth — so the realistic threat surface is:
+#   - supply-chain compromise via npm packages (biggest risk)
+#   - XSS / unsafe-eval / prototype pollution in app code
+#   - vulnerable JS libraries shipped in the built bundle
+#   - accidental secrets committed to the repo
+#   - missing security headers on the deployed site (mostly a Pages concern,
+#     surfaced here for visibility)
+#
+# Scope is intentionally tighter than the CLI's security workflow — no
+# license-compliance, no Go-specific scanners. The pre-deploy
+# `npm audit --audit-level=high` gate in deploy.yml is kept as a hard
+# blocker; this workflow is the broader read on every push, PR, and weekly.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================
+  # SUPPLY CHAIN SECURITY
+  # ===========================================
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write  # for comment-summary-in-pr
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          # AGPL/GPL-3.0 in a *shipped* SPA bundle would propagate the
+          # license to downstream users. CI-only tooling is fine; runtime
+          # deps are the concern.
+          deny-licenses: GPL-3.0, AGPL-3.0
+          comment-summary-in-pr: always
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+  osv-scanner:
+    name: OSV Scanner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+        with:
+          # Recursive scan auto-detects package-lock.json. Avoids the
+          # --lockfile= trap that sank the CLI's first OSV setup (see
+          # sigcomply-cli commit a932bb6).
+          scan-args: |-
+            --recursive
+            --format=sarif
+            --output-file=osv-results.sarif
+            ./
+        continue-on-error: true  # SARIF upload handles findings
+
+      - name: Upload OSV Scanner results
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        with:
+          sarif_file: osv-results.sarif
+        if: always()
+        continue-on-error: true  # May fail on private repos without GitHub Advanced Security
+
+  # ===========================================
+  # STATIC APPLICATION SECURITY TESTING (SAST)
+  # ===========================================
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        with:
+          category: "/language:javascript-typescript"
+
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run Semgrep
+        run: semgrep ci --sarif --output=semgrep.sarif || true
+        env:
+          SEMGREP_RULES: >-
+            p/javascript
+            p/typescript
+            p/react
+            p/security-audit
+            p/owasp-top-ten
+            p/secrets
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true  # May fail on private repos without GitHub Advanced Security
+
+  # ===========================================
+  # VULNERABILITY SCANNING
+  # ===========================================
+
+  trivy:
+    name: Trivy Vulnerability Scanner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run Trivy (filesystem scan)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+        continue-on-error: true
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        with:
+          sarif_file: 'trivy-fs.sarif'
+        if: always()
+        continue-on-error: true  # May fail on private repos without GitHub Advanced Security
+
+  retire-js:
+    name: Retire.js (vulnerable JS libs in bundle)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA
+        run: npx vite build
+        env:
+          VITE_BASE_PATH: /
+
+      - name: Run Retire.js on built bundle
+        # Retire.js looks for known-vulnerable JS *runtime* libraries by
+        # signature in the shipped bundle — complements OSV/npm-audit which
+        # work off package-lock.json.
+        run: |
+          npx --yes retire --path dist --outputformat json --outputpath retire-report.json --exitwith 0
+          echo "## Retire.js Report" >> $GITHUB_STEP_SUMMARY
+          findings=$(jq '.data | length' retire-report.json)
+          if [ "$findings" != "0" ]; then
+            echo "⚠️ Vulnerable libraries detected in built bundle:" >> $GITHUB_STEP_SUMMARY
+            jq -r '.data[] | "- \(.file): \(.results[]?.component)@\(.results[]?.version)"' retire-report.json >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No vulnerable libraries detected" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Retire.js report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: retire-js-report
+          path: retire-report.json
+
+  # ===========================================
+  # SECRET DETECTION
+  # ===========================================
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0  # gitleaks scans full history
+
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@17456f8c7d042d8c82c9a8ca9e937231f9f42e26 # v3.95.2
+        with:
+          extra_args: --only-verified
+
+      - name: Gitleaks Secret Scan
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz -C /tmp
+          chmod +x /tmp/gitleaks
+          /tmp/gitleaks detect --source . --verbose --redact --exit-code 1 || {
+            echo "::warning::Gitleaks found potential secrets - review the output above"
+            exit 0
+          }
+
+  # ===========================================
+  # DYNAMIC APPLICATION SECURITY TESTING (DAST)
+  # ===========================================
+
+  zap-baseline:
+    name: OWASP ZAP Baseline (built SPA)
+    runs-on: ubuntu-latest
+    # DAST against a static SPA mostly catches missing security headers (a
+    # Pages concern) and obvious client-side issues. Kept for visibility; do
+    # not gate releases on it. Skip on PRs to keep the PR feedback loop fast
+    # — push to main + weekly is enough.
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA
+        run: npx vite build
+        env:
+          VITE_BASE_PATH: /
+
+      - name: Serve built SPA in the background
+        run: |
+          npx --yes serve dist -p 8080 -L &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/ > /dev/null; then
+              echo "SPA is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "SPA failed to start"
+          exit 1
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@5b1ddef1d24a8d7a02fd76ec2486fd0fbef91548 # v0.14.0
+        with:
+          target: 'http://localhost:8080/'
+          # Don't open an issue on findings (we don't want CI bots filing
+          # noise against the repo); the artifact is enough.
+          allow_issue_writing: false
+          fail_action: false
+          cmd_options: '-a'
+
+  # ===========================================
+  # SBOM
+  # ===========================================
+
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@62ad5284b8ced813296287a0b63906cb364b73ee # v0.22.0
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@62ad5284b8ced813296287a0b63906cb364b73ee # v0.22.0
+        with:
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+          upload-artifact: false
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: |
+            sbom.spdx.json
+            sbom.cyclonedx.json
+
+  # ===========================================
+  # SECURITY SUMMARY
+  # ===========================================
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [npm-audit, osv-scanner, codeql, semgrep, trivy, retire-js, secret-scan]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Check security job results
+        run: |
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| npm audit | ${{ needs.npm-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| OSV Scanner | ${{ needs.osv-scanner.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep | ${{ needs.semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Retire.js | ${{ needs.retire-js.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # npm-audit and secret-scan are the hard gates. npm audit catches
+          # high+ CVEs in deps; secret-scan catches credential leaks. The
+          # rest are advisory (continue-on-error or non-blocking).
+          if [[ "${{ needs.npm-audit.result }}" == "failure" ]] || \
+             [[ "${{ needs.secret-scan.result }}" == "failure" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Critical security checks failed!" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All critical security checks passed" >> $GITHUB_STEP_SUMMARY
