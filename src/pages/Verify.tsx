@@ -15,10 +15,11 @@ import {
   XCircle,
 } from "lucide-react";
 import {
+  ENVELOPE_FORMAT_VERSION,
   isEvidenceEnvelope,
-  getManualManifest,
+  getManualDocumentPayload,
   type EvidenceEnvelope,
-  type ManualManifest,
+  type ManualDocumentPayload,
 } from "@/types/envelope";
 import {
   sha256Hex,
@@ -46,11 +47,11 @@ function truncate(s: string, n = 20): string {
   return `${s.slice(0, n)}…${s.slice(-n)}`;
 }
 
-function evidencePreview(ev: unknown): string {
+function previewPayload(p: unknown): string {
   try {
-    return JSON.stringify(ev, null, 2);
+    return JSON.stringify(p, null, 2);
   } catch {
-    return String(ev);
+    return String(p);
   }
 }
 
@@ -75,10 +76,22 @@ export function Verify() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
-  const manifest: ManualManifest | null = useMemo(
-    () => (envelope ? getManualManifest(envelope) : null),
+  const manualDoc: ManualDocumentPayload | null = useMemo(
+    () => (envelope ? getManualDocumentPayload(envelope) : null),
     [envelope],
   );
+
+  // Summary stats for the loaded envelope: how many records and which
+  // distinct record types are present.
+  const recordSummary = useMemo(() => {
+    if (!envelope) return null;
+    const types = new Set<string>();
+    for (const r of envelope.records) types.add(r.type);
+    return {
+      count: envelope.records.length,
+      types: Array.from(types).sort(),
+    };
+  }, [envelope]);
 
   // `reformat` is true for paste / file load — once the text parses we
   // pretty-print it so a minified envelope is readable. It stays false
@@ -121,7 +134,16 @@ export function Verify() {
       if (!isEvidenceEnvelope(parsed)) {
         setEnvelope(null);
         setParseError(
-          "JSON does not match the EvidenceEnvelope shape. Expected fields: signed.timestamp, signed.evidence, public_key, signature.algorithm, signature.value.",
+          `JSON does not match the ${ENVELOPE_FORMAT_VERSION} envelope shape. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.`,
+        );
+        setSigStatus({ state: "idle" });
+        return;
+      }
+
+      if (parsed.format_version !== ENVELOPE_FORMAT_VERSION) {
+        setEnvelope(null);
+        setParseError(
+          `Unsupported envelope format_version "${parsed.format_version}". This verifier handles "${ENVELOPE_FORMAT_VERSION}".`,
         );
         setSigStatus({ state: "idle" });
         return;
@@ -195,8 +217,8 @@ export function Verify() {
 
   const handlePdfFile = useCallback(
     async (file: File) => {
-      if (!manifest?.file_hash) return;
-      const expected = manifest.file_hash.toLowerCase();
+      if (!manualDoc?.file_hash) return;
+      const expected = manualDoc.file_hash.toLowerCase();
       setPdfStatus({ state: "hashing", filename: file.name });
       try {
         const buf = await file.arrayBuffer();
@@ -215,7 +237,7 @@ export function Verify() {
         setPdfStatus({ state: "error", message: (err as Error).message });
       }
     },
-    [manifest],
+    [manualDoc],
   );
 
   const onEnvelopeDrop = useCallback(
@@ -244,14 +266,16 @@ export function Verify() {
     setPdfStatus({ state: "idle" });
   }, []);
 
+  // Identity badges drawn from the manual payload when present, else
+  // a generic "automated" tag derived from the record set.
   const identityParts = useMemo(() => {
     const parts: string[] = [];
-    if (manifest?.evidence_id) parts.push(manifest.evidence_id);
-    parts.push(manifest ? "manual" : "automated");
-    if (manifest?.period) parts.push(manifest.period);
-    if (manifest?.framework) parts.push(manifest.framework);
+    if (manualDoc?.evidence_id) parts.push(manualDoc.evidence_id);
+    parts.push(manualDoc ? "manual" : "automated");
+    if (manualDoc?.period) parts.push(manualDoc.period);
+    if (manualDoc?.framework) parts.push(manualDoc.framework);
     return parts;
-  }, [manifest]);
+  }, [manualDoc]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -262,8 +286,9 @@ export function Verify() {
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Public, client-side verifier for SigComply{" "}
-          <code className="font-mono text-xs">EvidenceEnvelope</code> files.
-          Nothing is uploaded — verification runs entirely in your browser.
+          <code className="font-mono text-xs">{ENVELOPE_FORMAT_VERSION}</code>{" "}
+          files. Nothing is uploaded — verification runs entirely in your
+          browser.
         </p>
       </div>
 
@@ -282,7 +307,9 @@ export function Verify() {
               </span>
               <span className="block text-xs">
                 e.g.{" "}
-                <code className="font-mono">evidence/aws-iam-users.json</code>
+                <code className="font-mono">
+                  envelopes/user_record__aws.iam.json
+                </code>
               </span>
             </div>
             <Button
@@ -323,7 +350,7 @@ export function Verify() {
                 value={rawJson}
                 onChange={(e) => handleParse(e.target.value)}
                 onPaste={handlePaste}
-                placeholder='{ "signed": { "timestamp": "...", "evidence": ... }, "public_key": "...", "signature": { "algorithm": "ed25519", "value": "..." } }'
+                placeholder='{ "format_version": "envelope.v1", "produced_at": "...", "records": [ ... ], "signature": { "algorithm": "ed25519", "public_key": "...", "value": "..." } }'
                 className="mt-1 h-56 resize-y font-mono text-xs leading-relaxed"
                 spellCheck={false}
               />
@@ -343,7 +370,7 @@ export function Verify() {
           <span className="flex items-center gap-2 truncate text-muted-foreground">
             <FileJson className="h-4 w-4 shrink-0" />
             <span className="truncate">
-              {manifest?.evidence_id ?? "Envelope loaded"}
+              {manualDoc?.evidence_id ?? "Envelope loaded"}
             </span>
           </span>
           <Button type="button" variant="ghost" size="sm" onClick={reset}>
@@ -378,8 +405,31 @@ export function Verify() {
               ))}
             </div>
 
+            {/* Record summary — count + distinct types */}
+            {recordSummary && (
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <p className="text-sm font-medium">
+                  {recordSummary.count}{" "}
+                  {recordSummary.count === 1 ? "record" : "records"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Types:{" "}
+                  {recordSummary.types.length === 0 ? (
+                    <span className="italic">none</span>
+                  ) : (
+                    recordSummary.types.map((t, i) => (
+                      <span key={t}>
+                        <code className="font-mono">{t}</code>
+                        {i < recordSummary.types.length - 1 ? ", " : ""}
+                      </span>
+                    ))
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* PDF hash check — manual flow only */}
-            {manifest?.file_hash && (
+            {manualDoc?.file_hash && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -481,10 +531,11 @@ export function Verify() {
                   Envelope details
                 </summary>
                 <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-                  <span className="text-muted-foreground">Timestamp</span>
-                  <span className="font-mono">
-                    {envelope.signed.timestamp}
-                  </span>
+                  <span className="text-muted-foreground">Format</span>
+                  <span className="font-mono">{envelope.format_version}</span>
+
+                  <span className="text-muted-foreground">Produced at</span>
+                  <span className="font-mono">{envelope.produced_at}</span>
 
                   <span className="text-muted-foreground">Algorithm</span>
                   <span className="font-mono">
@@ -493,7 +544,7 @@ export function Verify() {
 
                   <span className="text-muted-foreground">Public key</span>
                   <span className="font-mono break-all">
-                    {truncate(envelope.public_key, 24)}
+                    {truncate(envelope.signature.public_key, 24)}
                   </span>
 
                   <span className="text-muted-foreground">Signature</span>
@@ -501,25 +552,25 @@ export function Verify() {
                     {truncate(envelope.signature.value, 24)}
                   </span>
 
-                  {manifest && (
+                  {manualDoc && (
                     <>
-                      {manifest.file_path && (
+                      {manualDoc.file_path && (
                         <>
                           <span className="text-muted-foreground">
                             PDF path
                           </span>
                           <span className="font-mono break-all">
-                            {manifest.file_path}
+                            {manualDoc.file_path}
                           </span>
                         </>
                       )}
-                      {manifest.file_hash && (
+                      {manualDoc.file_hash && (
                         <>
                           <span className="text-muted-foreground">
                             Expected SHA-256
                           </span>
                           <span className="font-mono break-all">
-                            {manifest.file_hash}
+                            {manualDoc.file_hash}
                           </span>
                         </>
                       )}
@@ -527,7 +578,7 @@ export function Verify() {
                   )}
                 </div>
                 <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">
-                  {evidencePreview(envelope.signed.evidence)}
+                  {previewPayload(envelope.records)}
                 </pre>
               </details>
 

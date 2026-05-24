@@ -1,6 +1,13 @@
 import type { EvidenceEnvelope } from "@/types/envelope";
 import { canonicalJSON } from "./canonical";
 
+/**
+ * Thrown when the running browser does not implement the Web Crypto
+ * Ed25519 primitive — either `crypto.subtle` is missing entirely or
+ * `importKey` rejects the `Ed25519` algorithm. Surfaced separately so
+ * the UI can render an "upgrade your browser" notice instead of a
+ * generic failure.
+ */
 export class WebCryptoUnsupportedError extends Error {
   constructor(message: string) {
     super(message);
@@ -24,13 +31,27 @@ function bytesToHex(bytes: Uint8Array): string {
 export interface VerifyResult {
   valid: boolean;
   reason?: string;
+  /** The canonical UTF-8 string the signature was checked against. */
   signedBytes: string;
 }
 
+/**
+ * Verifies the Ed25519 signature embedded in an envelope.v1 file.
+ *
+ * The signed payload is `canonicalJSON({format_version, produced_at,
+ * records})` — three fields, in that order. The `signature` block is
+ * stripped before canonicalisation; a verifier reconstructs the three
+ * content fields from the parsed envelope and re-runs the canonical
+ * encoder.
+ */
 export async function verifyEnvelopeSignature(
   envelope: EvidenceEnvelope,
 ): Promise<VerifyResult> {
-  const signedBytes = canonicalJSON(envelope.signed);
+  const signedBytes = canonicalJSON({
+    format_version: envelope.format_version,
+    produced_at: envelope.produced_at,
+    records: envelope.records,
+  });
 
   if (envelope.signature.algorithm !== "ed25519") {
     return {
@@ -49,11 +70,11 @@ export async function verifyEnvelopeSignature(
   let publicKey: Uint8Array<ArrayBuffer>;
   let signature: Uint8Array<ArrayBuffer>;
   try {
-    publicKey = base64ToBytes(envelope.public_key);
+    publicKey = base64ToBytes(envelope.signature.public_key);
   } catch {
     return {
       valid: false,
-      reason: "public_key is not valid base64.",
+      reason: "signature.public_key is not valid base64.",
       signedBytes,
     };
   }
@@ -110,11 +131,14 @@ export async function verifyEnvelopeSignature(
 
   return {
     valid,
-    reason: valid ? undefined : "Signature does not match the canonical signed payload.",
+    reason: valid
+      ? undefined
+      : "Signature does not match the canonical signed payload.",
     signedBytes,
   };
 }
 
+/** Hex-encoded SHA-256 of the given bytes. */
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return bytesToHex(new Uint8Array(digest));
