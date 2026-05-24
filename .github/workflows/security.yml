@@ -350,7 +350,7 @@ jobs:
           exit 1
 
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@5b1ddef1d24a8d7a02fd76ec2486fd0fbef91548 # v0.14.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           target: 'http://localhost:8080/'
           # Don't open an issue on findings (we don't want CI bots filing
