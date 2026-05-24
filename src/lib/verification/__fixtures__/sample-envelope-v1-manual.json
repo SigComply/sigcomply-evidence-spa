@@ -1,0 +1,24 @@
+{
+  "format_version": "envelope.v1",
+  "produced_at": "2026-05-23T14:05:00Z",
+  "records": [
+    {
+      "type": "signed_document",
+      "id": "access_review_quarterly",
+      "payload": {
+        "evidence_id": "access_review_quarterly",
+        "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "file_path": "manual-evidence/access_review_quarterly/2026-Q1/evidence.pdf",
+        "period": "2026-Q1",
+        "framework": "soc2"
+      },
+      "source_id": "manual.pdf",
+      "collected_at": "2026-05-23T14:05:01Z"
+    }
+  ],
+  "signature": {
+    "algorithm": "ed25519",
+    "public_key": "FwJlZktx/PMhqmiyEnmRJJmotXWNSfpxiBXYX0KKSxg=",
+    "value": "ADfKJ0VmkdE5HBJ4MRHavewVBAqus3vCSXSl6NIEdei4IRMKUoVlF0A6xchzuWdTOUd6xFtYZSwiAZ1N7MIHBQ=="
+  }
+}

@@ -1,0 +1,1 @@
+{"format_version":"envelope.v1","produced_at":"2026-05-23T14:00:00Z","records":[{"collected_at":"2026-05-23T14:00:01Z","id":"AIDAEXAMPLE01","identity_key":"alice@acme.com","payload":{"email":"alice@acme.com","id":"AIDAEXAMPLE01","is_admin":true,"last_used_at":"2026-02-12T09:14:00Z","mfa_enabled":false},"source_id":"aws.iam","type":"user_record"}]}

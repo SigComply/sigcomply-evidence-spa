@@ -1,0 +1,25 @@
+{
+  "format_version": "envelope.v1",
+  "produced_at": "2026-05-23T14:00:00Z",
+  "records": [
+    {
+      "type": "user_record",
+      "id": "AIDAEXAMPLE01",
+      "identity_key": "alice@acme.com",
+      "payload": {
+        "id": "AIDAEXAMPLE01",
+        "email": "alice@acme.com",
+        "mfa_enabled": false,
+        "last_used_at": "2026-02-12T09:14:00Z",
+        "is_admin": true
+      },
+      "source_id": "aws.iam",
+      "collected_at": "2026-05-23T14:00:01Z"
+    }
+  ],
+  "signature": {
+    "algorithm": "ed25519",
+    "public_key": "+Ygcljuy3Q0a3NhgyYK6wPZWm6mnirXBclSbUfaW/LY=",
+    "value": "cRsMrxD/vsUONaLcwXF2tm53wK0bTI6JdeLD8Vuz1NC7uWR5xFWzEHsHqXezCAfZhDDKW/9BWojbdQWQNm22CQ=="
+  }
+}
