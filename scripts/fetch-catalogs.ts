@@ -9,7 +9,8 @@ const catalogsDir = join(__dirname, "..", "public", "data", "catalogs");
 function run(cmd: string): string {
   // Build-time only. `cmd` is composed from a hardcoded framework list
   // (line 27); never user input. Script is not shipped in the SPA bundle.
-  return execSync(cmd, { encoding: "utf-8" }).trim(); // nosemgrep
+  // (Semgrep suppression for this file lives in .semgrepignore.)
+  return execSync(cmd, { encoding: "utf-8" }).trim();
 }
 
 function main() {
