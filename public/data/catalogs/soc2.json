@@ -3,15 +3,28 @@
   "version": "1.0",
   "entries": [
     {
-      "id": "incident_response_test",
-      "control": "CC7.4",
+      "id": "code_of_conduct_acknowledgment",
+      "control": "CC1.1",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Code Of Conduct Acknowledgment",
+      "description": "Employees acknowledge the code of conduct.",
+      "severity": "medium",
+      "declaration_text": "I confirm that all personnel have acknowledged the organization's code of conduct during this period, either on hire or as part of the annual re-acknowledgment.",
+      "tsc": "security"
+    },
+    {
+      "id": "incident_response_tested",
+      "control": "CC7.3",
       "type": "checklist",
       "frequency": "yearly",
       "temporal_rule": "retrospective",
       "grace_period": "30d",
-      "name": "Incident Response Plan Test",
-      "description": "Complete checklist confirming annual incident response plan testing",
-      "severity": "high",
+      "name": "Incident Response Tested",
+      "description": "The incident response plan is tested.",
+      "severity": "medium",
       "items": [
         {
           "id": "plan_tested",
@@ -30,257 +43,45 @@
         },
         {
           "id": "lessons_documented",
-          "text": "Lessons learned were documented and plan updated accordingly",
+          "text": "Lessons learned were documented and the plan updated accordingly",
           "required": false
         }
       ],
-      "category": "logging",
       "tsc": "security"
     },
     {
-      "id": "risk_acceptance_signoff",
-      "control": "CC3.1",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Risk Acceptance Sign-off",
-      "description": "Declare that quarterly risk assessment has been reviewed and accepted by management",
-      "severity": "high",
-      "declaration_text": "I confirm that the quarterly risk assessment has been reviewed, all identified risks have been evaluated, and appropriate risk treatment decisions have been made and approved by management.",
-      "category": "vulnerability_management",
-      "tsc": "security"
-    },
-    {
-      "id": "background_check",
-      "control": "CC1.4",
-      "type": "declaration",
-      "frequency": "yearly",
-      "temporal_rule": "retrospective",
-      "grace_period": "30d",
-      "name": "Background Check Summary",
-      "description": "Declare that background checks were completed for all new hires in this period, or that no new hires joined",
-      "severity": "high",
-      "declaration_text": "I confirm that background checks have been completed for all new hires during this period, or that no new hires joined the organization during this period.",
-      "category": "hr_governance",
-      "tsc": "security"
-    },
-    {
-      "id": "significant_change_analysis",
-      "control": "CC3.4",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Significant Change Impact Analysis",
-      "description": "Declare that significant changes affecting internal controls were analyzed this period, or that none occurred",
-      "severity": "high",
-      "declaration_text": "I confirm that any significant changes affecting the system of internal controls during this period have been analyzed and documented, or that no such significant changes occurred.",
-      "category": "risk_compliance",
-      "tsc": "security"
-    },
-    {
-      "id": "vendor_soc2_review",
-      "control": "CC9.2",
+      "id": "recovery_procedures_tested",
+      "control": "A1.3",
       "type": "checklist",
       "frequency": "yearly",
       "temporal_rule": "retrospective",
       "grace_period": "30d",
-      "name": "Vendor SOC 2 Report Review",
-      "description": "Complete checklist confirming annual review of critical vendor SOC 2 reports",
-      "severity": "high",
+      "name": "Recovery Procedures Tested",
+      "description": "Disaster-recovery procedures are tested.",
+      "severity": "medium",
       "items": [
         {
-          "id": "all_vendors_reviewed",
-          "text": "SOC 2 (or equivalent) reports for all critical vendors have been reviewed",
+          "id": "recovery_executed",
+          "text": "Recovery procedures were executed against a representative scenario",
           "required": true
         },
         {
-          "id": "exceptions_documented",
-          "text": "Any exceptions or qualifications noted in vendor reports were documented",
+          "id": "rto_rpo_met",
+          "text": "Recovery time and recovery point objectives (RTO/RPO) were met",
           "required": true
         },
         {
-          "id": "cuecs_addressed",
-          "text": "Complementary User Entity Controls (CUECs) have been identified and addressed",
+          "id": "data_integrity_verified",
+          "text": "Restored data integrity was verified",
           "required": true
         },
         {
-          "id": "remediation_tracked",
-          "text": "Remediation items for vendor issues are being tracked",
+          "id": "gaps_remediated",
+          "text": "Gaps identified during the test were documented and remediated",
           "required": false
         }
       ],
-      "category": "risk_compliance",
-      "tsc": "security"
-    },
-    {
-      "id": "office_walkthrough",
-      "control": "CC6.4",
-      "type": "checklist",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Office Security Walkthrough",
-      "description": "Complete quarterly office security walkthrough checklist",
-      "severity": "medium",
-      "items": [
-        {
-          "id": "it_closet_locked",
-          "text": "IT/server closet was locked and access-restricted",
-          "required": true
-        },
-        {
-          "id": "clean_desk",
-          "text": "Clean-desk policy was observed across the office",
-          "required": true
-        },
-        {
-          "id": "cctv_functioning",
-          "text": "CCTV cameras were functioning and recording",
-          "required": true
-        },
-        {
-          "id": "no_violations",
-          "text": "No physical security violations were observed",
-          "required": true
-        }
-      ],
-      "category": "access_physical",
-      "tsc": "security"
-    },
-    {
-      "id": "incident_post_mortem",
-      "control": "CC7.4",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Incident Post-Mortem Summary",
-      "description": "Declare that all security incidents this period have post-mortem documentation, or that none occurred",
-      "severity": "high",
-      "declaration_text": "I confirm that all security incidents that occurred during this period have documented post-mortem summaries, or that no security incidents occurred during this period.",
-      "category": "system_ops_bcdr",
-      "tsc": "security"
-    },
-    {
-      "id": "media_sanitization",
-      "control": "CC6.5",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Media Sanitization Certificate",
-      "description": "Declare that all decommissioned media was sanitized or destroyed this period, with certificates attached for any such events",
-      "severity": "high",
-      "declaration_text": "I confirm that no media decommissioning events occurred this period, or that all such events that did occur have sanitization/destruction certificates attached.",
-      "category": "data_protection",
-      "tsc": "security"
-    },
-    {
-      "id": "employee_nda",
-      "control": "CC1.1",
-      "type": "declaration",
-      "frequency": "yearly",
-      "temporal_rule": "retrospective",
-      "grace_period": "30d",
-      "name": "Employee NDA Acknowledgment",
-      "description": "Declare that all employees have acknowledged the current NDA and code-of-conduct during this period",
-      "severity": "high",
-      "declaration_text": "I confirm that all current employees have signed or re-acknowledged the organization's NDA and code-of-conduct during this period.",
-      "category": "hr_governance",
-      "tsc": "security"
-    },
-    {
-      "id": "security_comm_channel",
-      "control": "CC2.2",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Security Communication Channel Evidence",
-      "description": "Declare that a security communication channel is active and has been used this period to communicate security updates",
-      "severity": "medium",
-      "declaration_text": "I confirm that a dedicated security communication channel (Slack channel, mailing list, or intranet page) exists and has been used this period to communicate security updates and alerts to employees.",
-      "category": "risk_compliance",
-      "tsc": "security"
-    },
-    {
-      "id": "emergency_change_procedure",
-      "control": "CC8.1",
-      "type": "declaration",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Emergency Change Procedure Declaration",
-      "description": "Declare that emergency change procedures are documented and were followed for any emergency changes this period",
-      "severity": "high",
-      "declaration_text": "I confirm that documented emergency change procedures exist and were followed for all emergency changes this period, or that no emergency changes occurred.",
-      "category": "change_management",
-      "tsc": "security"
-    },
-    {
-      "id": "quarterly_privacy_review",
-      "control": "P1.1",
-      "type": "checklist",
-      "frequency": "quarterly",
-      "temporal_rule": "retrospective",
-      "grace_period": "15d",
-      "name": "Quarterly Privacy Program Review",
-      "description": "Complete the quarterly privacy program review checklist",
-      "severity": "high",
-      "items": [
-        {
-          "id": "notice_reviewed",
-          "text": "Privacy notice reviewed and confirmed current",
-          "required": true
-        },
-        {
-          "id": "dsar_log_reviewed",
-          "text": "DSAR log reviewed and all requests resolved or in progress",
-          "required": true
-        },
-        {
-          "id": "consent_audited",
-          "text": "Consent records audited for completeness",
-          "required": true
-        },
-        {
-          "id": "minimization_reviewed",
-          "text": "Data minimization practices reviewed",
-          "required": true
-        }
-      ],
-      "category": "privacy",
-      "tsc": "privacy"
-    },
-    {
-      "id": "data_minimization_proof",
-      "control": "P3.1",
-      "type": "declaration",
-      "frequency": "yearly",
-      "temporal_rule": "retrospective",
-      "grace_period": "30d",
-      "name": "Data Minimization Proof",
-      "description": "Declare that personal data collection is limited to what is necessary as described in the privacy notice",
-      "severity": "medium",
-      "declaration_text": "I confirm that the organization collects only the personal information necessary for the purposes identified in the privacy notice, and that a review of data collection practices has been completed for this period.",
-      "category": "privacy",
-      "tsc": "privacy"
-    },
-    {
-      "id": "customer_data_segregation",
-      "control": "C1.1",
-      "type": "declaration",
-      "frequency": "yearly",
-      "temporal_rule": "retrospective",
-      "grace_period": "30d",
-      "name": "Customer Data Segregation Attestation",
-      "description": "Declare that customer data is logically or physically segregated and that controls prevent cross-tenant access",
-      "severity": "high",
-      "declaration_text": "I confirm that customer data is logically or physically segregated, and that access controls are in place to prevent unauthorized cross-tenant data access.",
-      "category": "data_protection",
-      "tsc": "confidentiality"
+      "tsc": "availability"
     }
   ]
 }
