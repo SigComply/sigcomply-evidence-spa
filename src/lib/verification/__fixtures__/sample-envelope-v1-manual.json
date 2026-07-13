@@ -4,13 +4,25 @@
   "records": [
     {
       "type": "signed_document",
-      "id": "access_review_quarterly",
+      "id": "access_review_quarterly/2026-Q1",
       "payload": {
         "evidence_id": "access_review_quarterly",
-        "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "file_path": "manual-evidence/access_review_quarterly/2026-Q1/evidence.pdf",
-        "period": "2026-Q1",
-        "framework": "soc2"
+        "period_id": "2026-Q1",
+        "file_present": true,
+        "file_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "file_size": 20480,
+        "uploaded_at": "2026-05-23T14:04:00Z",
+        "in_temporal_window": true,
+        "file_valid": true,
+        "expected_uri": "s3://acme-evidence/manual/access_review_quarterly/2026-Q1/",
+        "source_files": [
+          {
+            "filename": "access-review.pdf",
+            "type": "pdf",
+            "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "uploaded_at": "2026-05-23T14:04:00Z"
+          }
+        ]
       },
       "source_id": "manual.pdf",
       "collected_at": "2026-05-23T14:05:01Z"
@@ -18,7 +30,7 @@
   ],
   "signature": {
     "algorithm": "ed25519",
-    "public_key": "FwJlZktx/PMhqmiyEnmRJJmotXWNSfpxiBXYX0KKSxg=",
-    "value": "ADfKJ0VmkdE5HBJ4MRHavewVBAqus3vCSXSl6NIEdei4IRMKUoVlF0A6xchzuWdTOUd6xFtYZSwiAZ1N7MIHBQ=="
+    "public_key": "I2powEduQsGYjIdl06xJrq64pYdrei9YU4ifJITQQTQ=",
+    "value": "Lcc5prE5rs7+jNWH/wbsefPYc2OvnD8KBKNPbk2tKsb6dyFYfHGI4f93olRrjdP5i7DcD+SPRHliBZi9Z5VhDg=="
   }
 }
