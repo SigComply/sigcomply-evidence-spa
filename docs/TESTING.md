@@ -33,24 +33,27 @@ Tests are **colocated** next to the code they cover: `foo.ts` → `foo.test.ts` 
 Test fixtures live in a sibling `__fixtures__/` directory.
 
 ```
-src/lib/verification/
-  canonical.ts            canonical.test.ts
-  verify.ts               verify.test.ts
-  __fixtures__/
-    sample-envelope-v1.json              ← CLI-produced envelope (automated flow)
-    sample-envelope-v1-manual.json       ← CLI-produced envelope (manual flow)
-    sample-envelope-v1.canonical.txt     ← CLI reference canonical bytes (the contract)
+src/lib/
+  period.ts               period.test.ts
+  storage-path.ts         storage-path.test.ts
+  verification/
+    canonical.ts          canonical.test.ts
+    verify.ts             verify.test.ts
+    __fixtures__/
+      sample-envelope-v1.json            ← CLI-produced envelope (automated flow)
+      sample-envelope-v1-manual.json     ← CLI-produced envelope (manual flow)
+      sample-envelope-v1.canonical.txt   ← CLI reference canonical bytes (the contract)
 ```
 
 ## Current coverage (and the gap)
 
-Today the suite covers **only the `/verify` crypto path** — `src/lib/verification/{canonical,verify}.ts`
-(21 tests across 2 files). Everything else has **zero tests**, including:
+The suite covers the **`/verify` crypto path** — `src/lib/verification/{canonical,verify}.ts` — plus
+the pure-function helpers `src/lib/period.ts` (period keys/ranges, incl. ISO week-year and W53
+boundaries) and `src/lib/storage-path.ts` (upload-path building). Still **untested**:
 
 - the entire **form → PDF** app (`useEvidenceForm`, `renderEvidencePdf`, the PDF components),
-- period math (`src/lib/period.ts`), upload-path building (`src/lib/storage-path.ts`), PDF metadata
-  strings (`src/lib/pdf/metadata.ts`),
-- all React components, hooks, and pages.
+- PDF metadata strings (`src/lib/pdf/metadata.ts`),
+- all React components, hooks, and pages (verified manually in a browser instead).
 
 This is a known gap, not a decision that these don't need tests. **The expectation going forward: new
 or changed logic ships with tests in the same commit** (see [WORKFLOW.md § 2](WORKFLOW.md#2-write-tests-first)).

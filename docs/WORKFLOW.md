@@ -63,9 +63,10 @@ the framework picker stays **non-blocking**. These are architectural, not stylis
 ### 2. Write tests first
 
 TDD. Write the failing test before the implementation. Tests are colocated Vitest files
-(`foo.ts` → `foo.test.ts`). What kind of test lives where, the current coverage gap (only the
-`/verify` crypto path is tested today), and the Web-Crypto/PDF specifics are all in
-[TESTING.md](TESTING.md) — read it before adding tests.
+(`foo.ts` → `foo.test.ts`). What kind of test lives where, the remaining coverage gaps, and the
+Web-Crypto/PDF specifics are all in [TESTING.md](TESTING.md) — read it before adding tests. Unit
+tests currently cover the `/verify` crypto path (`canonical`, `verify`) plus `period` and
+`storage-path`; the React components and PDF renderer are still browser-verified, not unit-tested.
 
 The expectation: **new logic ships with tests.** Pure functions (canonicalization, period math,
 path building, metadata strings) are cheap to unit-test and must be. If you touch
@@ -194,10 +195,11 @@ against it, don't guess. Break either and the app silently misbehaves:
    `internal/sign` byte-for-byte. The contract test in `canonical.test.ts` checks the SPA output
    against a committed CLI-produced reference fixture. If it drifts, `/verify` rejects valid
    signatures. Change one side → change the other in lockstep.
-2. **Framework list + catalog shape** — two parallel hardcoded lists must stay in sync when adding a
-   framework: `frameworks` in `public/config.json` (what the UI exposes) and `frameworks` in
-   `scripts/fetch-catalogs.ts` (what gets pre-fetched). The catalog JSON shape mirrors the CLI's
-   `ManualCatalogExport()` → `src/types/catalog.ts`.
+2. **Framework list + catalog shape** — `public/config.json` is the single source of truth for which
+   frameworks the UI exposes; `scripts/fetch-catalogs.ts` reads that list (`frameworksFromConfig()`)
+   so the prefetched catalogs can't drift from what the app can reach. To add a framework, add it to
+   `public/config.json` — there is no second list to keep in sync. The catalog JSON shape mirrors the
+   CLI's `ManualCatalogExport()` → `src/types/catalog.ts`.
 
 Full contract table: [CLAUDE.md → Contracts with Sibling Repos](../CLAUDE.md#contracts-with-sibling-repos).
 
