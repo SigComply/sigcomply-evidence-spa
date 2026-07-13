@@ -31,7 +31,7 @@ npm run build     # prebuild (fetch-catalogs) + tsc -b + vite build
 npm run preview   # serve dist/
 ```
 
-The prebuild step calls `sigcomply evidence catalog -o json` per framework (the active framework comes from the CLI's config / `SIGCOMPLY_FRAMEWORK` env var — `sigcomply evidence` subcommands do not take a `--framework` flag), so the CLI must be on `PATH` when building from scratch. CI should either install the CLI first or commit the catalog JSONs and skip the prebuild.
+The prebuild step calls `sigcomply evidence catalog --framework <fw> -o json` for each framework in the script's hardcoded list, so the CLI must be on `PATH` when building from scratch. (The `evidence` command group's `-f`/`--framework` flag falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2` when omitted, but the script always passes it explicitly.) CI should either install the CLI first or commit the catalog JSONs and skip the prebuild.
 
 Set `VITE_BASE_PATH` if deploying to a subpath.
 
@@ -50,7 +50,7 @@ Deploys can override `config.json` in the hosting bucket without rebuilding.
 
 ## How it fits
 
-This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → user uploads to `{prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. Users who skip the SPA upload the same `evidence.pdf` to the same path themselves; the CLI sees no difference.
+This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → the SPA shows the upload path `{prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` and the user uploads the file to the manual-evidence folder in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. The CLI reads every supported file in the period folder regardless of name, so users who skip the SPA can upload their own PDF to the same folder; the CLI sees no difference. (Note: the exact folder scheme the SPA displays and the CLI's own layout are currently being reconciled — see `CLAUDE.md` → Contracts.)
 
 See [`CLAUDE.md`](CLAUDE.md) for development conventions, cross-repo contracts, and the wider product architecture.
 
