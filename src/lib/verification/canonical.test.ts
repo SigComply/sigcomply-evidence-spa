@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canonicalJSON } from "./canonical";
+import {
+  canonicalJSON,
+  parseJSONPreservingNumbers,
+  LosslessNumber,
+} from "./canonical";
 import sampleEnvelope from "./__fixtures__/sample-envelope-v1.json";
 import canonicalReference from "./__fixtures__/sample-envelope-v1.canonical.txt?raw";
+// Imported as raw text (NOT a JSON module): a JSON import would parse the
+// 64-bit payload integers through float64 and round them before we ever see
+// them, defeating the point of the fixture.
+import bignumEnvelopeRaw from "./__fixtures__/sample-envelope-v1-bignum.json?raw";
+import bignumCanonical from "./__fixtures__/sample-envelope-v1-bignum.canonical.txt?raw";
 
 describe("canonicalJSON", () => {
   it("encodes the empty object", () => {
@@ -80,5 +89,56 @@ describe("canonicalJSON", () => {
       records: sampleEnvelope.records,
     });
     expect(signedBytes).toBe(canonicalReference.trimEnd());
+  });
+});
+
+describe("large-integer preservation (payload ints > 2^53)", () => {
+  it("emits a LosslessNumber's source lexeme verbatim", () => {
+    expect(canonicalJSON(new LosslessNumber("9223372036854775807"))).toBe(
+      "9223372036854775807",
+    );
+  });
+
+  it("keeps integers above 2^53 that plain JSON.parse would round", () => {
+    const src = '{"id":9007199254740993}'; // 2^53 + 1
+    // Establish the hazard: a plain parse loses the low bit.
+    expect(JSON.stringify(JSON.parse(src))).toBe('{"id":9007199254740992}');
+    // The lexeme-preserving parse + canonicalise keeps it exact.
+    expect(canonicalJSON(parseJSONPreservingNumbers(src))).toBe(
+      '{"id":9007199254740993}',
+    );
+  });
+
+  it("still round-trips float64-safe numbers unchanged", () => {
+    expect(canonicalJSON(parseJSONPreservingNumbers('{"a":42,"b":1.5}'))).toBe(
+      '{"a":42,"b":1.5}',
+    );
+  });
+
+  it("matches the CLI's canonical bytes for a 64-bit payload envelope", () => {
+    // sample-envelope-v1-bignum.{json,canonical.txt} were produced by the Go
+    // signer against a payload carrying epoch-nanos (1700000000000000123) and
+    // int64-max (9223372036854775807). Byte-equality here is the contract.
+    const parsed = parseJSONPreservingNumbers(bignumEnvelopeRaw) as {
+      format_version: unknown;
+      produced_at: unknown;
+      records: unknown;
+    };
+    const signedBytes = canonicalJSON({
+      format_version: parsed.format_version,
+      produced_at: parsed.produced_at,
+      records: parsed.records,
+    });
+    expect(signedBytes).toBe(bignumCanonical.trimEnd());
+  });
+
+  it("a plain JSON.parse round-trip would diverge (documents the bug the fix avoids)", () => {
+    const obj = JSON.parse(bignumEnvelopeRaw);
+    const lossy = canonicalJSON({
+      format_version: obj.format_version,
+      produced_at: obj.produced_at,
+      records: obj.records,
+    });
+    expect(lossy).not.toBe(bignumCanonical.trimEnd());
   });
 });

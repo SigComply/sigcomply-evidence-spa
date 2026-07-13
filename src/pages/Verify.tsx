@@ -71,6 +71,10 @@ export function Verify() {
   const [rawJson, setRawJson] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
   const [envelope, setEnvelope] = useState<EvidenceEnvelope | null>(null);
+  // The original, un-reformatted envelope text — used to derive canonical
+  // bytes from a lexeme-preserving parse (so large integers aren't rounded).
+  // Kept separate from `rawJson`, which may be pretty-printed for display.
+  const [sourceText, setSourceText] = useState("");
   const [sigStatus, setSigStatus] = useState<SigStatus>({ state: "idle" });
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>({ state: "idle" });
   const [envDragActive, setEnvDragActive] = useState(false);
@@ -152,6 +156,9 @@ export function Verify() {
       }
 
       setEnvelope(parsed);
+      // Preserve the original text (not the pretty-printed `display`) so the
+      // signature check canonicalises from a lexeme-preserving parse.
+      setSourceText(text);
       setParseError(null);
       // Verdict-first: flip to "verifying" the instant a valid envelope is
       // parsed. The effect below runs the async check and resolves it —
@@ -196,7 +203,7 @@ export function Verify() {
   useEffect(() => {
     if (!envelope) return;
     let cancelled = false;
-    verifyEnvelopeSignature(envelope)
+    verifyEnvelopeSignature(envelope, sourceText)
       .then((result) => {
         if (cancelled) return;
         setSigStatus({
@@ -215,7 +222,7 @@ export function Verify() {
     return () => {
       cancelled = true;
     };
-  }, [envelope]);
+  }, [envelope, sourceText]);
 
   const handlePdfFile = useCallback(
     async (file: File) => {
@@ -281,6 +288,7 @@ export function Verify() {
 
   const reset = useCallback(() => {
     setRawJson("");
+    setSourceText("");
     setParseError(null);
     setEnvelope(null);
     setSigStatus({ state: "idle" });

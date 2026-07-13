@@ -81,6 +81,11 @@ function encodeNumber(n: number): string {
 function encodeValue(v: unknown): string {
   if (v === null || v === undefined) return "null";
   if (typeof v === "boolean") return v ? "true" : "false";
+  // A number whose exact source lexeme was preserved at parse time (see
+  // parseJSONPreservingNumbers). Emit it verbatim to mirror the CLI, which
+  // canonicalises numbers as `json.Number` source text — so integers beyond
+  // float64's 2^53 range survive byte-for-byte instead of being rounded.
+  if (v instanceof LosslessNumber) return v.source;
   if (typeof v === "number") return encodeNumber(v);
   if (typeof v === "string") return encodeString(v);
   if (Array.isArray(v)) {
@@ -114,4 +119,49 @@ function encodeValue(v: unknown): string {
 
 export function canonicalJSON(value: unknown): string {
   return encodeValue(value);
+}
+
+/**
+ * A JSON number whose exact source text is preserved. `JSON.parse` coerces
+ * every number to an IEEE-754 float64, silently rounding integers above 2^53
+ * (e.g. a 64-bit resource ID or epoch-nanosecond timestamp). The CLI signs
+ * such numbers verbatim — it holds record payloads as `json.RawMessage` and
+ * canonicalises with `json.Decoder.UseNumber()`, so the source digits survive
+ * into the signed bytes. To reproduce those bytes, the verifier must keep the
+ * digits too; canonicalJSON emits `source` verbatim for these.
+ */
+export class LosslessNumber {
+  readonly source: string;
+  constructor(source: string) {
+    this.source = source;
+  }
+}
+
+// Reviver signature including the ES2023 "source text access" third argument
+// (`context.source`), which older lib typings omit.
+type SourceReviver = (
+  key: string,
+  value: unknown,
+  context?: { source?: string },
+) => unknown;
+
+/**
+ * Like `JSON.parse`, but wraps every number in a {@link LosslessNumber}
+ * carrying its exact source lexeme, so canonicalJSON can re-emit it byte-for-
+ * byte. Relies on the reviver `context.source` argument (Node 21.1+, Chrome
+ * 122+, Firefox 125+, Safari 17.5+). On engines without it, `context` is
+ * undefined and numbers fall through as ordinary float64 — identical to the
+ * previous behaviour, so nothing breaks (large-integer envelopes simply remain
+ * unverifiable there, as they were before). This is used only to derive the
+ * signed bytes; the parsed envelope shown in the UI still uses plain
+ * `JSON.parse`.
+ */
+export function parseJSONPreservingNumbers(text: string): unknown {
+  const reviver: SourceReviver = (_key, value, context) => {
+    if (typeof value === "number" && typeof context?.source === "string") {
+      return new LosslessNumber(context.source);
+    }
+    return value;
+  };
+  return JSON.parse(text, reviver as (key: string, value: unknown) => unknown);
 }

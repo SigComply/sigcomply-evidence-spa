@@ -3,6 +3,9 @@ import { verifyEnvelopeSignature } from "./verify";
 import { isEvidenceEnvelope, type EvidenceEnvelope } from "@/types/envelope";
 import sampleEnvelope from "./__fixtures__/sample-envelope-v1.json";
 import manualEnvelope from "./__fixtures__/sample-envelope-v1-manual.json";
+// Raw text (not a JSON module): the 64-bit payload integers must reach the
+// verifier un-rounded, so the lexeme-preserving path can be exercised.
+import bignumEnvelopeRaw from "./__fixtures__/sample-envelope-v1-bignum.json?raw";
 
 function loadFixture(raw: unknown): EvidenceEnvelope {
   if (!isEvidenceEnvelope(raw)) {
@@ -85,5 +88,25 @@ describe("verifyEnvelopeSignature", () => {
     const result = await verifyEnvelopeSignature(env);
     expect(result.valid).toBe(false);
     expect(result.reason).toMatch(/Unsupported signature algorithm/);
+  });
+
+  describe("64-bit payload integers", () => {
+    // The CLI signs payload integers verbatim (json.RawMessage + UseNumber),
+    // so an envelope with a 2^63-scale value must verify — but only when
+    // canonical bytes are derived from the raw text, not a rounded JSON.parse.
+    const env = loadFixture(JSON.parse(bignumEnvelopeRaw));
+
+    it("verifies when the raw text is supplied (lexeme-preserving path)", async () => {
+      const result = await verifyEnvelopeSignature(env, bignumEnvelopeRaw);
+      expect(result.valid).toBe(true);
+      expect(result.signedBytes).toContain("9223372036854775807");
+    });
+
+    it("fails without the raw text (JSON.parse rounds the ints)", async () => {
+      // Documents why Verify.tsx must pass the original text: the object path
+      // canonicalises rounded integers and computes the wrong bytes.
+      const result = await verifyEnvelopeSignature(env);
+      expect(result.valid).toBe(false);
+    });
   });
 });
