@@ -77,16 +77,48 @@ export function isEvidenceEnvelope(v: unknown): v is EvidenceEnvelope {
 }
 
 /**
+ * One entry in a manual manifest's per-file audit trail. Mirrors the Go
+ * `sourceFile` struct in internal/sources/manual/manual.go — each original
+ * upload (before image→PDF conversion / merge) with its own hash so auditors
+ * can trace the merged evidence back to individual files.
+ */
+export interface ManualSourceFile {
+  filename: string;
+  /** "pdf", "jpeg", "png", … */
+  type: string;
+  /** SHA-256 of the original bytes, e.g. "sha256:<hex>". */
+  sha256: string;
+  /** RFC 3339 upload time, if the backend records one. */
+  uploaded_at?: string;
+  /** True when an image was converted to PDF. */
+  converted?: boolean;
+}
+
+/**
  * Shape of the payload the `manual.pdf` source plugin emits inside a
- * `signed_document` record. Surfaced separately so the verifier UI can
- * cross-check a sibling PDF's SHA-256 against `file_hash`.
+ * `signed_document` record. Mirrors the Go `manualManifest` struct (JSON
+ * tags) in internal/sources/manual/manual.go. Surfaced separately so the
+ * verifier UI can cross-check a sibling PDF's SHA-256 against `file_hash`
+ * and show the folder the CLI scanned (`expected_uri`). All fields are
+ * optional so the verifier tolerates the CLI's `omitempty` output (e.g. an
+ * empty-folder manifest carries no `file_hash`).
  */
 export interface ManualDocumentPayload {
   evidence_id?: string;
+  period_id?: string;
+  file_present?: boolean;
+  /** SHA-256 of the merged PDF, e.g. "sha256:<hex>". */
   file_hash?: string;
-  file_path?: string;
-  period?: string;
-  framework?: string;
+  /** Size of the merged PDF in bytes. */
+  file_size?: number;
+  /** Latest upload time across the source files (RFC 3339). */
+  uploaded_at?: string;
+  in_temporal_window?: boolean;
+  file_valid?: boolean;
+  validation_failures?: string[];
+  /** Folder URI the CLI scanned, e.g. "s3://bucket/manual/<id>/<period>/". */
+  expected_uri?: string;
+  source_files?: ManualSourceFile[];
 }
 
 /**

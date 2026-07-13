@@ -44,5 +44,9 @@
     "typescript-eslint": "^8.60.1",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "hono": ">=4.12.25",
+    "esbuild": "^0.28.1"
   }
 }
