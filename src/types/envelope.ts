@@ -126,16 +126,18 @@ export interface ManualDocumentPayload {
  * record in the envelope. Manual-flow envelopes carry exactly one such
  * record per source/period; if more than one is found, the first is
  * returned. Returns null when no manual record is present.
+ *
+ * The presence of the record — not `file_hash` — is what marks the envelope
+ * as manual-flow: an empty-folder period produces a `signed_document` record
+ * with no `file_hash`, and it should still read as "manual" in the UI. The
+ * sibling-PDF hash check separately gates on `file_hash` being present.
  */
 export function getManualDocumentPayload(
   env: EvidenceEnvelope,
 ): ManualDocumentPayload | null {
   for (const r of env.records) {
     if (r.type !== "signed_document") continue;
-    const payload = r.payload as ManualDocumentPayload;
-    if (typeof payload.file_hash === "string") {
-      return payload;
-    }
+    return r.payload as ManualDocumentPayload;
   }
   return null;
 }
