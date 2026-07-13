@@ -3,10 +3,10 @@
 // header, body, and PDF metadata fields need.
 //
 // The CLI does not parse the PDF in v1 — the storage-side contract is the
-// fixed filename `evidence.pdf` at
-// {prefix}/{framework}/{evidence_id}/{period}/evidence.pdf, plus a stable
-// `keywords` string in the PDF Info dictionary that future text-extraction
-// policies can parse. See src/lib/pdf/shared.tsx for the metadata layout.
+// folder layout {prefix}{evidence_id}/{period}/ (no framework segment; the
+// CLI globs the folder and is filename-agnostic), plus a stable `keywords`
+// string in the PDF Info dictionary that future text-extraction policies can
+// parse. See src/lib/pdf/shared.tsx for the metadata layout.
 
 import type { EvidenceType, Frequency } from "@/types/catalog";
 
