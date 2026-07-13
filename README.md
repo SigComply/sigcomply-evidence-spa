@@ -48,6 +48,18 @@ Edit `public/config.json` to change the frameworks shown or the storage prefix:
 
 Deploys can override `config.json` in the hosting bucket without rebuilding.
 
+## Deployment
+
+This is a fully static SPA — the build output in `dist/` is plain HTML, JS, and
+CSS with no server component, so it can be served from any static host (GitHub
+Pages, an S3/GCS bucket + CDN, Netlify, etc.). The repo ships a GitHub Pages
+workflow (`.github/workflows/deploy.yml`) that, on push to `main`, runs
+`npx vite build` (relying on the committed `public/data/catalogs/*.json`, so the
+CLI is not required at deploy time), sets `VITE_BASE_PATH=/<repo>/` for the
+sub-path deploy, copies `index.html` to `404.html` so client-side routes like
+`/verify` resolve, and publishes to Pages. Set `VITE_BASE_PATH` yourself when
+hosting under a different sub-path.
+
 ## How it fits
 
 This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → the SPA shows the upload path `{prefix}/{evidence_id}/{period}/evidence.pdf` (matching the CLI's manual-reader folder layout) and the user uploads the file to the manual-evidence folder in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. The CLI reads every supported file in the period folder regardless of name, so users who skip the SPA can upload their own PDF to the same folder; the CLI sees no difference.
@@ -57,3 +69,13 @@ See [`CLAUDE.md`](CLAUDE.md) for development conventions, cross-repo contracts, 
 ## Stack
 
 React 19 · TypeScript · Vite 8 · Tailwind v4 · shadcn/ui · React Router v7 · `@react-pdf/renderer`
+
+## Contributing & security
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the local verification gate and
+conventions, and [`SECURITY.md`](SECURITY.md) to report a vulnerability
+privately (do not open a public issue for security bugs).
+
+## License
+
+[Apache-2.0](LICENSE).
