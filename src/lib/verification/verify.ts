@@ -1,5 +1,5 @@
 import type { EvidenceEnvelope } from "@/types/envelope";
-import { canonicalJSON } from "./canonical";
+import { canonicalJSON, parseJSONPreservingNumbers } from "./canonical";
 
 /**
  * Thrown when the running browser does not implement the Web Crypto
@@ -35,23 +35,50 @@ export interface VerifyResult {
   signedBytes: string;
 }
 
+/** Pulls the three signed content fields out of a parsed envelope value. */
+function signedContent(source: {
+  format_version: unknown;
+  produced_at: unknown;
+  records: unknown;
+}) {
+  return {
+    format_version: source.format_version,
+    produced_at: source.produced_at,
+    records: source.records,
+  };
+}
+
 /**
  * Verifies the Ed25519 signature embedded in an envelope.v1 file.
  *
  * The signed payload is `canonicalJSON({format_version, produced_at,
  * records})` — three fields, in that order. The `signature` block is
  * stripped before canonicalisation; a verifier reconstructs the three
- * content fields from the parsed envelope and re-runs the canonical
- * encoder.
+ * content fields and re-runs the canonical encoder.
+ *
+ * Pass `rawText` (the original, un-reformatted envelope JSON) to derive the
+ * canonical bytes from a lexeme-preserving parse. This is required for
+ * envelopes whose record payloads carry integers above 2^53 (64-bit IDs,
+ * epoch-nanosecond timestamps): `JSON.parse` rounds those, but the CLI signs
+ * them verbatim, so canonicalising the rounded object would compute the wrong
+ * bytes and reject a valid signature. Without `rawText`, canonicalisation
+ * falls back to the parsed object (correct for all float64-safe numbers).
  */
 export async function verifyEnvelopeSignature(
   envelope: EvidenceEnvelope,
+  rawText?: string,
 ): Promise<VerifyResult> {
-  const signedBytes = canonicalJSON({
-    format_version: envelope.format_version,
-    produced_at: envelope.produced_at,
-    records: envelope.records,
-  });
+  const canonicalSource =
+    rawText != null
+      ? signedContent(
+          parseJSONPreservingNumbers(rawText) as {
+            format_version: unknown;
+            produced_at: unknown;
+            records: unknown;
+          },
+        )
+      : signedContent(envelope);
+  const signedBytes = canonicalJSON(canonicalSource);
 
   if (envelope.signature.algorithm !== "ed25519") {
     return {

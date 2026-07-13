@@ -40,10 +40,19 @@ src/lib/
     canonical.ts          canonical.test.ts
     verify.ts             verify.test.ts
     __fixtures__/
-      sample-envelope-v1.json            ← CLI-produced envelope (automated flow)
-      sample-envelope-v1-manual.json     ← CLI-produced envelope (manual flow)
-      sample-envelope-v1.canonical.txt   ← CLI reference canonical bytes (the contract)
+      sample-envelope-v1.json                 ← CLI-produced envelope (automated flow)
+      sample-envelope-v1-manual.json          ← CLI-produced envelope (manual flow)
+      sample-envelope-v1.canonical.txt        ← CLI reference canonical bytes (the contract)
+      sample-envelope-v1-bignum.json          ← CLI-produced envelope, payload carries int64-max + epoch-nanos
+      sample-envelope-v1-bignum.canonical.txt ← CLI reference canonical bytes for the bignum envelope
 ```
+
+The `-bignum` fixtures pin the **large-integer contract**: import them with `?raw` (never as a
+JSON module — that would round the 64-bit ints through float64 before the test sees them), parse via
+`parseJSONPreservingNumbers`, and assert byte-equality against the CLI reference. `verify.test.ts`
+also asserts the bignum envelope verifies **only** when the raw text is passed to
+`verifyEnvelopeSignature` — the object path (rounded) must fail, which is exactly why `Verify.tsx`
+keeps the original source text.
 
 ## Current coverage (and the gap)
 
