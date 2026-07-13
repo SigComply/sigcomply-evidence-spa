@@ -196,7 +196,16 @@ export function Dashboard() {
             <code className="rounded bg-muted px-1 py-0.5 text-xs">
               evidence.pdf
             </code>{" "}
-            you upload to your own storage — nothing is sent anywhere.
+            you upload to your own storage — nothing is sent anywhere. The
+            SigComply CLI picks it up on its next run.
+          </p>
+          <p className="mt-2 max-w-2xl text-xs text-muted-foreground">
+            Only declaration and checklist entries appear here. Evidence
+            sourced elsewhere (training certificates, HR exports, scanned
+            documents) is produced outside this app and uploaded to your
+            bucket directly. Auditors checking a signed evidence file want
+            the <span className="font-medium text-foreground">Verify</span>{" "}
+            tab.
           </p>
         </div>
         <FrameworkSelector

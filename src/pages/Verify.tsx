@@ -313,8 +313,13 @@ export function Verify() {
           Verify signed evidence
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Public, client-side verifier for signed SigComply evidence files.
-          Nothing is uploaded — verification runs entirely in your browser.
+          For auditors. Drop a CLI-signed{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            EvidenceEnvelope
+          </code>{" "}
+          to re-check its Ed25519 signature against the public key inside it;
+          optionally add the matching PDF to re-hash and confirm it. Nothing is
+          uploaded — verification runs entirely in your browser.
         </p>
       </div>
 
