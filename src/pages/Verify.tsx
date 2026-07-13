@@ -73,6 +73,8 @@ export function Verify() {
   const [envelope, setEnvelope] = useState<EvidenceEnvelope | null>(null);
   const [sigStatus, setSigStatus] = useState<SigStatus>({ state: "idle" });
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>({ state: "idle" });
+  const [envDragActive, setEnvDragActive] = useState(false);
+  const [pdfDragActive, setPdfDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,7 +136,7 @@ export function Verify() {
       if (!isEvidenceEnvelope(parsed)) {
         setEnvelope(null);
         setParseError(
-          `JSON does not match the ${ENVELOPE_FORMAT_VERSION} envelope shape. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.`,
+          `This doesn't look like a SigComply signed-evidence file. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.`,
         );
         setSigStatus({ state: "idle" });
         return;
@@ -218,6 +220,19 @@ export function Verify() {
   const handlePdfFile = useCallback(
     async (file: File) => {
       if (!manualDoc?.file_hash) return;
+      // Guard against an obviously-wrong file so a hash mismatch doesn't read
+      // as "the evidence was tampered with" when the user simply dropped the
+      // wrong file. The manifest hashes the merged evidence.pdf.
+      const looksPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+      if (!looksPdf) {
+        setPdfStatus({
+          state: "error",
+          message: `“${file.name}” doesn't look like a PDF. Drop the evidence.pdf that was signed alongside this envelope.`,
+        });
+        return;
+      }
       // The CLI writes file_hash as "sha256:<hex>"; sha256Hex returns bare
       // hex. Strip the algorithm prefix so the comparison lines up.
       const expected = manualDoc.file_hash
@@ -247,6 +262,7 @@ export function Verify() {
   const onEnvelopeDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+      setEnvDragActive(false);
       const file = e.dataTransfer.files?.[0];
       if (file) void handleEnvelopeFile(file);
     },
@@ -256,6 +272,7 @@ export function Verify() {
   const onPdfDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+      setPdfDragActive(false);
       const file = e.dataTransfer.files?.[0];
       if (file) void handlePdfFile(file);
     },
@@ -288,10 +305,8 @@ export function Verify() {
           Verify signed evidence
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Public, client-side verifier for SigComply{" "}
-          <code className="font-mono text-xs">{ENVELOPE_FORMAT_VERSION}</code>{" "}
-          files. Nothing is uploaded — verification runs entirely in your
-          browser.
+          Public, client-side verifier for signed SigComply evidence files.
+          Nothing is uploaded — verification runs entirely in your browser.
         </p>
       </div>
 
@@ -299,9 +314,17 @@ export function Verify() {
       {!envelope ? (
         <div className="space-y-3">
           <div
+            role="button"
+            aria-label="Drop or choose the signed envelope JSON file"
             onDrop={onEnvelopeDrop}
             onDragOver={(e) => e.preventDefault()}
-            className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-muted/20 px-6 py-10 text-center text-sm text-muted-foreground transition-colors hover:bg-muted/40"
+            onDragEnter={() => setEnvDragActive(true)}
+            onDragLeave={() => setEnvDragActive(false)}
+            className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground transition-colors ${
+              envDragActive
+                ? "border-primary bg-primary/5"
+                : "border-input bg-muted/20 hover:bg-muted/40"
+            }`}
           >
             <FileJson className="h-7 w-7 text-muted-foreground/70" />
             <div>
@@ -461,9 +484,17 @@ export function Verify() {
                 {pdfStatus.state !== "match" &&
                   pdfStatus.state !== "mismatch" && (
                     <div
+                      role="button"
+                      aria-label="Drop or choose the matching evidence PDF"
                       onDrop={onPdfDrop}
                       onDragOver={(e) => e.preventDefault()}
-                      className="flex items-center justify-center gap-3 rounded-md border border-dashed border-input p-4 text-xs text-muted-foreground hover:bg-muted/40"
+                      onDragEnter={() => setPdfDragActive(true)}
+                      onDragLeave={() => setPdfDragActive(false)}
+                      className={`flex items-center justify-center gap-3 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition-colors ${
+                        pdfDragActive
+                          ? "border-primary bg-primary/5"
+                          : "border-input hover:bg-muted/40"
+                      }`}
                     >
                       {pdfStatus.state === "hashing" ? (
                         <span className="flex items-center gap-2">
@@ -621,7 +652,8 @@ function VerdictBanner({ status }: { status: SigStatus }) {
         <div>
           <p className="text-lg font-bold">Signature valid</p>
           <p className="text-sm opacity-80">
-            The signed payload was not modified after the CLI signed it.
+            The records are intact and match the public key in this file. To
+            prove who signed it, confirm that key against one you trust.
           </p>
         </div>
       </div>
