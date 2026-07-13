@@ -12,6 +12,38 @@ import { Search, X, FileText, AlertCircle } from "lucide-react";
 
 const STORAGE_KEY = "sigcomply:framework";
 
+// FilterChip is a real toggle button (keyboard-operable, state announced via
+// aria-pressed) wrapping the visual Badge. A bare Badge is a <span> — not
+// focusable and invisible to assistive tech — so filtering the list would be
+// unavailable to keyboard and screen-reader users.
+function FilterChip({
+  active,
+  onToggle,
+  className,
+  children,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onToggle}
+      className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <Badge
+        variant={active ? "default" : "outline"}
+        className={["cursor-pointer", className].filter(Boolean).join(" ")}
+      >
+        {children}
+      </Badge>
+    </button>
+  );
+}
+
 const SEVERITY_ORDER = ["high", "medium", "low"];
 
 // Catalog types the SPA renders as a clickable form. Other types
@@ -189,6 +221,7 @@ export function Dashboard() {
             <div className="relative min-w-[16rem] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Search attestations by name, control, or ID"
                 placeholder="Search by name, control, or ID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -197,25 +230,24 @@ export function Dashboard() {
             </div>
 
             {severities.map((s) => (
-              <Badge
+              <FilterChip
                 key={s}
-                variant={severityFilter === s ? "default" : "outline"}
-                className="cursor-pointer capitalize"
-                onClick={() =>
+                active={severityFilter === s}
+                onToggle={() =>
                   setSeverityFilter(severityFilter === s ? null : s)
                 }
+                className="capitalize"
               >
                 {s}
-              </Badge>
+              </FilterChip>
             ))}
 
-            <Badge
-              variant={requiredOnly ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => setRequiredOnly((v) => !v)}
+            <FilterChip
+              active={requiredOnly}
+              onToggle={() => setRequiredOnly((v) => !v)}
             >
               Required only
-            </Badge>
+            </FilterChip>
           </div>
 
           {categories.length > 0 && (
@@ -224,16 +256,16 @@ export function Dashboard() {
                 Category
               </span>
               {categories.map((c) => (
-                <Badge
+                <FilterChip
                   key={c}
-                  variant={categoryFilter === c ? "default" : "outline"}
-                  className="cursor-pointer text-xs"
-                  onClick={() =>
+                  active={categoryFilter === c}
+                  onToggle={() =>
                     setCategoryFilter(categoryFilter === c ? null : c)
                   }
+                  className="text-xs"
                 >
                   {c.replace(/_/g, " ")}
-                </Badge>
+                </FilterChip>
               ))}
             </div>
           )}
@@ -246,16 +278,19 @@ export function Dashboard() {
               {activeFilters.map((f) => (
                 <button
                   key={f.label}
+                  type="button"
+                  aria-label={`Remove filter ${f.label}`}
                   onClick={f.clear}
-                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground transition-colors hover:text-foreground"
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   {f.label}
                   <X className="h-3 w-3" />
                 </button>
               ))}
               <button
+                type="button"
                 onClick={clearAll}
-                className="text-xs text-muted-foreground underline hover:text-foreground"
+                className="rounded text-xs text-muted-foreground underline hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 Clear all
               </button>
@@ -315,8 +350,9 @@ export function Dashboard() {
                     No attestations match your filters.
                   </p>
                   <button
+                    type="button"
                     onClick={clearAll}
-                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                    className="rounded text-xs text-muted-foreground underline hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     Clear all filters
                   </button>

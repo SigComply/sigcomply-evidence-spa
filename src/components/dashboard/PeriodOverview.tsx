@@ -66,7 +66,7 @@ export function PeriodOverview({
             }
             aria-pressed={active}
             className={[
-              "rounded-lg border p-3 text-left transition-colors",
+              "rounded-lg border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               active
                 ? "border-primary bg-primary/5 ring-1 ring-primary"
                 : "bg-card hover:bg-muted/50",

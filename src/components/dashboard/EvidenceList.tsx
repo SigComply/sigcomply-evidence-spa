@@ -146,7 +146,7 @@ function EvidenceRow({
                     : "") +
                   ". Personal note on this device only — not proof of upload and not compliance status. The CLI is the source of truth."
                 }
-                className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
               >
                 <PencilLine className="size-2.5" />
                 {device.uploadedAt ? "marked uploaded here" : "drafted here"}
@@ -190,7 +190,7 @@ function EvidenceRow({
             onClick={handleCopy}
             title={`Copy the path inside your evidence bucket — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config; the rest is the fixed SigComply layout. The bucket, provider and credentials are never known here.`}
             aria-label="Copy path inside your evidence bucket"
-            className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+            className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:opacity-0 sm:group-hover:opacity-100"
           >
             {copied ? (
               <Check className="size-4 text-green-600 dark:text-green-400" />
