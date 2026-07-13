@@ -167,7 +167,6 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   const config = getConfig();
   const uploadPath = computeUploadPath(
     config.storage.prefix,
-    framework,
     entry.id,
     period.key
   );

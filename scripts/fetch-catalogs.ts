@@ -1,10 +1,25 @@
 import { execSync } from "child_process";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const catalogsDir = join(__dirname, "..", "public", "data", "catalogs");
+const publicDir = join(__dirname, "..", "public");
+const catalogsDir = join(publicDir, "data", "catalogs");
+
+// public/config.json is the single source of truth for which frameworks the
+// UI exposes. Read the prefetch list from it so the shipped catalogs can
+// never drift from what the app can actually reach.
+function frameworksFromConfig(): string[] {
+  const raw = readFileSync(join(publicDir, "config.json"), "utf-8");
+  const config = JSON.parse(raw) as { frameworks?: string[] };
+  const frameworks = config.frameworks ?? [];
+  if (frameworks.length === 0) {
+    console.error("Error: public/config.json declares no frameworks.");
+    process.exit(1);
+  }
+  return frameworks;
+}
 
 function run(cmd: string): string {
   // Build-time only. `cmd` is composed from a hardcoded framework list
@@ -27,7 +42,7 @@ function main() {
 
   mkdirSync(catalogsDir, { recursive: true });
 
-  const frameworks = ["soc2", "iso27001"];
+  const frameworks = frameworksFromConfig();
   // SPA only renders user-attestation entries. document_upload entries are
   // produced externally and uploaded directly to the bucket — filter them
   // out at build time so they never reach the browser.

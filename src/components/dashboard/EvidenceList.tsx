@@ -92,12 +92,7 @@ function EvidenceRow({
   const cfg = getConfig().storage;
   const [copied, setCopied] = useState(false);
 
-  const uploadPath = computeUploadPath(
-    cfg.prefix,
-    framework,
-    entry.id,
-    period.key,
-  );
+  const uploadPath = computeUploadPath(cfg.prefix, entry.id, period.key);
 
   async function handleCopy(e: React.MouseEvent) {
     e.preventDefault();
