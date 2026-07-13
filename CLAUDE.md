@@ -16,6 +16,51 @@ The five SigComply repos are cloned as siblings under the same parent directory:
 
 ---
 
+## Documentation Map
+
+This file is the lean, always-loaded index. It carries the **context** ("what the system is") and
+points to focused **guideline** docs ("how we work") that load just-in-time. Read the guideline doc
+for your task before starting.
+
+| Doc | Family | Read it when |
+|-----|--------|-------------|
+| **CLAUDE.md** (this file) | Context — role, stack, directory map, data flows, PDF layout, cross-repo contracts, conventions, gotchas | Always loaded; the baseline |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | Guideline — the agent-driven loop (plan → test → implement → verify → docs → ship), the local verification gate, browser verification, the GitHub Pages deploy model | Before **any** feature or fix |
+| [docs/TESTING.md](docs/TESTING.md) | Guideline — Vitest layout, the current coverage gap, the crypto contract tests, Web-Crypto/PDF specifics | Before adding or changing tests |
+
+Full product architecture (engine, dashboard, two evidence flows, privacy invariants) lives in the
+[parent CLAUDE.md](../CLAUDE.md).
+
+---
+
+## Development Rules
+
+This SDLC is run almost entirely by **Claude Code agents** in the cmux terminal — planning, code,
+tests, browser verification, debugging. The human directs, monitors, verifies. The full step-by-step
+loop is [docs/WORKFLOW.md](docs/WORKFLOW.md); the summary:
+
+- **Ship working code.** Tested code is the measure of progress.
+- **TDD.** Colocated `*.test.ts` first → minimum code to pass → **local gate green** → browser-verify
+  UI changes → **update the docs your change touched** → commit. See [TESTING.md](docs/TESTING.md).
+- **Local is the gate — CI does not lint/test/typecheck.** Before every push run **all four** clean:
+  `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`. `deploy.yml` only runs `vite build`
+  (+ `npm audit`); it never runs the suite, ESLint, or the typechecker.
+- **Docs are part of "done".** Every change updates the focused doc it affects (this file, WORKFLOW,
+  or TESTING) in the **same commit** — not "only when architecture moves".
+- **Architecture-first.** If a change feels overly complex, **stop and ask** — difficulty is a signal
+  to pause, not push through. Respect the scope guardrails in [Conventions](#conventions).
+- **Pre-launch: commit directly to `main`.** No users yet. Push to `main` → GitHub Pages
+  auto-deploys; no PRs, no reviews for internal work (flips to a PR + review flow at public launch).
+  No backfills / backward-compat burden — **except** the CLI cross-repo contracts
+  ([Contracts with Sibling Repos](#contracts-with-sibling-repos)) stay in lockstep.
+- **Small atomic commits.** One logical change. Format `<type>: <description>`
+  (`feat`/`fix`/`refactor`/`test`/`docs`/`chore`) with a
+  `Co-Authored-By: Claude <model> <noreply@anthropic.com>` trailer.
+- **Never break `main`.** Direct-to-main means a red Pages build is live-affecting — confirm CI green
+  after pushing (`gh run watch`) and fix forward.
+
+---
+
 ## This Repo's Role
 
 This SPA is a **purely optional helper utility**. The CLI does not talk to it, depend on it, or require it — every piece of manual evidence can be produced and uploaded without this app ever being opened. It is off the end-to-end compliance pipeline; it just makes a subset of manual entries (the click-through ones) easier to fill in a browser.
@@ -177,11 +222,19 @@ Missing `config.json` → falls back to the default in `src/config/runtime.ts`. 
 npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json
 npm run fetch-catalogs   # regenerate public/data/catalogs/*.json from the local sigcomply CLI
 npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build
-npm run lint             # eslint
-npm run preview          # serve dist/
+npm run lint             # eslint . — the only style gate (no Prettier/Biome, no `format` script)
+npm run test             # vitest run — the colocated *.test.ts suite
+npx tsc -b               # typecheck (strict project refs); there is no `typecheck` npm script
+npm run preview          # serve dist/ — closest local approximation to the GitHub Pages deploy
 ```
 
-`fetch-catalogs` requires `sigcomply` on PATH. If unavailable, the committed `public/data/catalogs/*.json` files are sufficient for both `dev` and `preview`.
+**Local verification gate** (CI does not lint/test/typecheck — see [WORKFLOW.md](docs/WORKFLOW.md)):
+before every push, `npm run lint`, `npm run test`, `npx tsc -b`, and `npm run build` must all be
+clean.
+
+`fetch-catalogs` (and therefore `prebuild`/`npm run build`) requires `sigcomply` on PATH. If
+unavailable, the committed `public/data/catalogs/*.json` files are sufficient for `dev`, `preview`,
+and a `npx tsc -b && npx vite build` (the prebuild-free path CI's `deploy.yml` uses).
 
 Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a subpath.
 
