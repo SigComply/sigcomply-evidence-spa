@@ -410,7 +410,7 @@ function EvidenceFormContent({
           />
         )}
         {form.attempted && form.fieldErrors.attestation && (
-          <p className="mt-3 text-sm text-destructive">
+          <p role="alert" className="mt-3 text-sm text-destructive">
             {form.fieldErrors.attestation}
           </p>
         )}
@@ -428,13 +428,22 @@ function EvidenceFormContent({
             id="completed-by"
             value={form.completedBy}
             onChange={(e) => form.setCompletedBy(e.target.value)}
-            placeholder="jane@company.com"
+            placeholder="Jane Doe or jane@company.com"
             aria-invalid={
               form.attempted && Boolean(form.fieldErrors.completedBy)
             }
+            aria-describedby={
+              form.attempted && form.fieldErrors.completedBy
+                ? "completed-by-error"
+                : undefined
+            }
           />
           {form.attempted && form.fieldErrors.completedBy && (
-            <p className="text-sm text-destructive">
+            <p
+              id="completed-by-error"
+              role="alert"
+              className="text-sm text-destructive"
+            >
               {form.fieldErrors.completedBy}
             </p>
           )}
@@ -480,7 +489,11 @@ function UploadHandoff({
   onEdit: () => void;
 }) {
   const cfg = getConfig().storage;
-  const parts = [cfg.prefix, entry.id, period.key, EVIDENCE_PDF_FILENAME];
+  // Trim a trailing slash so the breadcrumb segment matches the normalized
+  // path from computeUploadPath (which collapses "manual-evidence/" → one
+  // segment). Keeps the visual chips and the copyable path in agreement.
+  const prefixSegment = cfg.prefix.replace(/\/+$/, "");
+  const parts = [prefixSegment, entry.id, period.key, EVIDENCE_PDF_FILENAME];
 
   const [acked, setAcked] = useState(
     Boolean(getDeviceRecord(framework, entry.id, period.key)?.uploadedAt),
@@ -505,7 +518,8 @@ function UploadHandoff({
               evidence.pdf downloaded
             </h2>
             <p className="text-sm text-muted-foreground">
-              Two steps left — it isn’t counted until it’s in your bucket.
+              Almost there — upload it to your bucket and the CLI does the
+              rest. It isn’t counted until it’s in your bucket.
             </p>
           </div>
         </div>

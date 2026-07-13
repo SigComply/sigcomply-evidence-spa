@@ -19,6 +19,16 @@ interface FrameworkSelectorProps {
 }
 
 export function FrameworkSelector({ value, onChange, frameworks }: FrameworkSelectorProps) {
+  // With a single configured framework a dropdown that can't change anything
+  // is pure noise — show a static label instead.
+  if (frameworks.length <= 1) {
+    return (
+      <span className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium text-muted-foreground">
+        {frameworkLabels[value] ?? value}
+      </span>
+    );
+  }
+
   return (
     <Select
       value={value}

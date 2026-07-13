@@ -80,6 +80,7 @@ export function ChecklistForm({ entry, items, setItem }: ChecklistFormProps) {
               </div>
               <Input
                 id={`item-${item.id}-notes`}
+                aria-label={`Optional notes for: ${item.text}`}
                 value={state.notes}
                 onChange={(e) => setItem(item.id, { notes: e.target.value })}
                 placeholder="Optional notes…"
