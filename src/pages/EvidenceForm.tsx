@@ -73,7 +73,7 @@ export function EvidenceForm() {
   }
 
   if (!SPA_RENDERABLE_TYPES.has(entry.type)) {
-    return <ExternalEvidence entry={entry} framework={framework} />;
+    return <ExternalEvidence entry={entry} />;
   }
 
   return <EvidenceFormContent entry={entry} framework={framework} />;
@@ -237,11 +237,9 @@ function pathNote(prefix: string): React.ReactNode {
 // the concrete prefix would be misleading, so only the provider-agnostic
 // layout the CLI looks for is shown.
 function FixedLayoutOnly({
-  framework,
   entry,
   periodKey,
 }: {
-  framework: string;
   entry: CatalogEntry;
   periodKey: string;
 }) {
@@ -251,7 +249,7 @@ function FixedLayoutOnly({
         Path inside your evidence bucket
       </p>
       <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
-        {`${framework}/${entry.id}/${periodKey}/${EVIDENCE_PDF_FILENAME}`}
+        {`${entry.id}/${periodKey}/${EVIDENCE_PDF_FILENAME}`}
       </code>
       <p className="mt-1.5 text-xs text-muted-foreground">
         This deployment hides the full path because the prefix is
@@ -266,21 +264,10 @@ function FixedLayoutOnly({
 // document_upload — normally filtered out at catalog build time, but reachable
 // by direct URL). Instead of a dead-end sentence, show exactly where the file
 // goes so the user can still act.
-function ExternalEvidence({
-  entry,
-  framework,
-}: {
-  entry: CatalogEntry;
-  framework: string;
-}) {
+function ExternalEvidence({ entry }: { entry: CatalogEntry }) {
   const period = currentPeriod(entry.frequency);
   const cfg = getConfig().storage;
-  const uploadPath = computeUploadPath(
-    cfg.prefix,
-    framework,
-    entry.id,
-    period.key,
-  );
+  const uploadPath = computeUploadPath(cfg.prefix, entry.id, period.key);
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <BackButton />
@@ -305,11 +292,7 @@ function ExternalEvidence({
             note={pathNote(cfg.prefix)}
           />
         ) : (
-          <FixedLayoutOnly
-            framework={framework}
-            entry={entry}
-            periodKey={period.key}
-          />
+          <FixedLayoutOnly entry={entry} periodKey={period.key} />
         )}
       </div>
     </div>
@@ -497,13 +480,7 @@ function UploadHandoff({
   onEdit: () => void;
 }) {
   const cfg = getConfig().storage;
-  const parts = [
-    cfg.prefix,
-    framework,
-    entry.id,
-    period.key,
-    EVIDENCE_PDF_FILENAME,
-  ];
+  const parts = [cfg.prefix, entry.id, period.key, EVIDENCE_PDF_FILENAME];
 
   const [acked, setAcked] = useState(
     Boolean(getDeviceRecord(framework, entry.id, period.key)?.uploadedAt),
@@ -580,11 +557,7 @@ function UploadHandoff({
             </div>
           ) : (
             <div className="mt-2">
-              <FixedLayoutOnly
-                framework={framework}
-                entry={entry}
-                periodKey={period.key}
-              />
+              <FixedLayoutOnly entry={entry} periodKey={period.key} />
             </div>
           )}
         </HandoffStep>

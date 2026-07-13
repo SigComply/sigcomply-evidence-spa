@@ -218,7 +218,11 @@ export function Verify() {
   const handlePdfFile = useCallback(
     async (file: File) => {
       if (!manualDoc?.file_hash) return;
-      const expected = manualDoc.file_hash.toLowerCase();
+      // The CLI writes file_hash as "sha256:<hex>"; sha256Hex returns bare
+      // hex. Strip the algorithm prefix so the comparison lines up.
+      const expected = manualDoc.file_hash
+        .replace(/^sha256:/i, "")
+        .toLowerCase();
       setPdfStatus({ state: "hashing", filename: file.name });
       try {
         const buf = await file.arrayBuffer();
@@ -272,8 +276,7 @@ export function Verify() {
     const parts: string[] = [];
     if (manualDoc?.evidence_id) parts.push(manualDoc.evidence_id);
     parts.push(manualDoc ? "manual" : "automated");
-    if (manualDoc?.period) parts.push(manualDoc.period);
-    if (manualDoc?.framework) parts.push(manualDoc.framework);
+    if (manualDoc?.period_id) parts.push(manualDoc.period_id);
     return parts;
   }, [manualDoc]);
 
@@ -554,13 +557,13 @@ export function Verify() {
 
                   {manualDoc && (
                     <>
-                      {manualDoc.file_path && (
+                      {manualDoc.expected_uri && (
                         <>
                           <span className="text-muted-foreground">
-                            PDF path
+                            Folder URI
                           </span>
                           <span className="font-mono break-all">
-                            {manualDoc.file_path}
+                            {manualDoc.expected_uri}
                           </span>
                         </>
                       )}
