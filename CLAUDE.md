@@ -85,6 +85,7 @@ This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to 
 - Web Crypto API (`crypto.subtle`) for Ed25519 envelope verification — no JS crypto library
 - `date-fns` for ISO week math
 - `lucide-react` for icons
+- Geist variable font (`@fontsource-variable/geist`)
 - Path alias: `@/*` → `src/*`
 
 ---
@@ -94,7 +95,7 @@ This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to 
 ```
 public/
   config.json              ← runtime config (frameworks list, storage prefix)
-  data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets
+  data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets (currently soc2.json + iso27001.json)
 scripts/
   fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json. Two parallel hardcoded lists must be kept in sync when adding a framework: (1) the `frameworks` array in `public/config.json` (what the SPA's UI exposes), (2) the `frameworks` const in `scripts/fetch-catalogs.ts` (what gets pre-fetched at build time).
 src/
@@ -106,20 +107,24 @@ src/
     useCatalog.ts          ← fetches catalog, returns { catalog, loading, error }
     useEvidenceForm.ts     ← form state + validation + lazy PDF render + download
   lib/
-    period.ts              ← currentPeriod(cadence) → { key, start, end }
-    storage-path.ts        ← computeUploadPath() + EVIDENCE_PDF_FILENAME
+    period.ts              ← currentPeriod(frequency) → { key, start, end } + formatPeriodRange()
+    storage-path.ts        ← computeUploadPath() + EVIDENCE_PDF_FILENAME ("evidence.pdf")
     download.ts            ← downloadBlob(blob, filename)
+    clipboard.ts           ← copyText() — copy upload path to clipboard (async API + legacy fallback)
+    device-memory.ts       ← local-only, NON-authoritative per-browser breadcrumb (markGenerated / setUploadedAck), keyed framework|evidence_id|period. Never compliance status.
+    severity.ts            ← severity + TSC → Tailwind badge / accent-rail color classes
     utils.ts               ← cn() (clsx + tailwind-merge)
     pdf/
       render.tsx           ← renderEvidencePdf(input) → Promise<Blob> (lazy-loaded entry point)
       DeclarationPdf.tsx   ← <Document> for declaration entries
       ChecklistPdf.tsx     ← <Document> for checklist entries
-      shared.tsx           ← <Header>, <Footer>, <MetadataBlock>
-      metadata.ts          ← metadataKeywords() — fixed key=value; PDF Info string
+      shared.tsx           ← <Header> (title + subtitle + metadata table) and <Footer>
+      metadata.ts          ← metadataKeywords() — fixed "key=value; …" PDF Info string
       styles.ts            ← StyleSheet.create({...})
     verification/
       verify.ts            ← verifyEnvelopeSignature() + sha256Hex() (Web Crypto Ed25519)
-      canonical.ts         ← canonicalJSON() — sorted keys, HTML-safe escapes, matches CLI exactly
+      canonical.ts         ← canonicalJSON() — sorted keys, no whitespace, control/LS/PS \u-escapes, HTML chars verbatim; matches CLI byte-for-byte
+      {canonical,verify}.test.ts + __fixtures__/  ← crypto contract tests + sample envelopes
   pages/
     Dashboard.tsx          ← attestation list (declaration + checklist), filters, framework picker
     EvidenceForm.tsx       ← per-entry form + download-success screen
@@ -127,15 +132,15 @@ src/
     NotFound.tsx
   components/
     layout/                ← AppLayout, Header
-    dashboard/             ← EvidenceList, FrameworkSelector, FrameworkPickerDialog, StatusBadge
+    dashboard/             ← EvidenceList, FrameworkSelector, FrameworkPickerDialog, StatusBadge, PeriodOverview
     forms/                 ← DeclarationForm, ChecklistForm
     common/LoadingSpinner.tsx
     ui/                    ← shadcn primitives — do NOT hand-edit; regenerate via `npx shadcn add <name>`
   types/
-    catalog.ts             ← CatalogEntry, ChecklistItem, EvidenceType, Cadence
+    catalog.ts             ← Catalog, CatalogEntry, ChecklistItem, EvidenceType, Frequency, TemporalRule
     pdf-input.ts           ← PdfInput (input shape for renderEvidencePdf)
-    envelope.ts            ← EvidenceEnvelope, SignedPayload, Signature, ManualManifest (mirrors CLI)
-    config.ts              ← RuntimeConfig
+    envelope.ts            ← EvidenceEnvelope, EvidenceRecord, EnvelopeSignature, ManualDocumentPayload + isEvidenceEnvelope()/getManualDocumentPayload() guards (mirrors CLI internal/core/envelope.go)
+    config.ts              ← RuntimeConfig, StorageConfig
 ```
 
 ---
@@ -144,7 +149,7 @@ src/
 
 ### Form → PDF flow
 
-1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog -o json` per framework; the active framework is read from the CLI's config / `SIGCOMPLY_FRAMEWORK` env var, not a `--framework` flag). `fetch-catalogs` filters the CLI output down to the SPA-renderable types (`declaration` + `checklist`) before writing — `document_upload` entries are dropped at build time and never reach the browser. The committed JSONs therefore contain only renderable entries. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
+1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw> -o json` once per framework in its hardcoded list). The CLI's `evidence` command group takes a persistent `-f`/`--framework` flag; when the flag is omitted it falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2`, but `fetch-catalogs` always passes `--framework` explicitly. `fetch-catalogs` filters the CLI output down to the SPA-renderable types (`declaration` + `checklist`) before writing — `document_upload` entries are dropped at build time and never reach the browser. The committed JSONs therefore contain only renderable entries. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
 2. **App start** — `main.tsx` calls `loadConfig()` which fetches `/config.json` (frameworks available, storage prefix). Cached on module.
 3. **Dashboard** — reads `getConfig().frameworks` and defaults to the stored framework (`sigcomply:framework`) or `frameworks[0]`. `FrameworkPickerDialog` only auto-opens when there is a genuine choice (`frameworks.length > 1` *and* nothing stored) and is dismissible (Esc / backdrop / close keeps the current default and persists it). With today's single-framework config it never appears. The framework prompt is **attestation-only by design and must never gate `/verify`**, which is framework-agnostic and reachable from the same header. Then it calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`. The fetched catalog already contains only `declaration` + `checklist` entries (filtered at build time by `fetch-catalogs`). `useCatalog` re-applies the same type filter as a defensive backstop — it's a no-op against correctly-built catalogs, but keeps the dashboard correct if a hand-edited or stale catalog ever carries `document_upload` entries.
 4. **Evidence form** — for `declaration` and `checklist` entries, `useEvidenceForm` manages form state, validates on submit, lazy-imports `@/lib/pdf/render`, calls `renderEvidencePdf(input)` to produce a `Blob`, calls `downloadBlob(blob, "evidence.pdf")`, then shows the upload-path instructions screen. For any other type, `EvidenceForm` shows a "uploaded directly to your bucket" message instead of rendering a form.
@@ -156,11 +161,11 @@ Flow is one-way: catalog → form → downloaded PDF. **Nothing is ever uploaded
 Independent of the form generator. The user (typically an auditor) supplies an `EvidenceEnvelope` JSON file and optionally the matching `evidence.pdf`:
 
 1. `Verify.tsx` parses the JSON, calls `isEvidenceEnvelope()` to type-guard it (expects `format_version: "envelope.v1"`), then `verifyEnvelopeSignature()` from `lib/verification/verify.ts`.
-2. The signed bytes are `canonicalJSON({ format_version, produced_at, records })` — the envelope's three content fields, no signature sentinel. Canonical-JSON rules per RFC 8785: sorted keys at every nesting, `\u` escapes only for control characters, no whitespace. Must match the CLI's canonicalization in `internal/sign` byte-for-byte. The envelope on disk is a flat object (`format_version`, `produced_at`, `records`, `signature`); there is no `signed` wrapper, and there are no `context` or `attachments` fields — context that earlier drafts carried inside the envelope lives in the file path, and attachments are referenced by individual records' payloads (the `manual.pdf` source plugin emits a record whose payload carries `{evidence_id, file_hash, file_path, period, framework}`).
+2. The signed bytes are `canonicalJSON({ format_version, produced_at, records })` — the envelope's three content fields, no signature sentinel. Canonical-JSON rules per RFC 8785: sorted keys at every nesting, `\u` escapes only for control characters, no whitespace. Must match the CLI's canonicalization in `internal/sign` byte-for-byte. The envelope on disk is a flat object (`format_version`, `produced_at`, `records`, `signature`); there is no `signed` wrapper, and there are no `context` or `attachments` fields — context that earlier drafts carried inside the envelope lives in the file path, and attachments are referenced by individual records' payloads (the CLI's manual source emits a record of `type: "signed_document"` whose payload carries the merged-PDF hash).
 3. `crypto.subtle.importKey("raw", publicKey, { name: "Ed25519" }, …)` then `crypto.subtle.verify` validates the 64-byte signature against those bytes. Browser support is determined at runtime via feature detection — the verifier checks for `crypto.subtle.verify` with the `Ed25519` algorithm and surfaces `WebCryptoUnsupportedError` if unavailable. Concrete browser-version floors shift as Web Crypto's Ed25519 support rolls out.
-4. For manual-flow envelopes, the records' payload carries `{evidence_id, file_hash, file_path, period, framework}`. If the user drops in the PDF, the page re-hashes it via SHA-256 and compares against `file_hash`. v1 scope: per-envelope verification only — whole-run integrity (verifying the per-run signed `manifest.json` Merkle root over all sibling files) is future work.
+4. For manual-flow envelopes, `getManualDocumentPayload()` pulls the first `type: "signed_document"` record and reads its `file_hash`. The SPA's `ManualDocumentPayload` type declares `{evidence_id?, file_hash?, file_path?, period?, framework?}` (all optional) but the verifier only consumes `file_hash`. If the user drops in the PDF, the page re-hashes it via SHA-256 and compares against `file_hash`. (Cross-repo caveat: the CLI's actual manifest payload uses `period_id`/`expected_uri` and carries no `framework`/`file_path` — see Contracts + Gotchas. Because the SPA only relies on `file_hash`, the re-hash check is unaffected.) v1 scope: per-envelope verification only — whole-run integrity (verifying the per-run signed `manifest.json` Merkle root over all sibling files) is future work.
 
-UX contract (verdict-first — don't regress): the page is a single column, not a numbered card wizard. Signature verification runs **automatically** the instant a valid envelope is parsed — there is no "Verify" button; the `"verifying"` transition is set in `handleParse` (not the effect) so it stays out of the effect body. On a valid envelope the input collapses to a one-line source bar (`Verify another` resets) and a large pass/fail/error `VerdictBanner` takes over, with envelope details and canonical bytes behind `<details>`. Pasting or loading a file pretty-prints the JSON (`handleParse(..., { reformat: true })`); typing does not (would jump the caret). Reformatting is cosmetic only — signed bytes are always re-derived via `canonicalJSON(envelope.signed)`, independent of pasted whitespace. Parse errors carry a line/column locus (`describeJsonError`).
+UX contract (verdict-first — don't regress): the page is a single column, not a numbered card wizard. Signature verification runs **automatically** the instant a valid envelope is parsed — there is no "Verify" button; the `"verifying"` transition is set in `handleParse` (not the effect) so it stays out of the effect body. On a valid envelope the input collapses to a one-line source bar (`Verify another` resets) and a large pass/fail/error `VerdictBanner` takes over, with envelope details and canonical bytes behind `<details>`. Pasting or loading a file pretty-prints the JSON (`handleParse(..., { reformat: true })`); typing does not (would jump the caret). Reformatting is cosmetic only — signed bytes are always re-derived via `canonicalJSON({format_version, produced_at, records})`, independent of pasted whitespace. Parse errors carry a line/column locus (`describeJsonError`).
 
 No network calls. No PII leaves the browser.
 
@@ -170,8 +175,8 @@ No network calls. No PII leaves the browser.
 
 Every generated PDF carries the same metadata in three redundant places so a future text-extractor can find it deterministically:
 
-1. **PDF Info dictionary** — `title` (entry name), `subject` (= `evidence_id`), `keywords` (a fixed `key=value;` string from `src/lib/pdf/metadata.ts`: `evidence_id=…; framework=…; control=…; period=…; type=…; completed_by=…; completed_at=…[; accepted=…]`), `producer` / `creator` set to `SigComply Evidence SPA`.
-2. **Visible header block** — title, control + framework + severity subtitle, then a metadata table: Evidence ID, Period, Cadence, Completed by, Completed at.
+1. **PDF Info dictionary** — `title` (entry name), `subject` (= `evidence_id`), `author` (= `completed_by`, falling back to `SigComply Evidence SPA`), `keywords` (a fixed `; `-joined string from `src/lib/pdf/metadata.ts`: `evidence_id=…; framework=…; control=…; period=…; type=…; completed_by=…; completed_at=…[; accepted=…]`), `producer` / `creator` set to `SigComply Evidence SPA`.
+2. **Visible header block** — title, then a `FRAMEWORK · control · severity` subtitle, then a metadata table: Evidence ID, Period, Frequency, Completed by, Completed at. (A fixed footer repeats `evidence_id — period` + page number.)
 3. **Body** — type-specific:
    - **Declaration** — declaration text in a bordered block, "Accepted: YES/NO" line, signature line with `completed_by` + ISO `completed_at`.
    - **Checklist** — each catalog item with a drawn checkbox (`X` for checked, blank for not), item text, optional notes line, required-marker asterisk. Same signature line.
@@ -186,18 +191,20 @@ These are the only cross-repo contracts. Break them at your peril.
 
 | What | Shape | Producer | Consumer |
 |------|-------|----------|----------|
-| Catalog JSON | `Catalog` in `src/types/catalog.ts` ↔ `Catalog` in CLI `internal/core/manual/catalog.go` | CLI `evidence catalog` subcommand | this SPA |
-| Evidence types | `declaration` \| `checklist` \| `document_upload` | CLI catalog | `fetch-catalogs` drops `document_upload` at build time; SPA only ever sees declaration + checklist |
-| Cadence values | `continuous` \| `hourly` \| `daily` \| `weekly` \| `monthly` \| `quarterly` \| `annual` | CLI catalog | both, drives `currentPeriod()` |
-| PDF filename | `evidence.pdf` (strict lowercase, fixed; `EVIDENCE_PDF_FILENAME`) ↔ CLI `EvidencePDFFilename` in `internal/core/manual/manual.go` | this SPA | CLI `internal/data_sources/manual/reader.go` |
-| Path template | `{evidence_catalog_id}/{period_id}/{filename}` (CLI default — see `docs/architecture/04-source-plugins.md`). The SPA additionally prepends `config.storage.prefix` when displaying the upload path; the CLI doesn't know about that prefix — the `manual.pdf` source plugin is a **project-level singleton** (one bucket per project, not per framework), and the bucket + prefix are resolved once from the project-level plugin config. | this SPA (display) / CLI (lookup) | mutual |
-| Period key format | `2026`, `2026-Q1`, `2026-03`, `2026-W14`, `2026-04-18` | `src/lib/period.ts` ↔ CLI `internal/core/manual/period.go` | mutual |
+| Catalog JSON | `Catalog` in `src/types/catalog.ts` ↔ `Catalog` in CLI `internal/manualcatalog/catalog.go` | CLI `evidence catalog` subcommand | this SPA |
+| Evidence types | `declaration` \| `checklist` \| `document_upload` (field `type`) | CLI catalog | `fetch-catalogs` drops `document_upload` at build time; SPA only ever sees declaration + checklist |
+| Frequency values | `daily` \| `weekly` \| `monthly` \| `quarterly` \| `yearly` (field name is `frequency`, NOT `cadence`; the CLI maps its internal `annual` cadence → `yearly` on export) | CLI catalog | both, drives `currentPeriod(frequency)` |
+| PDF filename | The SPA names its download `evidence.pdf` (`EVIDENCE_PDF_FILENAME` in `storage-path.ts`) as a **convention only**. This is NOT enforced cross-repo: the CLI is filename-agnostic — its manual reader globs the whole period folder and merges every supported file, regardless of name (the catalog's `Filename` field is dead/compat-only in `internal/sources/manual/manual.go`). | this SPA | CLI ignores the name |
+| Path template | The SPA displays `{config.storage.prefix}/{framework}/{evidence_id}/{period}/evidence.pdf` (`computeUploadPath`). ⚠️ This does NOT match the CLI's actual folder scheme, which is `{prefix}{evidence_id}/{period_id}/` (default `prefix = "manual/"`, **no `framework` segment**, no filename) in `internal/sources/manual/manual.go`. The `manual` source is a **project-level singleton** (one bucket per project, not per framework). This mismatch is a live drift — flagged for a follow-up fix. | this SPA (display) / CLI (lookup) | ⚠️ drift |
+| Period key format | `2026`, `2026-Q1`, `2026-03`, `2026-W14`, `2026-04-18` | `src/lib/period.ts` ↔ CLI manual period logic | mutual |
 | PDF metadata anchors | `keywords` Info field as `key=value; …` (see `metadataKeywords()`) | this SPA | future CLI text-extraction policies (CLI v1 doesn't parse PDF contents) |
 | EvidenceEnvelope shape | `src/types/envelope.ts` ↔ CLI `internal/core/envelope.go` (`format_version`, `produced_at`, `records`, `signature`) | CLI signing | this SPA's `/verify` |
 | Canonical JSON for signing | RFC 8785-style: UTF-8, sorted keys at every level, no insignificant whitespace, `\u` escapes only for control characters, shortest round-trippable number form. The signature is over canonical JSON of `{format_version, produced_at, records}` — three fields, no signature sentinel | CLI `internal/sign` | `src/lib/verification/canonical.ts` must match byte-for-byte |
 | Signature scheme | Ed25519 (RFC 8032), 32-byte raw public key + 64-byte signature, both base64-encoded; `signature.algorithm: "ed25519"` | CLI `internal/sign` | this SPA's `verifyEnvelopeSignature` (Web Crypto) |
 
-If the `Catalog` shape changes, update the Go types in `sigcomply-cli` in the same PR. The catalog still carries `type`, `items`, `declaration_text`, `accepted_formats` — those drive how this SPA renders the form (or whether it can render at all). The CLI ignores them at evaluation time. If the envelope shape or canonicalization changes on either side, the verify page silently breaks — keep `canonical.ts` and `canonical.go` in lockstep.
+If the `Catalog` shape changes, update the Go types in `sigcomply-cli` in the same PR. The catalog still carries `type`, `items`, `declaration_text`, `accepted_formats` (plus `frequency`, `temporal_rule`, `grace_period`, `severity`, `category`, `tsc`, `optional`) — those drive how this SPA renders the form (or whether it can render at all). The CLI ignores them at evaluation time. If the envelope shape or canonicalization changes on either side, the verify page silently breaks — keep `canonical.ts` and `canonical.go` in lockstep.
+
+**Known cross-repo drifts (as of this writing — flagged for follow-up, not yet reconciled):** (1) the SPA's upload-path display inserts a `{framework}` segment and a fixed `evidence.pdf` filename that the CLI does not use (see Path template + PDF filename rows above); (2) the SPA's `ManualDocumentPayload` declares `{period, file_path, framework}` while the CLI's `signed_document` manifest emits `period_id`/`expected_uri` and no `framework` — harmless today only because `/verify` reads just `file_hash`.
 
 ---
 
@@ -212,7 +219,9 @@ Loaded once at startup. Shape:
 }
 ```
 
-Missing `config.json` → falls back to the default in `src/config/runtime.ts`. Deploys override by replacing `config.json` in the hosting bucket — no rebuild needed.
+Missing `config.json` → falls back to the default in `src/config/runtime.ts` (also `["soc2"]`). Deploys override by replacing `config.json` in the hosting bucket — no rebuild needed.
+
+⚠️ **Framework-list drift (flagged for follow-up):** `public/config.json` exposes only `["soc2"]`, so the running app shows a single framework and the picker never appears. But `scripts/fetch-catalogs.ts` prefetches `["soc2", "iso27001"]` and **both** `soc2.json` and `iso27001.json` are committed under `public/data/catalogs/`. So `iso27001.json` ships in the bundle but is unreachable through the UI. `config.json` is authoritative for what users actually see; the two lists are out of sync and should be reconciled (either add `iso27001` to `config.json` or drop it from the prefetch list). The CLI itself ships both `soc2` and `iso27001` catalogs.
 
 ---
 
@@ -262,6 +271,8 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - `currentPeriod()` uses local time, not UTC. Period boundaries are the browser's midnight. This matches CLI behaviour as long as the CI runner's timezone matches the user's — revisit if we hit drift.
 - Catalog fetch is cached in `catalogCache` Map (module-level). Hard refresh clears it.
 - `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or rely on the pre-committed `public/data/catalogs/*.json` and skip the prebuild.
+- The frameworks the app *shows* (`public/config.json`, currently `["soc2"]`) and the frameworks it *prefetches* (`scripts/fetch-catalogs.ts`, currently `["soc2","iso27001"]`) are separate hardcoded lists and are **currently out of sync** — see Runtime Config. Reconcile before adding UI that assumes a committed catalog is reachable.
+- `computeUploadPath` (`storage-path.ts`) and the fixed `evidence.pdf` filename are **SPA-side display conventions** that do NOT match the CLI's real folder scheme (`{prefix}{evidence_id}/{period_id}/`, no `framework` segment, folder-glob, `prefix` default `manual/`). Don't "fix" one side to the other without confirming the intended contract — see the Path template / PDF filename rows in Contracts.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
 - `@react-pdf/renderer` bundles `pdfkit` + `fontkit` and is large. Always lazy-load.
 - `crypto.subtle.importKey("Ed25519")` is the browser-support choke point for `/verify`. Older Chrome/Safari/Firefox throw `NotSupportedError`. `WebCryptoUnsupportedError` in `verify.ts` surfaces this; the page renders a graceful "upgrade your browser" message rather than a crash.
