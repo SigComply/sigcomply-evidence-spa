@@ -53,6 +53,21 @@ updates:
           - "@tailwindcss/*"
           - "tailwind-merge"
           - "tw-animate-css"
+    ignore:
+      # TypeScript 7 cannot be installed while typescript-eslint 8.x is in
+      # the tree: it declares a `typescript <6.1.0` peer range. Revisit when
+      # typescript-eslint ships a release that accepts 7.
+      - dependency-name: "typescript"
+        versions: [">=7"]
+      # Resolving vitest 5's peer set crashes npm's arborist ("Cannot read
+      # properties of null (reading 'edgesOut')"), so the lockfile cannot be
+      # regenerated with it. Revisit once npm or vitest fixes that.
+      - dependency-name: "vitest"
+        versions: [">=5"]
+      # @vitejs/plugin-react 6.1+ pulls @rolldown/plugin-babel, which peers on
+      # a @babel/core 8 release candidate that conflicts with Babel 7.
+      - dependency-name: "@vitejs/plugin-react"
+        versions: [">=6.1"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
