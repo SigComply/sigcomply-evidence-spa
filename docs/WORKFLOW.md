@@ -27,7 +27,8 @@ Two facts shape every task:
   **directly to `main`**; the push auto-deploys to GitHub Pages (see [Ship](#6-ship)). No PRs, no
   reviews. This flips to a PR + review flow at public launch — this doc gets revised then.
 - **No backfills / backward-compat.** There is no released install base and no persisted server
-  state (the app writes only to the user's disk and reads committed catalog JSON). Write the code
+  state (the app writes only to the user's disk and reads catalog JSON — regenerated from the CLI
+  at deploy time, committed as the dev/offline fallback). Write the code
   you want directly; don't add compatibility shims. **The one exception:** the cross-repo contracts
   with the CLI (see [Cross-repo contracts](#cross-repo-contracts)) must stay in lockstep.
 
@@ -39,7 +40,7 @@ to every task, but **2 → 3 → 4 → 6 → 7 are non-negotiable.**
 1. **[Plan / design](#1-plan--design)** — read the relevant CLAUDE.md context section; if it feels complex, stop and ask.
 2. **[Write tests first](#2-write-tests-first)** — colocated `*.test.ts`, per [TESTING.md](TESTING.md).
 3. **[Implement](#3-implement)** — minimum code to pass.
-4. **[Verify locally](#4-verify-locally-the-real-gate)** — `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`; all clean. **This is the real gate — CI does not run them.**
+4. **[Verify locally](#4-verify-locally-the-real-gate)** — `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`; all clean. **This is the real gate — CI runs only the typecheck half.**
 5. **[Verify in a browser](#5-verify-in-a-browser-ui-changes)** — for any UI change, drive the form→PDF and/or `/verify` flow.
 6. **[Update docs](#6-update-docs-definition-of-done)** — guideline **and** context. Not optional.
 7. **[Ship](#7-ship)** — commit directly to `main` (pre-launch); Pages auto-deploys.
@@ -82,9 +83,10 @@ the submit handler.
 
 ### 4. Verify locally (the real gate)
 
-**CI does not lint, test, or typecheck** — `deploy.yml` runs `npx vite build` directly (plus a
-security suite in `security.yml`). Local is therefore the *only* gate for correctness. Before every
-push, run all four and confirm each is clean:
+**CI does not lint or run the test suite.** `deploy.yml` runs `npm run build` (so it *does*
+regenerate catalogs and typecheck) plus `npm audit`; the broad security suite lives in
+`security.yml`. Local is still the only gate for lint and tests. Before every push, run all four and
+confirm each is clean:
 
 ```bash
 npm run lint      # eslint . — flat config; the only style gate (no Prettier/Biome)
@@ -98,9 +100,12 @@ Notes:
 - `npx tsc -b` is the standalone typecheck. `npm run build` also runs it, but run `tsc -b` on its own
   during the inner loop — it's faster than a full Vite build.
 - `npm run build` runs the `prebuild` (`fetch-catalogs`) step, which shells out to the `sigcomply`
-  CLI. If the CLI isn't on `PATH`, `prebuild` fails. To typecheck/bundle without the CLI, run
-  `npx tsc -b && npx vite build` directly (this is exactly what CI's `deploy.yml` does — it relies on
-  the committed `public/data/catalogs/*.json`). See [Deploy model](#deploy-model).
+  CLI. Any failure there — CLI missing from `PATH`, a non-zero exit, malformed output, a framework
+  in `public/config.json` the CLI can't serve — aborts the build; it never falls back to the
+  committed JSON. That is deliberate: a silent fallback is what let stale catalogs reach production.
+  To typecheck/bundle without the CLI, run `npx tsc -b && npx vite build` directly, which skips the
+  prebuild and uses the committed `public/data/catalogs/*.json`. CI installs the CLI and runs the
+  full `npm run build` — see [Deploy model](#deploy-model).
 - There is **no `format` script.** ESLint is the sole style gate — don't reach for Prettier.
 
 ### 5. Verify in a browser (UI changes)
@@ -110,7 +115,7 @@ user-facing, boot the app and drive a real browser from the terminal via the **c
 (`/Applications/cmux.app/Contents/Resources/bin/cmux browser …`, Playwright-style):
 
 ```bash
-npm run dev       # Vite dev server on http://localhost:5173 (uses committed catalog JSON)
+npm run dev       # Vite dev server on http://localhost:5173 (uses the committed catalog JSON — no CLI needed)
 # or, to exercise the actual shipped bundle:
 npm run build && npm run preview   # serves dist/ — closest to GitHub Pages
 ```
@@ -169,14 +174,19 @@ now.
 
 GitHub Pages, on push to `main`, via [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
 
-- The deploy job runs **`npx vite build` directly** — it does **not** run `npm run build` and so
-  **bypasses the `prebuild`/`fetch-catalogs` step**. It relies entirely on the **committed**
-  `public/data/catalogs/*.json`. Consequence: **regenerating catalogs is a manual, commit-it step.**
-  Run `npm run fetch-catalogs` locally (needs the `sigcomply` CLI on `PATH`), commit the updated
-  JSON, and push — otherwise the deployed site serves stale catalogs. The build alone will never
-  refresh them.
+- The deploy job **installs the latest `sigcomply` CLI release** (resolved from
+  `releases/latest` at run time) and then runs **`npm run build`** — so `prebuild`/`fetch-catalogs`
+  regenerates `public/data/catalogs/*.json` from the CLI on **every deploy**, and `tsc -b` runs in
+  CI. A CLI catalog change reaches the live site on the next push to `main`; no human regeneration
+  step, and no stale-catalog failure mode. `fetch-catalogs` is fatal on any error, so a broken CLI
+  invocation fails the deploy loudly instead of silently shipping the committed JSON.
+- The committed `public/data/catalogs/*.json` stay in git as the **dev/offline fallback**
+  (`npm run dev`, `npm run preview`, contributors without the CLI, and the prebuild-free
+  `npx tsc -b && npx vite build` path). The deploy job does **not** commit regenerated catalogs back
+  — `permissions:` is `contents: read` — so the committed copies can lag the CLI without affecting
+  production. Refresh them with `npm run fetch-catalogs` when you want local dev to match.
 - `deploy.yml` also runs `npm audit --audit-level=high` as a hard pre-deploy gate. It does **not**
-  run lint, test, or typecheck — those are your local responsibility (see [Verify locally](#4-verify-locally-the-real-gate)).
+  run lint or the test suite — those stay your local responsibility (see [Verify locally](#4-verify-locally-the-real-gate)).
 - [`.github/workflows/security.yml`](../.github/workflows/security.yml) runs a broad security suite
   (npm-audit, OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM) on push, PR, and
   weekly. Its `npm-audit` and `secret-scan` jobs are hard gates; the rest are advisory.
@@ -197,9 +207,11 @@ against it, don't guess. Break either and the app silently misbehaves:
    signatures. Change one side → change the other in lockstep.
 2. **Framework list + catalog shape** — `public/config.json` is the single source of truth for which
    frameworks the UI exposes; `scripts/fetch-catalogs.ts` reads that list (`frameworksFromConfig()`)
-   so the prefetched catalogs can't drift from what the app can reach. To add a framework, add it to
-   `public/config.json` — there is no second list to keep in sync. The catalog JSON shape mirrors the
-   CLI's `ManualCatalogExport()` → `src/types/catalog.ts`.
+   and the deploy regenerates from the CLI, so the served catalogs can't drift from what the app can
+   reach. To add a framework, add it to `public/config.json` — there is no second list to keep in
+   sync, but the CLI must be able to serve it (`sigcomply evidence catalog` exits non-zero for an
+   unknown framework, which now fails the deploy). The catalog JSON shape mirrors the CLI's
+   `ManualCatalogExport()` → `src/types/catalog.ts`.
 
 Full contract table: [CLAUDE.md → Contracts with Sibling Repos](../CLAUDE.md#contracts-with-sibling-repos).
 
@@ -213,7 +225,8 @@ No Sentry, no server logs — this is a client-side app. To debug:
    the cmux browser CLI. Verify flow bugs often come from envelope/canonicalization drift — diff the
    SPA's canonical bytes against the CLI reference fixture.
 3. **CI (Pages) failures:** `gh run list` → `gh run view <id> --log-failed`. The build reproduces
-   locally with `npx vite build` (the exact command CI runs).
+   locally with `npm run build` (the exact command CI runs, with the `sigcomply` CLI on `PATH`);
+   without the CLI, `npx tsc -b && npx vite build` covers everything but the catalog refresh.
 4. Fix → re-run [Verify locally](#4-verify-locally-the-real-gate) → update docs → commit.
 
 ## Related

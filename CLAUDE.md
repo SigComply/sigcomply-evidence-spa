@@ -42,9 +42,10 @@ loop is [docs/WORKFLOW.md](docs/WORKFLOW.md); the summary:
 - **Ship working code.** Tested code is the measure of progress.
 - **TDD.** Colocated `*.test.ts` first → minimum code to pass → **local gate green** → browser-verify
   UI changes → **update the docs your change touched** → commit. See [TESTING.md](docs/TESTING.md).
-- **Local is the gate — CI does not lint/test/typecheck.** Before every push run **all four** clean:
-  `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`. `deploy.yml` only runs `vite build`
-  (+ `npm audit`); it never runs the suite, ESLint, or the typechecker.
+- **Local is the gate — CI does not lint or run the suite.** Before every push run **all four**
+  clean: `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`. `deploy.yml` runs
+  `npm run build` (so it installs the CLI, regenerates the catalogs, and typechecks) + `npm audit`;
+  it never runs Vitest or ESLint.
 - **Docs are part of "done".** Every change updates the focused doc it affects (this file, WORKFLOW,
   or TESTING) in the **same commit** — not "only when architecture moves".
 - **Architecture-first.** If a change feels overly complex, **stop and ask** — difficulty is a signal
@@ -101,9 +102,9 @@ This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to 
 ```
 public/
   config.json              ← runtime config (frameworks list, storage prefix)
-  data/catalogs/{fw}.json  ← pre-built catalog JSONs, committed to git; served as static assets (currently soc2.json + iso27001.json)
+  data/catalogs/{fw}.json  ← catalog JSONs, regenerated from the CLI at build time; the committed copies are the dev/offline fallback (currently soc2.json + iso27001.json)
 scripts/
-  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json. Reads the framework list from `public/config.json` (`frameworksFromConfig()`) — that file is the single source of truth, so the prefetched catalogs can't drift from what the UI exposes. Adding a framework means editing only `public/config.json`.
+  fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json. Reads the framework list from `public/config.json` (`frameworksFromConfig()`) — that file is the single source of truth, so the prefetched catalogs can't drift from what the UI exposes. Adding a framework means editing only `public/config.json`. Runs as `prebuild` on every `npm run build`, including the Pages deploy. **Every failure is fatal** (CLI missing, non-zero exit, malformed JSON, no `entries` array) — it never leaves the previous JSON in place and exits 0, because that silent fallback is exactly how stale catalogs used to reach production.
 src/
   main.tsx                 ← loads config.json, mounts <App>
   App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
@@ -155,7 +156,7 @@ src/
 
 ### Form → PDF flow
 
-1. **Catalog source-of-truth** — catalog JSONs are committed at `public/data/catalogs/{fw}.json` and served as static assets. To regenerate them, run `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw> -o json` once per framework listed in `public/config.json`). The CLI's `evidence` command group takes a persistent `-f`/`--framework` flag; when the flag is omitted it falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2`, but `fetch-catalogs` always passes `--framework` explicitly. `fetch-catalogs` filters the CLI output down to the SPA-renderable types (`declaration` + `checklist`) before writing — `document_upload` entries are dropped at build time and never reach the browser. The committed JSONs therefore contain only renderable entries. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
+1. **Catalog source-of-truth** — the **CLI** is the source of truth; `public/data/catalogs/{fw}.json` is its build-time output, served as a static asset. `deploy.yml` installs the CLI and runs `npm run build`, so the deployed catalogs are regenerated from the CLI on every push to `main`. The copies committed to git are the **dev/offline fallback** (`npm run dev`, `npm run preview`, contributors without the CLI); refresh them locally with `npm run fetch-catalogs` (which shells out to `sigcomply evidence catalog --framework <fw> -o json` once per framework listed in `public/config.json`). The CLI's `evidence` command group takes a persistent `-f`/`--framework` flag; when the flag is omitted it falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2`, but `fetch-catalogs` always passes `--framework` explicitly. `fetch-catalogs` filters the CLI output down to the SPA-renderable types (`declaration` + `checklist`) before writing — `document_upload` entries are dropped at build time and never reach the browser. The committed JSONs therefore contain only renderable entries. There is no schema fetch — the SPA does not consume a JSON Schema for evidence anymore.
 2. **App start** — `main.tsx` calls `loadConfig()` which fetches `config.json` relative to `import.meta.env.BASE_URL` (so it resolves under a sub-path deploy, not just at the domain root) for the frameworks available + storage prefix. The result is normalized field-by-field against a built-in default, so a missing/unreachable/malformed `config.json` falls back rather than crashing. Cached on module. A top-level `ErrorBoundary` (see `src/components/common/ErrorBoundary.tsx`) catches any render-time error so a hiccup shows a recoverable message, never a blank page.
 3. **Dashboard** — reads `getConfig().frameworks` and defaults to the stored framework (`sigcomply:framework`) or `frameworks[0]`. `FrameworkPickerDialog` only auto-opens when there is a genuine choice (`frameworks.length > 1` *and* nothing stored) and is dismissible (Esc / backdrop / close keeps the current default and persists it). With both `soc2` and `iso27001` configured it now appears on a first visit. The framework prompt is **attestation-only by design and must never gate `/verify`**, which is framework-agnostic and reachable from the same header. Then it calls `useCatalog(framework)` which `fetch`es `/data/catalogs/{fw}.json`. The fetched catalog already contains only `declaration` + `checklist` entries (filtered at build time by `fetch-catalogs`). `useCatalog` itself does **no** filtering — it just fetches, caches and returns the catalog verbatim (`src/hooks/useCatalog.ts` → `fetchCatalog` in `src/data/index.ts`). The defensive backstop lives one level up in `Dashboard.tsx`, which keeps its own `SPA_RENDERABLE_TYPES` set and derives `attestations` by re-applying the same type filter to `catalog.entries` — a no-op against correctly-built catalogs, but it keeps the dashboard correct if a hand-edited or stale catalog ever carries `document_upload` entries.
 4. **Evidence form** — for `declaration` and `checklist` entries, `useEvidenceForm` manages form state, validates on submit, lazy-imports `@/lib/pdf/render`, calls `renderEvidencePdf(input)` to produce a `Blob`, calls `downloadBlob(blob, "evidence.pdf")`, then shows the upload-path instructions screen. For any other type, `EvidenceForm` shows a "uploaded directly to your bucket" message instead of rendering a form.
@@ -198,7 +199,7 @@ These are the only cross-repo contracts. Break them at your peril.
 | What | Shape | Producer | Consumer |
 |------|-------|----------|----------|
 | Catalog JSON | `Catalog` in `src/types/catalog.ts` ↔ `Catalog` in CLI `internal/manualcatalog/catalog.go` | CLI `evidence catalog` subcommand | this SPA |
-| Evidence types | `declaration` \| `checklist` \| `document_upload` (field `type`) | CLI catalog | `fetch-catalogs` drops `document_upload` at build time; SPA only ever sees declaration + checklist |
+| Evidence types | `declaration` \| `checklist` \| `document_upload` (field `type`) | CLI catalog | `fetch-catalogs` drops `document_upload` at build time (on every deploy — the CLI is installed in `deploy.yml`, so a CLI catalog change reaches the live site on the next push); SPA only ever sees declaration + checklist |
 | Frequency values | `daily` \| `weekly` \| `monthly` \| `quarterly` \| `yearly` (field name is `frequency`, NOT `cadence`; the CLI maps its internal `annual` cadence → `yearly` on export) | CLI catalog | both, drives `currentPeriod(frequency)` |
 | PDF filename | The SPA names its download `evidence.pdf` (`EVIDENCE_PDF_FILENAME` in `storage-path.ts`) as a **convention only**. This is NOT enforced cross-repo: the CLI is filename-agnostic — its manual reader globs the whole period folder and merges every supported file, regardless of name (the catalog's `Filename` field is dead/compat-only in `internal/sources/manual/manual.go`). | this SPA | CLI ignores the name |
 | Path template | The SPA displays `{config.storage.prefix}/{evidence_id}/{period}/evidence.pdf` (`computeUploadPath`), matching the CLI's folder scheme `{prefix}{evidence_id}/{period_id}/` (default `prefix = "manual/"`, **no `framework` segment**) in `internal/sources/manual/manual.go`. The `manual` source is a **project-level singleton** (one bucket per project, not per framework). The trailing `evidence.pdf` is a suggested download name only — the CLI globs the folder and is filename-agnostic. | this SPA (display) / CLI (lookup) | aligned |
@@ -227,31 +228,33 @@ Loaded once at startup. Shape:
 
 Missing, unreachable, or malformed `config.json` → falls back to the default in `src/config/runtime.ts` (also `["soc2"]`), normalized field-by-field so a partial/wrong-shape file can't crash the app. `config.json` is fetched relative to `import.meta.env.BASE_URL`, so a sub-path deploy loads its own config (not the domain root's). Deploys override by replacing `config.json` in the hosting bucket — no rebuild needed.
 
-`public/config.json` is the **single source of truth** for the framework list. `scripts/fetch-catalogs.ts` derives its prefetch list from it (`frameworksFromConfig()`), so the shipped catalogs under `public/data/catalogs/` can't drift from what the UI exposes — today `soc2.json` and `iso27001.json`.
+`public/config.json` is the **single source of truth** for the framework list. `scripts/fetch-catalogs.ts` derives its prefetch list from it (`frameworksFromConfig()`), so the shipped catalogs under `public/data/catalogs/` can't drift from what the UI exposes — today `soc2.json` and `iso27001.json`. A framework listed here that the CLI can't serve (`sigcomply evidence catalog` returns a non-zero `ExitConfig` for an unknown framework, or one with no manual catalog) is a hard build failure, not a skip.
 
-Note how few entries survive the filter: ISO 27001 ships 86 manual catalog entries and 8 reach this app (SOC 2: 49 ship, 5 reach it). Both figures are what the committed catalogs actually contain — re-check them with `npm run fetch-catalogs` plus a `jq '.entries | length'` rather than trusting this line. That is the intended ratio, not a bug. Most compliance evidence is a document the organization authors elsewhere — a risk register, internal audit findings, management review minutes — and the SPA's job is only the subset a person can honestly complete by clicking: declarations and checklists. In particular the 16 ISO clause 4-10 management-system entries are all `document_upload` by deliberate choice; rendering a management review as a checkbox would assert something nobody verified.
+Note how few entries survive the filter: ISO 27001 ships 87 manual catalog entries and 8 reach this app (SOC 2: 50 ship, 5 reach it). Both figures are what the committed catalogs actually contain — re-check them with `npm run fetch-catalogs` plus a `jq '.entries | length'` rather than trusting this line. That is the intended ratio, not a bug. Most compliance evidence is a document the organization authors elsewhere — a risk register, internal audit findings, management review minutes — and the SPA's job is only the subset a person can honestly complete by clicking: declarations and checklists. In particular the 16 ISO clause 4-10 management-system entries are all `document_upload` by deliberate choice; rendering a management review as a checkbox would assert something nobody verified.
 
 ---
 
 ## Commands
 
 ```bash
-npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json
-npm run fetch-catalogs   # regenerate public/data/catalogs/*.json from the local sigcomply CLI
-npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build
+npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json (offline fallback)
+npm run fetch-catalogs   # regenerate public/data/catalogs/*.json from the local sigcomply CLI (fatal on any error)
+npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build — what deploy.yml runs
 npm run lint             # eslint . — the only style gate (no Prettier/Biome, no `format` script)
 npm run test             # vitest run — the colocated *.test.ts suite
 npx tsc -b               # typecheck (strict project refs); there is no `typecheck` npm script
 npm run preview          # serve dist/ — closest local approximation to the GitHub Pages deploy
 ```
 
-**Local verification gate** (CI does not lint/test/typecheck — see [WORKFLOW.md](docs/WORKFLOW.md)):
+**Local verification gate** (CI runs `npm run build` — catalogs + typecheck — but never ESLint or
+Vitest; see [WORKFLOW.md](docs/WORKFLOW.md)):
 before every push, `npm run lint`, `npm run test`, `npx tsc -b`, and `npm run build` must all be
 clean.
 
-`fetch-catalogs` (and therefore `prebuild`/`npm run build`) requires `sigcomply` on PATH. If
-unavailable, the committed `public/data/catalogs/*.json` files are sufficient for `dev`, `preview`,
-and a `npx tsc -b && npx vite build` (the prebuild-free path CI's `deploy.yml` uses).
+`fetch-catalogs` (and therefore `prebuild`/`npm run build`) requires `sigcomply` on PATH and aborts
+on any failure. If the CLI is unavailable, the committed `public/data/catalogs/*.json` files are
+sufficient for `dev`, `preview`, and a `npx tsc -b && npx vite build` (the prebuild-free path).
+`deploy.yml` installs the CLI from GitHub Releases and runs the full `npm run build`.
 
 Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a subpath.
 
@@ -262,7 +265,7 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - **Add a UI primitive** → `npx shadcn add <name>` (writes to `src/components/ui/`). Do not hand-author.
 - **Add a new evidence template** → add a `<Foo>Pdf.tsx` component under `src/lib/pdf/`, wire it in `renderEvidencePdf`'s switch on catalog `type`. Declaration and checklist already share `useEvidenceForm`; new template variants would extend that hook similarly.
 - **Need a new evidence-input flow that isn't a user attestation?** → first ask whether the evidence already exists as a file (PDF/screenshot). If yes, the customer should upload it directly to the bucket — do NOT add a new form type to this SPA. The SPA is intentionally scoped to user attestations (declarations + checklists) only.
-- **Add a new framework** → add it to the `frameworks` array in `public/config.json` (the single source of truth), then run `npm run fetch-catalogs` to prefetch its catalog. `scripts/fetch-catalogs.ts` reads that same list, so there is no second list to keep in sync. Catalog JSON is sourced from the CLI, not hand-written.
+- **Add a new framework** → add it to the `frameworks` array in `public/config.json` (the single source of truth), then run `npm run fetch-catalogs` to refresh the committed fallback catalogs. `scripts/fetch-catalogs.ts` reads that same list, so there is no second list to keep in sync. Catalog JSON is sourced from the CLI, not hand-written — and the framework must exist in a released CLI, or the Pages deploy fails at `prebuild`.
 - **localStorage keys** — namespaced `sigcomply:*` (e.g. `sigcomply:framework`, `sigcomply:completed-by`). Keep that prefix.
 - **Imports** — use `@/…` not relative `../../`.
 - **No data fetching libraries** — plain `fetch` + `useEffect` is enough here; don't introduce React Query / SWR for two endpoints.
@@ -278,7 +281,7 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - `useCatalog` resets `catalog` to `null` in its effect cleanup. Components must handle the loading state even on framework switch — don't assume catalog persists.
 - `currentPeriod()` uses local time, not UTC. Period boundaries are the browser's midnight. This matches CLI behaviour as long as the CI runner's timezone matches the user's — revisit if we hit drift.
 - Catalog fetch is cached in `catalogCache` Map (module-level). Hard refresh clears it.
-- `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or rely on the pre-committed `public/data/catalogs/*.json` and skip the prebuild.
+- `prebuild` fails the whole build on *any* `fetch-catalogs` error — CLI not on PATH, non-zero exit, malformed JSON, or a `public/config.json` framework the CLI can't serve. That strictness is the point: `deploy.yml` installs the CLI before `npm run build` so the live site's catalogs are always regenerated, and a broken invocation must fail the deploy rather than quietly serve the committed JSON. Locally, skip the prebuild with `npx tsc -b && npx vite build` if you don't have the CLI.
 - `scripts/fetch-catalogs.ts` derives its prefetch list from `public/config.json` (`frameworksFromConfig()`), so the frameworks the app *shows* and the catalogs it *prefetches* can't diverge. `public/config.json` is the single source of truth — see Runtime Config.
 - `computeUploadPath` (`storage-path.ts`) matches the CLI folder scheme `{prefix}{evidence_id}/{period_id}/` (no `framework` segment, `prefix` default `manual/`). The trailing `evidence.pdf` filename is a suggested download name only — the CLI globs the folder and is filename-agnostic. See the Path template / PDF filename rows in Contracts.
 - **`npm install` needs npm >= 11** (Node 24 ships it; CI's `setup-node@v7` with `node-version: 24`

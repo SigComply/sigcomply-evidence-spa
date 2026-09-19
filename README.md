@@ -18,11 +18,18 @@ npm run dev
 
 Open http://localhost:5173.
 
-`npm run dev` uses the catalog JSONs committed under `public/data/catalogs/` (served as static assets by Vite). To regenerate them from a local `sigcomply` CLI:
+`npm run dev` uses the catalog JSONs committed under `public/data/catalogs/` (served as static assets by Vite) — they are the offline/dev fallback, so contributors don't need the CLI. To regenerate them from a local `sigcomply` CLI:
 
 ```bash
 npm run fetch-catalogs
 ```
+
+Regeneration is all-or-nothing: if the `sigcomply` binary is missing, exits
+non-zero, or emits an unusable catalog for any framework listed in
+`public/config.json`, the script fails loudly instead of leaving the previous
+JSON in place. The deployed site regenerates its catalogs on every build (see
+[Deployment](#deployment)), so the committed files are a fallback, not the
+source of truth for production.
 
 ## Build
 
@@ -31,7 +38,7 @@ npm run build     # prebuild (fetch-catalogs) + tsc -b + vite build
 npm run preview   # serve dist/
 ```
 
-The prebuild step calls `sigcomply evidence catalog --framework <fw> -o json` for each framework listed in `public/config.json` (the single source of truth — `scripts/fetch-catalogs.ts` reads that list), so the CLI must be on `PATH` when building from scratch. (The `evidence` command group's `-f`/`--framework` flag falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2` when omitted, but the script always passes it explicitly.) CI should either install the CLI first or commit the catalog JSONs and skip the prebuild.
+The prebuild step calls `sigcomply evidence catalog --framework <fw> -o json` for each framework listed in `public/config.json` (the single source of truth — `scripts/fetch-catalogs.ts` reads that list), so the CLI must be on `PATH` for `npm run build`; any failure aborts the build rather than falling back to the committed JSON. (The `evidence` command group's `-f`/`--framework` flag falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2` when omitted, but the script always passes it explicitly.) CI installs the CLI first — see [Deployment](#deployment). Without the CLI you can still bundle from the committed catalogs with `npx tsc -b && npx vite build`, which skips the prebuild.
 
 Set `VITE_BASE_PATH` if deploying to a subpath.
 
@@ -53,11 +60,11 @@ Deploys can override `config.json` in the hosting bucket without rebuilding.
 This is a fully static SPA — the build output in `dist/` is plain HTML, JS, and
 CSS with no server component, so it can be served from any static host (GitHub
 Pages, an S3/GCS bucket + CDN, Netlify, etc.). The repo ships a GitHub Pages
-workflow (`.github/workflows/deploy.yml`) that, on push to `main`, runs
-`npx vite build` (relying on the committed `public/data/catalogs/*.json`, so the
-CLI is not required at deploy time), sets `VITE_BASE_PATH=/<repo>/` for the
-sub-path deploy, copies `index.html` to `404.html` so client-side routes like
-`/verify` resolve, and publishes to Pages. Set `VITE_BASE_PATH` yourself when
+workflow (`.github/workflows/deploy.yml`) that, on push to `main`, installs the
+latest `sigcomply` CLI release and runs `npm run build` — so the catalogs are
+regenerated from the CLI on every deploy and the typecheck runs in CI. It sets
+`VITE_BASE_PATH=/<repo>/` for the sub-path deploy, copies `index.html` to
+`404.html` so client-side routes like `/verify` resolve, and publishes to Pages. Set `VITE_BASE_PATH` yourself when
 hosting under a different sub-path.
 
 ## How it fits
