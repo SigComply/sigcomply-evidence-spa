@@ -1,0 +1,160 @@
+{
+  "framework": "iso27001",
+  "version": "1.0",
+  "entries": [
+    {
+      "id": "return_of_assets",
+      "control": "A.5.11",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Return Of Assets",
+      "description": "Assets are returned when employment or engagement ends.",
+      "severity": "medium",
+      "declaration_text": "I confirm that all organizational assets issued to personnel and third parties whose employment or engagement ended during this period have been returned or verifiably wiped, and that the return has been recorded."
+    },
+    {
+      "id": "incident_response_tested",
+      "control": "A.5.26",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Incident Response Tested",
+      "description": "Incident response is tested.",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "plan_tested",
+          "text": "Incident response plan was tested via tabletop exercise or simulation",
+          "required": true
+        },
+        {
+          "id": "roles_verified",
+          "text": "All incident response roles and responsibilities were verified",
+          "required": true
+        },
+        {
+          "id": "communication_tested",
+          "text": "Communication channels and escalation paths were tested",
+          "required": true
+        },
+        {
+          "id": "lessons_documented",
+          "text": "Lessons learned were documented and the plan updated accordingly",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "ict_continuity_tested",
+      "control": "A.5.30",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "ICT Continuity Tested",
+      "description": "ICT continuity is tested.",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "continuity_executed",
+          "text": "ICT continuity arrangements were exercised against a representative scenario",
+          "required": true
+        },
+        {
+          "id": "objectives_met",
+          "text": "Recovery objectives (RTO/RPO) were met",
+          "required": true
+        },
+        {
+          "id": "gaps_remediated",
+          "text": "Gaps identified during the test were documented and remediated",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "intellectual_property_rights",
+      "control": "A.5.32",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Intellectual Property Rights",
+      "description": "Intellectual property rights are respected.",
+      "severity": "medium",
+      "declaration_text": "I confirm that the organization complies with legislative, regulatory, and contractual requirements for intellectual property rights and software licensing, and that no unlicensed software is knowingly used on organizational systems during this period."
+    },
+    {
+      "id": "compliance_with_policies",
+      "control": "A.5.36",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Compliance With Policies",
+      "description": "Compliance with security policies is monitored and attested.",
+      "severity": "medium",
+      "declaration_text": "I confirm that compliance with the organization's information security policies and standards has been reviewed during this period and that identified non-conformities have been recorded and addressed."
+    },
+    {
+      "id": "nda_confidentiality_agreement",
+      "control": "A.6.6",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "NDA Confidentiality Agreement",
+      "description": "Confidentiality / non-disclosure agreements are in place.",
+      "severity": "medium",
+      "declaration_text": "I confirm that all personnel and relevant third parties with access to organizational information have signed confidentiality / non-disclosure agreements that remain in force during this period."
+    },
+    {
+      "id": "working_in_secure_areas",
+      "control": "A.7.6",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Working In Secure Areas",
+      "description": "Rules for working in secure areas are defined and followed.",
+      "severity": "medium",
+      "declaration_text": "I confirm that secure areas within the organization's control are identified and that the rules for working in them are defined and followed during this period, and that where the organization operates no secure areas of its own, the hosting facilities are run by a third-party provider under its own certified controls."
+    },
+    {
+      "id": "environment_separation",
+      "control": "A.8.31",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Environment Separation",
+      "description": "Development, test, and production environments are separated.",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "environments_separated",
+          "text": "Development, test, and production run as separate, isolated environments",
+          "required": true
+        },
+        {
+          "id": "access_separated",
+          "text": "Access to production is granted separately from development and test access",
+          "required": true
+        },
+        {
+          "id": "promotion_controlled",
+          "text": "Changes reach production only through a controlled promotion process",
+          "required": true
+        },
+        {
+          "id": "production_data_controlled",
+          "text": "Production data is not copied into development or test environments without approval and masking",
+          "required": false
+        }
+      ]
+    }
+  ]
+}
