@@ -78,7 +78,13 @@ This app has **no backend**. It reads a pre-built catalog JSON, writes a PDF to 
 
 ## Stack
 
-- React 19 + TypeScript, Vite 8
+- React 19 + TypeScript 7 (native compiler), Vite 8, Vitest 5, ESLint 10
+  - **TypeScript is installed side-by-side** (the pattern the TS 7 release notes prescribe):
+    `typescript` is an npm alias for `@typescript/typescript6` (the TS 6 **API**, because
+    `typescript-eslint` still hard-refuses `ts.versionMajorMinor >= 7`), and
+    `@typescript/native` is an alias for the real `typescript@7`. So `.bin/tsc` is TS 7
+    (what `npm run build` and `npx tsc -b` use) and `.bin/tsc6` is TS 6. Drop the aliases
+    for a plain `typescript@7` and `npm run lint` dies at config load.
 - React Router v7 (BrowserRouter)
 - Tailwind v4 + shadcn/ui (Base UI primitives, `base-nova` style)
 - `@react-pdf/renderer` for PDF generation (the heaviest dependency in the bundle, lazy-imported inside the form-submit handler so the dashboard and `/verify` chunks stay light)
@@ -275,6 +281,15 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
 - `prebuild` will fail the whole build if `sigcomply` is not on PATH. For CI, install the CLI before `npm run build`, or rely on the pre-committed `public/data/catalogs/*.json` and skip the prebuild.
 - `scripts/fetch-catalogs.ts` derives its prefetch list from `public/config.json` (`frameworksFromConfig()`), so the frameworks the app *shows* and the catalogs it *prefetches* can't diverge. `public/config.json` is the single source of truth — see Runtime Config.
 - `computeUploadPath` (`storage-path.ts`) matches the CLI folder scheme `{prefix}{evidence_id}/{period_id}/` (no `framework` segment, `prefix` default `manual/`). The trailing `evidence.pdf` filename is a suggested download name only — the CLI globs the folder and is filename-agnostic. See the Path template / PDF filename rows in Contracts.
+- **`npm install` needs npm >= 11** (Node 24 ships it; CI's `setup-node@v7` with `node-version: 24`
+  is fine). npm 10.9.x crashes with `Cannot read properties of null (reading 'edgesOut')` on the
+  aliased `typescript` dep. `npm ci` from the committed lockfile works on npm 10 — only
+  re-resolution needs 11. Use `npx npm@11 install` if you're on an older npm locally.
+- The `@babel/plugin-transform-runtime: ^7.29.0` entry in `overrides` is a **resolution pin, not a
+  security pin**: `@vitejs/plugin-react` → `@rolldown/plugin-babel` declares it as
+  `peerOptional ^7.29.0 || ^8.0.0-rc.1`, and without the pin npm picks the `8.0.0-rc` prerelease,
+  which then demands `@babel/core@8` and deadlocks the tree. The old `hono` / `esbuild` overrides
+  were dropped — natural resolution now lands on the same versions and `npm audit` stays clean.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
 - `@react-pdf/renderer` bundles `pdfkit` + `fontkit` and is large. Always lazy-load.
 - `crypto.subtle.importKey("Ed25519")` is the browser-support choke point for `/verify`. Older Chrome/Safari/Firefox throw `NotSupportedError`. `WebCryptoUnsupportedError` in `verify.ts` surfaces this; the page renders a graceful "upgrade your browser" message rather than a crash.
