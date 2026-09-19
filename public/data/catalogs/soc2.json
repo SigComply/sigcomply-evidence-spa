@@ -16,6 +16,32 @@
       "tsc": "security"
     },
     {
+      "id": "accountability_for_controls",
+      "control": "CC1.5",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Accountability For Controls",
+      "description": "Individuals are held accountable for their internal-control responsibilities.",
+      "severity": "medium",
+      "declaration_text": "I confirm that internal-control and information-security responsibilities are defined for each role, that individuals were evaluated against those responsibilities during this period, and that failures to meet them are addressed through the organization's performance and disciplinary processes.",
+      "tsc": "security"
+    },
+    {
+      "id": "fraud_risk_considered",
+      "control": "CC3.3",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Fraud Risk Considered",
+      "description": "The potential for fraud is explicitly considered when assessing risks.",
+      "severity": "medium",
+      "declaration_text": "I confirm that the potential for fraud was explicitly considered when assessing risks during this period, including management override of controls, incentives and pressures to commit fraud, and opportunities arising from privileged system access.",
+      "tsc": "security"
+    },
+    {
       "id": "incident_response_tested",
       "control": "CC7.3",
       "type": "checklist",
