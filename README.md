@@ -41,7 +41,7 @@ Edit `public/config.json` to change the frameworks shown or the storage prefix:
 
 ```json
 {
-  "frameworks": ["soc2"],
+  "frameworks": ["soc2", "iso27001"],
   "storage": { "show_upload_path": true, "prefix": "manual-evidence" }
 }
 ```
