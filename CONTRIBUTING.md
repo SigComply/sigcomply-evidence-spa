@@ -15,13 +15,15 @@ Do **not** open a public issue for a vulnerability. Report it privately — see
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173, uses committed catalog JSONs
+npm run dev        # http://localhost:5173, uses the committed catalog JSONs
+                   # (the offline fallback — no sigcomply CLI needed)
 ```
 
 ## Local verification gate
 
-CI does not lint, test, or typecheck — **local is the gate**. Before every
-commit, all four must be clean:
+CI does not lint or run the test suite (the Pages deploy does typecheck, via
+`npm run build`) — **local is the gate**. Before every commit, all four must be
+clean:
 
 ```bash
 npm run lint       # eslint . — the only style gate

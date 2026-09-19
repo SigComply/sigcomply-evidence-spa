@@ -34,8 +34,39 @@ jobs:
       - name: Audit dependencies (fail on high/critical)
         run: npm audit --audit-level=high
 
+      # The catalogs served by the deployed site are regenerated from the CLI
+      # on every deploy (the `prebuild` step of `npm run build` shells out to
+      # `sigcomply evidence catalog`). Without this step the build would fall
+      # back to the committed JSON and silently serve stale catalogs.
+      - name: Install SigComply CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Authenticated so the lookup gets the 1000/hr limit rather than the
+          # 60/hr per-IP anonymous one shared Actions runners burn through; a
+          # throttled response would yield a null tag and 404 the download.
+          VERSION=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/SigComply/sigcomply-cli/releases/latest | jq -r .tag_name)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Could not resolve the latest sigcomply-cli release tag." >&2
+            exit 1
+          fi
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64) ARCH="amd64" ;;
+            aarch64|arm64) ARCH="arm64" ;;
+          esac
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          echo "Installing SigComply CLI ${VERSION} for ${OS}/${ARCH}"
+          curl -fsSL "https://github.com/SigComply/sigcomply-cli/releases/download/${VERSION}/sigcomply_${VERSION#v}_${OS}_${ARCH}.tar.gz" | tar xz -C /tmp
+          sudo mv /tmp/sigcomply /usr/local/bin/
+          sigcomply version
+
+      # `npm run build` = prebuild (fetch-catalogs) + tsc -b + vite build.
+      # Regenerating the catalogs is fatal-on-error, and the typecheck runs
+      # here too — do not degrade this back to a bare `npx vite build`.
       - name: Build
-        run: npx vite build
+        run: npm run build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
 
