@@ -20,6 +20,25 @@ export interface EvidenceRecord {
   source_id: string;
   /** RFC 3339 / ISO 8601 string. */
   collected_at: string;
+  /**
+   * Optional account/region/project the observation was collected from.
+   * Provenance only — the CLI's evaluator never branches on it and it never
+   * crosses the aggregation boundary onto the wire. Most records omit it;
+   * today only the GCP, Azure and `aws.identity_center` plugins stamp one.
+   *
+   * The verifier does not read it, but it is part of the signed content
+   * (`records` is canonicalized whole), so it is declared here to keep this
+   * mirror complete against `internal/core/evidence.go`.
+   */
+  scope?: RecordScope;
+}
+
+/** Cloud-neutral: `account` is an AWS account, GCP org/customer, Azure
+ * subscription or Entra tenant; `project` a finer subdivision. */
+export interface RecordScope {
+  account?: string;
+  region?: string;
+  project?: string;
 }
 
 export interface EnvelopeSignature {
