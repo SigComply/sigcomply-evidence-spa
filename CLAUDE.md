@@ -107,6 +107,7 @@ scripts/
   fetch-catalogs.ts        ← shells out to `sigcomply evidence catalog`, filters to declaration+checklist, writes public/data/catalogs/{fw}.json. Reads the framework list from `public/config.json` (`frameworksFromConfig()`) — that file is the single source of truth, so the prefetched catalogs can't drift from what the UI exposes. Adding a framework means editing only `public/config.json`. Runs as `prebuild` on every `npm run build`, including the Pages deploy. **Every failure is fatal** (CLI missing, non-zero exit, malformed JSON, no `entries` array) — it never leaves the previous JSON in place and exits 0, because that silent fallback is exactly how stale catalogs used to reach production.
 src/
   main.tsx                 ← loads config.json, mounts <App>
+  styles/shadcn-tailwind.css ← vendored copy of shadcn's tailwind.css (the `shadcn` package is deliberately not a dependency — see Gotchas)
   App.tsx                  ← routes: "/", "/evidence/:framework/:evidenceId", "/verify"
   config/runtime.ts        ← loadConfig() / getConfig() singleton
   data/index.ts            ← fetchCatalog(framework) — fetch()es /data/catalogs/{fw}.json from public/
@@ -294,6 +295,12 @@ Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a s
   which then demands `@babel/core@8` and deadlocks the tree. The old `hono` / `esbuild` overrides
   were dropped — natural resolution now lands on the same versions and `npm audit` stays clean.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
+- **`shadcn` is not a dependency.** Its only runtime piece, `shadcn/tailwind.css` (accordion
+  keyframes + `data-*` custom variants), is vendored at `src/styles/shadcn-tailwind.css` and imported
+  from `index.css`. The package is a CLI that pulls `fast-glob → micromatch → braces`, and `braces`
+  carries an unpatched high advisory (GHSA-vfj7-8cjw-p6xm) that fails both `npm audit
+  --audit-level=high` gates. Run it ad hoc (`npx shadcn@latest add <name>`); if it re-adds
+  `shadcn` to `package.json` or rewrites the `@import`, revert that and re-copy the CSS instead.
 - `@react-pdf/renderer` bundles `pdfkit` + `fontkit` and is large. Always lazy-load.
 - `crypto.subtle.importKey("Ed25519")` is the browser-support choke point for `/verify`. Older Chrome/Safari/Firefox throw `NotSupportedError`. `WebCryptoUnsupportedError` in `verify.ts` surfaces this; the page renders a graceful "upgrade your browser" message rather than a crash.
 - The verifier's `canonical.ts` mirrors the CLI's RFC 8785-style canonicalization (sorted keys, no whitespace, `\u` escapes for control characters only — NOT Go's `json.Marshal` HTML-escaping). Any drift between `canonical.ts` and `internal/sign` silently breaks signature verification. Keep the two implementations in sync.
