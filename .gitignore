@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Private, machine-local files (Claude instructions, lefthook overrides)
+CLAUDE.local.md
+lefthook-local.yml
+.lefthook-local/
