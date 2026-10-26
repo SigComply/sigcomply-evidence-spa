@@ -311,11 +311,10 @@ Note how few entries survive the filter: ISO 27001 ships 87 manual catalog entri
   is fine). npm 10.9.x crashes with `Cannot read properties of null (reading 'edgesOut')` on the
   aliased `typescript` dep. `npm ci` from the committed lockfile works on npm 10 — only
   re-resolution needs 11. Use `npx npm@11 install` if you're on an older npm locally.
-- The `@babel/plugin-transform-runtime: ^7.29.0` entry in `overrides` is a **resolution pin, not a
-  security pin**: `@vitejs/plugin-react` → `@rolldown/plugin-babel` declares it as
-  `peerOptional ^7.29.0 || ^8.0.0-rc.1`, and without the pin npm picks the `8.0.0-rc` prerelease,
-  which then demands `@babel/core@8` and deadlocks the tree. The old `hono` / `esbuild` overrides
-  were dropped — natural resolution now lands on the same versions and `npm audit` stays clean.
+- `package.json` has no `overrides`. The old `@babel/plugin-transform-runtime` resolution pin
+  (it kept npm off a Babel 8 prerelease) was dropped once Babel 8 went stable: the package isn't in
+  the resolved tree at all, and `npm ls` / `npm audit` stay clean without it. If a Babel 8 /
+  Babel 7 split ever deadlocks `npm install` again, check `npm ls @babel/core --all` first.
 - The shadcn `ui/` folder is generated — don't refactor it, and don't lint-fix it by hand.
 - **`shadcn` is not a dependency.** Its only runtime piece, `shadcn/tailwind.css` (accordion
   keyframes + `data-*` custom variants), is vendored at `src/styles/shadcn-tailwind.css` and imported
