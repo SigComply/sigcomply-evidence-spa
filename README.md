@@ -60,7 +60,8 @@ Deploys can override `config.json` in the hosting bucket without rebuilding.
 This is a fully static SPA — the build output in `dist/` is plain HTML, JS, and
 CSS with no server component, so it can be served from any static host (GitHub
 Pages, an S3/GCS bucket + CDN, Netlify, etc.). The repo ships a GitHub Pages
-workflow (`.github/workflows/deploy.yml`) that, on push to `main`, installs the
+workflow (`.github/workflows/deploy.yml`) that runs on pushes to `main` that
+change more than docs, and by hand (`workflow_dispatch`). It installs the
 latest `sigcomply` CLI release and runs `npm run build` — so the catalogs are
 regenerated from the CLI on every deploy and the typecheck runs in CI. It sets
 `VITE_BASE_PATH=/<repo>/` for the sub-path deploy, copies `index.html` to

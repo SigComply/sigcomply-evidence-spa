@@ -5,7 +5,8 @@ repo. Read it with `AGENTS.md` before step 1 of every task.
 
 ## What a push to main triggers
 
-A push to `main` updates the live public site. There is no staging environment.
+A push to `main` that changes more than docs updates the live public site. There is no staging
+environment.
 
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`). It
@@ -18,14 +19,16 @@ A push to `main` updates the live public site. There is no staging environment.
   `secret-scan` jobs are hard gates; the rest are advisory. It has no `paths-ignore`, so docs-only
   pushes run it too.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
-  `CONTRIBUTING.md` when a push changes one of them (or the Vale config).
+  `CONTRIBUTING.md`. A push or pull request that changes `.vale.ini`, `.vale/**` or the workflow
+  itself lints all three. Otherwise it lints only the ones that changed.
 - No workflow runs ESLint or Vitest. The local gate below is the only place they run.
 
 Deploy facts that matter when you change the build:
 
 - `prebuild` (`fetch-catalogs`) regenerates `public/data/catalogs/*.json` from the CLI on every
   deploy and fails the deploy on any error. A CLI catalog change reaches the live site on the next
-  deploy without a commit here.
+  deploy without a commit here. To ship it without a code change, run the deploy workflow by hand
+  (`workflow_dispatch`); a docs-only push doesn't deploy.
 - The deploy job has `contents: read` and never commits the regenerated catalogs. The committed
   copies are the dev and offline fallback and can lag the CLI without affecting production.
   Refresh them with `npm run fetch-catalogs`.
@@ -38,7 +41,7 @@ gh run list --branch main --limit 5
 gh run watch <run-id> --exit-status
 ```
 
-Which `gh` account to use on this machine is in `AGENTS.local.md`. A red deploy affects the live
+Which `gh` account to use on this machine is in `AGENTS.local.md` (if present). A red deploy affects the live
 site: fix forward before anything else.
 
 ## Gate: run before every commit
@@ -80,7 +83,7 @@ and the Web Crypto and PDF specifics.
 ## Verify in the real product
 
 Every user-visible change is verified by driving the app in a real browser. Use whatever browser
-automation your harness provides; this machine's browser setup is in `AGENTS.local.md`.
+automation your harness provides; this machine's browser setup is in `AGENTS.local.md` (if present).
 
 1. Start the app. `npm run dev` serves http://localhost:5173 from the committed catalogs. For a
    change to bundling, lazy loading, routing or the base path, run `npm run build` (or the
@@ -138,12 +141,13 @@ The self-review "contracts and invariants" lens checks these against `AGENTS.md`
   `@react-pdf/renderer` stays lazy-loaded; `/verify` stays button-free, dependency-free and never
   gated on a framework; `src/components/ui/` untouched by hand. See "Conventions".
 
-For a change to `deploy.yml` or `security.yml`, also check that the deploy still fails on a
-`fetch-catalogs` error and that `actionlint` passes.
+For a change to any workflow under `.github/workflows/`, check that `actionlint` reports no new
+findings on the changed file. For a change to `deploy.yml`, also check that the deploy still fails
+on a `fetch-catalogs` error.
 
 ## Pre-launch rules
 
-- Commit and push straight to `main`. No PRs, no branch protection. This flips to a PR and review
+- For internal work, commit and push straight to `main`. No PRs, no branch protection. This flips to a PR and review
   flow at public launch; revise this file then.
 - No backward-compat shims or backfills: there is no install base and no server state. The
   exception is the CLI contracts, which change in lockstep with `sigcomply-cli`.

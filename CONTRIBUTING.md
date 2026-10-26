@@ -7,6 +7,8 @@ verification gate, test layers and deploy model, and
 [`docs/TESTING.md`](./docs/TESTING.md) the testing details. Those files are the
 source of truth; this page summarizes them.
 
+Outside contributors open a pull request against `main`.
+
 ## Security issues
 
 Do **not** open a public issue for a vulnerability. Report it privately (see
@@ -15,7 +17,7 @@ Do **not** open a public issue for a vulnerability. Report it privately (see
 ## Getting started
 
 ```bash
-npm install
+npm ci
 npm run dev        # http://localhost:5173, uses the committed catalog JSONs
                    # (the offline fallback: no sigcomply CLI needed)
 ```
