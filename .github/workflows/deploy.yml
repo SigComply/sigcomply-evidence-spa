@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+    # Docs-only pushes don't change the site. Nothing in the build imports a
+    # Markdown file.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.claude/**'
+      - '.vale/**'
+      - '.vale.ini'
   workflow_dispatch:
 
 permissions:
