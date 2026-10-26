@@ -9,7 +9,6 @@ import {
 const frameworkLabels: Record<string, string> = {
   soc2: "SOC 2 Type II",
   iso27001: "ISO 27001",
-  hipaa: "HIPAA",
 };
 
 interface FrameworkSelectorProps {

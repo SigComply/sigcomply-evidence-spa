@@ -16,10 +16,6 @@ const frameworkInfo: Record<string, { label: string; description: string }> = {
     label: "ISO 27001",
     description: "International standard for information security management systems (ISMS).",
   },
-  hipaa: {
-    label: "HIPAA",
-    description: "Health Insurance Portability and Accountability Act — safeguarding protected health information.",
-  },
 };
 
 interface FrameworkPickerDialogProps {
