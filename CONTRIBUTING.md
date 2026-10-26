@@ -1,60 +1,46 @@
-# Contributing to the SigComply Evidence SPA
+# Contributing
 
-Thanks for contributing. This is a static, backend-free React + TypeScript
-single-page app. [`AGENTS.md`](./AGENTS.md) holds the architecture, cross-repo
-contracts and conventions. [`docs/WORKFLOW.md`](./docs/WORKFLOW.md) holds the
-verification gate, test layers and deploy model, and
-[`docs/TESTING.md`](./docs/TESTING.md) the testing details. Those files are the
-source of truth; this page summarizes them.
+The app is a static React and TypeScript single-page app with no backend. Open a pull request
+against `main`.
 
-Outside contributors open a pull request against `main`.
+Report a security issue privately as described in [`SECURITY.md`](./SECURITY.md), not in a public
+issue.
 
-## Security issues
-
-Do **not** open a public issue for a vulnerability. Report it privately (see
-[`SECURITY.md`](./SECURITY.md)).
-
-## Getting started
+## Set up
 
 ```bash
 npm ci
-npm run dev        # http://localhost:5173, uses the committed catalog JSONs
-                   # (the offline fallback: no sigcomply CLI needed)
+npm run dev        # http://localhost:5173, uses the committed catalogs (no sigcomply CLI needed)
 ```
 
-## Before you commit
+## Run the checks before you commit
 
-CI doesn't lint or run the tests, so run the full gate locally:
+CI doesn't lint or run the tests, so run them locally:
 
 ```bash
 npm run lint && npx tsc -b && npm run test && npm run build
 ```
 
-`npm run build` needs the `sigcomply` CLI on your `PATH`. Without it, run
-`npx tsc -b && npx vite build` for the build step.
-[`docs/WORKFLOW.md`](./docs/WORKFLOW.md) explains each step and how to check UI
-changes in a browser.
+`npm run build` needs the `sigcomply` CLI on your `PATH` to refresh the catalogs. Without it, run
+`npx tsc -b && npx vite build` for the build step. For a change you can see in the app, also try
+it in a browser (`npm run dev`).
 
 ## Conventions
 
-The full list is under "Conventions" in [`AGENTS.md`](./AGENTS.md). The ones
-contributors hit most:
-
-- Write tests first, as `*.test.ts` files next to the code they test. One logical change per commit,
-  subject `<type>: <summary>` (`feat`, `fix`, `refactor`, `perf`, `test`,
-  `docs`, `ci`, `chore`).
+- Write tests first, as `*.test.ts` files next to the code they test.
+- One logical change per commit, subject `<type>: <summary>` (`feat`, `fix`, `refactor`, `perf`,
+  `test`, `docs`, `ci`, `chore`).
 - Update the docs your change makes wrong in the same commit.
-- The form generator handles only user attestations (`declaration` and
-  `checklist`). Users upload evidence that already exists as a file straight to
-  their bucket, so don't add a form type for it.
+- The forms cover only declarations and checklists. Evidence that already exists as a file is
+  uploaded directly, so don't add a form type for it.
+- The app sends nothing anywhere. Don't add a network call, upload, analytics or third-party
+  script.
 - Signature verification uses Web Crypto only. Don't add a JS Ed25519 library.
-- `src/lib/verification/canonical.ts` must match the CLI's canonicalization
-  byte for byte. A drift silently breaks signature verification.
-- Don't hand-edit `src/components/ui/`. Generate it with `npx shadcn add <name>`.
+- Don't hand-edit `src/components/ui/`. Generate it with `npx shadcn@latest add <name>`.
 
-## Cross-repo contracts
+## Changes shared with the CLI
 
-The catalog JSON and `EvidenceEnvelope` shapes are shared with
-[`sigcomply-cli`](https://github.com/SigComply/sigcomply-cli). See
-[`AGENTS.md` → Contracts with Sibling Repos](./AGENTS.md#contracts-with-sibling-repos)
-before changing either. A change on one side must land on both.
+The catalog JSON, upload path, period keys, `EvidenceEnvelope` shape, canonical JSON, and signature
+scheme are shared with [`sigcomply-cli`](https://github.com/SigComply/sigcomply-cli). A change to
+one of them needs the matching CLI change. The table in
+[`AGENTS.md`](./AGENTS.md#contracts-with-sigcomply-cli) lists the files on each side.

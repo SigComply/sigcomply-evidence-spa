@@ -1,88 +1,97 @@
-# sigcomply-evidence-spa
+# SigComply Evidence SPA
 
-Static React SPA that ships two unrelated, fully client-side features for [SigComply](https://github.com/SigComply):
+Two browser tools for [SigComply](https://github.com/SigComply/sigcomply-cli) users, hosted at
+**https://sigcomply.github.io/sigcomply-evidence-spa/**:
 
-1. **Evidence form → PDF** — for catalog entries that are user attestations (single-statement `declaration` or multi-step `checklist`), the SPA renders a form, generates an `evidence.pdf` via `@react-pdf/renderer`, and the user uploads it to their own storage bucket. The SigComply CLI picks it up on the next run.
-2. **Public envelope verifier** at `/verify` — drop in a CLI-signed `EvidenceEnvelope` JSON (and optionally the matching PDF) to verify the Ed25519 signature and re-hash the file via Web Crypto. Auditor-facing; no auth, no network calls.
+- **Evidence forms.** For manual-evidence entries that are a declaration or a checklist, fill a
+  form and download the result as `evidence.pdf`. You upload it yourself to the manual-evidence
+  folder in your storage bucket, and the SigComply CLI collects it on its next run.
+- **Envelope verifier** (`/verify`). An auditor loads a signed evidence file (an `EvidenceEnvelope`
+  JSON that the CLI writes to the customer's evidence storage) and checks its Ed25519 signature,
+  and optionally the hash of a PDF.
 
-The form generator is a *purely optional utility*, not part of the CLI's end-to-end workflow. The SigComply CLI never talks to this SPA. Users can collect every piece of manual evidence — including declarations and checklists — without ever opening this app, by producing the PDF themselves and uploading it directly to the storage path. The SPA simply makes declaration- and checklist-style entries clickable in a browser. Manual evidence sourced externally (HR exports, training certificates, scanned documents, signed NDAs, etc.) is always produced by the user themselves and uploaded directly to the same path; the SPA does not render forms for those.
+Both tools run entirely in the browser. The app has no backend: it submits nothing, uploads
+nothing and needs no account.
 
-There is no backend. Nothing is sent to a server. The browser only reads a pre-built catalog, triggers a file download, and verifies envelopes locally.
+You don't need this app. The SigComply CLI accepts any PDF or supported image you upload to the
+right folder. The forms are a shortcut for the entries a person can complete by clicking.
 
-## Quick start
+## Use it
+
+Step-by-step instructions are in the CLI docs:
+
+- [Collect manual evidence](https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/manual-evidence.md):
+  where the CLI looks for files, folder names per period, and when to use the forms. It covers
+  every framework.
+- [Verify signed evidence](https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/verify-evidence.md):
+  how an auditor checks an envelope, including with `/verify`.
+
+### Check the upload path before you upload
+
+After download, the form shows an upload path inside your manual-evidence bucket, such as
+`manual/code_of_conduct/2026/evidence.pdf`. The hosted site always shows the prefix `manual/`, the
+CLI's default `prefix` for manual evidence (the `manual.pdf` source in `.sigcomply.yaml`). The
+shown path is wrong for your project when:
+
+- your `manual.pdf` source sets a different `prefix`, or
+- your project's period calendar is `fiscal_year` or `custom`.
+
+In those cases, run `sigcomply evidence due` in your project. For each manual entry whose folder
+for the current period is empty, it prints the folder to upload to.
+
+### What `/verify` can and can't check
+
+- A valid signature shows the records match the public key inside the envelope. Anyone can
+  sign an envelope with their own key, so a valid signature alone doesn't prove who signed it.
+- When a folder holds several files, the CLI merges them into one PDF and hashes that. It doesn't
+  store the merged PDF. A PDF you drop in matches the envelope's `file_hash` only when the
+  evidence folder held exactly one PDF. Folders with several files or with images never match.
+- For vendor evidence collected into one folder per vendor, the envelope has no single PDF hash, so
+  `/verify` checks the signature only.
+
+[SECURITY.md](SECURITY.md#what-verify-proves-and-does-not) has the full list.
+
+## Self-host
+
+The build output in `dist/` is static HTML, JS and CSS; serve it from any static host.
 
 ```bash
-npm install
-npm run dev
+npm ci
+npm run build      # needs the sigcomply CLI on PATH to refresh the catalogs
 ```
 
-Open http://localhost:5173.
+`npm run build` runs `sigcomply evidence catalog` for each framework in `public/config.json`.
+Install the CLI from its [releases](https://github.com/SigComply/sigcomply-cli/releases). Without
+the CLI, `npx tsc -b && npx vite build` bundles the catalogs committed in `public/data/catalogs/`.
 
-`npm run dev` uses the catalog JSONs committed under `public/data/catalogs/` (served as static assets by Vite) — they are the offline/dev fallback, so contributors don't need the CLI. To regenerate them from a local `sigcomply` CLI:
+To serve the app under a sub-path, set `VITE_BASE_PATH=/<sub-path>/` when you build. Serve
+`index.html` for unknown paths so `/verify` resolves.
 
-```bash
-npm run fetch-catalogs
-```
-
-Regeneration is all-or-nothing: if the `sigcomply` binary is missing, exits
-non-zero, or emits an unusable catalog for any framework listed in
-`public/config.json`, the script fails loudly instead of leaving the previous
-JSON in place. The deployed site regenerates its catalogs on every build (see
-[Deployment](#deployment)), so the committed files are a fallback, not the
-source of truth for production.
-
-## Build
-
-```bash
-npm run build     # prebuild (fetch-catalogs) + tsc -b + vite build
-npm run preview   # serve dist/
-```
-
-The prebuild step calls `sigcomply evidence catalog --framework <fw> -o json` for each framework listed in `public/config.json` (the single source of truth — `scripts/fetch-catalogs.ts` reads that list), so the CLI must be on `PATH` for `npm run build`; any failure aborts the build rather than falling back to the committed JSON. (The `evidence` command group's `-f`/`--framework` flag falls back to `$SIGCOMPLY_FRAMEWORK` then `soc2` when omitted, but the script always passes it explicitly.) CI installs the CLI first — see [Deployment](#deployment). Without the CLI you can still bundle from the committed catalogs with `npx tsc -b && npx vite build`, which skips the prebuild.
-
-Set `VITE_BASE_PATH` if deploying to a subpath.
-
-## Runtime config
-
-Edit `public/config.json` to change the frameworks shown or the storage prefix:
+`public/config.json` sets what the app shows. The build copies it to `dist/config.json`, which you
+can replace on your host without a rebuild:
 
 ```json
 {
   "frameworks": ["soc2", "iso27001"],
-  "storage": { "show_upload_path": true, "prefix": "manual-evidence" }
+  "storage": { "show_upload_path": true, "prefix": "manual/" }
 }
 ```
 
-Deploys can override `config.json` in the hosting bucket without rebuilding.
+| Key | Effect |
+|---|---|
+| `frameworks` | Framework IDs offered in the picker (`soc2`, `iso27001`). Each needs `data/catalogs/<id>.json`; change the list before you build, so `npm run build` creates them. |
+| `storage.prefix` | First segment of the upload path the form shows. Set it to the `prefix` of your `manual.pdf` source. Default `manual/`. |
+| `storage.show_upload_path` | `false` hides the prefix and shows only `<evidence id>/<period>/evidence.pdf`. Default `true`. |
 
-## Deployment
+## Develop
 
-This is a fully static SPA — the build output in `dist/` is plain HTML, JS, and
-CSS with no server component, so it can be served from any static host (GitHub
-Pages, an S3/GCS bucket + CDN, Netlify, etc.). The repo ships a GitHub Pages
-workflow (`.github/workflows/deploy.yml`) that runs on pushes to `main` that
-change more than docs, and by hand (`workflow_dispatch`). It installs the
-latest `sigcomply` CLI release and runs `npm run build` — so the catalogs are
-regenerated from the CLI on every deploy and the typecheck runs in CI. It sets
-`VITE_BASE_PATH=/<repo>/` for the sub-path deploy, copies `index.html` to
-`404.html` so client-side routes like `/verify` resolve, and publishes to Pages. Set `VITE_BASE_PATH` yourself when
-hosting under a different sub-path.
+```bash
+npm ci
+npm run dev        # http://localhost:5173, uses the committed catalogs
+```
 
-## How it fits
-
-This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → the SPA shows the upload path `{prefix}/{evidence_id}/{period}/evidence.pdf` (matching the CLI's manual-reader folder layout) and the user uploads the file to the manual-evidence folder in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. The CLI reads every supported file in the period folder regardless of name, so users who skip the SPA can upload their own PDF to the same folder; the CLI sees no difference.
-
-See [`AGENTS.md`](AGENTS.md) for development conventions, cross-repo contracts, and the wider product architecture.
-
-## Stack
-
-React 19 · TypeScript · Vite 8 · Tailwind v4 · shadcn/ui · React Router v7 · `@react-pdf/renderer`
-
-## Contributing & security
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the local verification gate and
-conventions, and [`SECURITY.md`](SECURITY.md) to report a vulnerability
-privately (do not open a public issue for security bugs).
+[CONTRIBUTING.md](CONTRIBUTING.md) has the checks to run before a pull request. Report
+vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

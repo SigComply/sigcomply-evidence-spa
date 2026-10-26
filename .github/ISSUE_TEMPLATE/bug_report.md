@@ -6,8 +6,8 @@ labels: bug
 ---
 
 <!--
-Do NOT report security vulnerabilities here — see SECURITY.md and use
-GitHub Security Advisories instead.
+Don't report security vulnerabilities here. Use GitHub Security Advisories
+as described in SECURITY.md.
 -->
 
 ## What happened
@@ -16,7 +16,7 @@ A clear description of the bug.
 
 ## Which tool
 
-- [ ] Form → PDF (dashboard / attestation form)
+- [ ] Evidence forms (dashboard or a declaration/checklist form)
 - [ ] `/verify` envelope verifier
 - [ ] Other / not sure
 
@@ -34,10 +34,11 @@ What you expected instead.
 
 - Browser + version:
 - OS:
-- Deployment (hosted URL / local `npm run dev` / `npm run preview`):
+- Deployment (https://sigcomply.github.io/sigcomply-evidence-spa/, a self-hosted copy, or local
+  `npm run dev` / `npm run preview`):
 
 ## Additional context
 
-Screenshots, console errors, or (for `/verify`) a **redacted** envelope
+Screenshots, console errors, or (for `/verify`) a redacted envelope
 that reproduces the issue. Do not paste real evidence, PII, or private
 keys.

@@ -15,11 +15,11 @@ What you'd like to see.
 
 ## Scope check
 
-This SPA is intentionally scoped to **user attestations** (declaration and
-checklist catalog entries) plus the client-side `/verify` verifier. Evidence
-that already exists as a file (HR exports, training certificates, scanned
-documents) is uploaded directly to the storage bucket and is out of scope
-here — see the README and `AGENTS.md`.
+The app covers forms for declaration and checklist entries, and the
+`/verify` envelope verifier. Both run in the browser and send nothing
+anywhere. Evidence that already exists as a file (HR exports, training
+certificates, scanned documents) is uploaded directly to storage, so a form
+for it is out of scope. See the README.
 
 - [ ] My request fits that scope, or explains why it should change.
 
@@ -29,4 +29,4 @@ Other approaches you thought about.
 
 ## Additional context
 
-Anything else — mockups, links, related CLI behavior.
+Anything else: sketches, links, related CLI behavior.

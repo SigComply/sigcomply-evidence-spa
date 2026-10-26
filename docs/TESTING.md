@@ -11,7 +11,7 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   resolves in tests because Vitest reuses the Vite `resolve.alias`.
 - **No coverage config**, no coverage gate, no threshold. `vitest run --coverage` works ad hoc but
   nothing enforces a floor.
-- **No Playwright, no `@testing-library/react`, no jsdom** installed. There are currently **no
+- **No Playwright, no `@testing-library/react`, no jsdom** installed. There are **no
   component/DOM tests** and no end-to-end browser tests. UI is verified manually in a real browser —
   see [WORKFLOW.md → Verify in the real product](WORKFLOW.md#verify-in-the-real-product).
 
@@ -33,6 +33,8 @@ Tests are **colocated** next to the code they cover: `foo.ts` → `foo.test.ts` 
 Test fixtures live in a sibling `__fixtures__/` directory.
 
 ```
+src/config/
+  runtime.ts              runtime.test.ts   ← default upload prefix equals the CLI's ("manual/")
 src/lib/
   period.ts               period.test.ts
   storage-path.ts         storage-path.test.ts
@@ -54,15 +56,18 @@ also asserts the bignum envelope verifies **only** when the raw text is passed t
 `verifyEnvelopeSignature` — the object path (rounded) must fail, which is exactly why `Verify.tsx`
 keeps the original source text.
 
-## Current coverage (and the gap)
+## Coverage and the gap
 
 The suite covers the **`/verify` crypto path** — `src/lib/verification/{canonical,verify}.ts` — plus
 the pure-function helpers `src/lib/period.ts` (period keys/ranges, incl. ISO week-year and W53
-boundaries) and `src/lib/storage-path.ts` (upload-path building). Still **untested**:
+boundaries), `src/lib/storage-path.ts` (upload-path building) and the default storage prefix in
+`src/config/runtime.ts` and `public/config.json`. Still **untested**:
 
 - the entire **form → PDF** app (`useEvidenceForm`, `renderEvidencePdf`, the PDF components),
 - PDF metadata strings (`src/lib/pdf/metadata.ts`),
-- all React components, hooks, and pages (verified manually in a browser instead).
+- all React components, hooks, and pages (verified manually in a browser instead),
+- `/verify` against a fan-out manual envelope (per-vendor `instances`, no top-level `file_hash`);
+  no fixture exists.
 
 This is a known gap, not a decision that these don't need tests. **The expectation going forward: new
 or changed logic ships with tests in the same commit** (see [WORKFLOW.md → Test layers](WORKFLOW.md#test-layers)).
@@ -81,29 +86,29 @@ load-bearing tests in the repo:
   byte-for-byte against `__fixtures__/sample-envelope-v1.canonical.txt`, which was produced by the Go
   signer. **This byte-equality is the contract.** If canonicalization drifts on either side, `/verify`
   silently rejects valid signatures — keep `canonical.ts` and the CLI's `internal/sign` in lockstep
-  (see [AGENTS.md → Contracts](../AGENTS.md#contracts-with-sibling-repos)).
+  (see [AGENTS.md → Contracts](../AGENTS.md#contracts-with-sigcomply-cli)).
 - **`verify.test.ts`** exercises `verifyEnvelopeSignature()` against real CLI-written envelope
   fixtures (both automated and manual flows) and tampered clones (flipped signature, mutated records)
   to confirm valid→valid and tampered→invalid, and that the signed bytes never include the `signature`
   block (only the three signed fields `format_version`, `produced_at`, `records`).
 
 **Web Crypto note:** `verify.ts` uses `crypto.subtle` with the `Ed25519` algorithm. This works in the
-Node version the tests run under (CI builds use Node 24; tests run only locally) without any polyfill — do **not** add
+Node version the tests run under without any polyfill — do **not** add
 `tweetnacl`/`noble-ed25519` to make tests pass. Browser-support gating lives in `verify.ts`
 (`WebCryptoUnsupportedError`); in the test environment Ed25519 is present, so the graceful-degradation
-path is not exercised by the current suite.
+path is not exercised by the suite.
 
 ## Testing PDF generation
 
 `@react-pdf/renderer` is heavy and lazy-imported. If you add tests for PDF output, prefer testing the
 **inputs** — the pure functions that build the PDF input shape and metadata (`metadataKeywords()`,
 the `PdfInput` mapping) — rather than rendering and byte-diffing a PDF, which is slow and brittle. The
-CLI does not parse PDF contents in v1 (presence + hash only), so the metadata *strings* are the
+CLI does not parse PDF contents (presence + hash only), so the metadata *strings* are the
 contract worth pinning, not the rendered layout.
 
 ## Adding component/DOM tests (if a change ever needs them)
 
-Not currently possible out of the box — jsdom and `@testing-library/react` are not installed. If a
+Not possible out of the box — jsdom and `@testing-library/react` are not installed. If a
 component genuinely needs a rendering test, that's a real dependency addition (`jsdom` +
 `@testing-library/react` + a `test.environment: "jsdom"` block in `vite.config.ts`): flag it, add it
 deliberately, and update this doc. Don't add it silently. Most logic can and should be extracted into

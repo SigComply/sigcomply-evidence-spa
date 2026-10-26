@@ -1,56 +1,49 @@
-# Security Policy
+# Security policy
 
-## Reporting a Vulnerability
+## Report a vulnerability
 
-If you discover a security vulnerability in the SigComply Evidence SPA,
-please report it privately via
-[GitHub Security Advisories](https://github.com/SigComply/sigcomply-evidence-spa/security/advisories/new)
-rather than opening a public issue.
+Report a vulnerability in the SigComply Evidence SPA privately through
+[GitHub Security Advisories](https://github.com/SigComply/sigcomply-evidence-spa/security/advisories/new).
+Don't open a public issue. Include the steps to reproduce and the affected route (`/`,
+`/evidence/...` or `/verify`).
 
-We take security reports seriously and will acknowledge receipt within
-48 hours and provide an estimated timeline for a fix.
+## Supported versions
 
-## Supported Versions
-
-Pre-1.0: the latest deployed build receives security fixes. Older
-builds are not supported.
+Before 1.0, only the latest deployed build receives security fixes.
 
 ## Scope
 
-This app is a **static, backend-free single-page application**. It reads
-a pre-built catalog JSON, generates PDFs in the browser, and verifies
-signed `EvidenceEnvelope` files locally. It never uploads anything to a
-server and never handles customer credentials.
+The app is a static single-page app with no backend. It reads a catalog JSON and `config.json`
+from its own host, renders PDFs in the browser and verifies signed `EvidenceEnvelope` files
+locally. It uploads nothing and never handles credentials.
 
 In scope:
-- The `/verify` Ed25519 signature verification path
-  (`src/lib/verification/`) — canonicalization and Web Crypto
-  signature checking.
-- The RFC 8785-style canonical-JSON implementation
-  (`src/lib/verification/canonical.ts`), which must match the CLI's
-  signing canonicalization byte-for-byte.
-- Client-side PDF generation (`src/lib/pdf/`).
-- Runtime config and catalog loading (`src/config/`, `src/data/`).
 
-Out of scope (report upstream):
-- Vulnerabilities in transitive npm dependencies — open a Dependabot PR
-  or report to the upstream project.
-- Vulnerabilities in the browser's Web Crypto (`crypto.subtle`)
-  implementation — report to the browser vendor.
-- Vulnerabilities in the SigComply CLI's signing scheme itself — report
-  to [sigcomply-cli](https://github.com/SigComply/sigcomply-cli/security/advisories/new).
+- Ed25519 signature verification on `/verify` (`src/lib/verification/`), including the canonical
+  JSON in `src/lib/verification/canonical.ts`, which must match the CLI's signing bytes exactly.
+- PDF generation in the browser (`src/lib/pdf/`).
+- Runtime config and catalog loading (`src/config/`, `src/data/`).
+- Any path by which an envelope, PDF or form value leaves the browser. The app must make no
+  network call other than fetching its own static files.
+
+Out of scope:
+
+- Vulnerabilities in npm dependencies: report them to the upstream project.
+- Vulnerabilities in the browser's Web Crypto (`crypto.subtle`): report them to the browser
+  vendor.
+- The CLI's signing scheme: report it to
+  [sigcomply-cli](https://github.com/SigComply/sigcomply-cli/security/advisories/new).
 
 ## What `/verify` proves (and does not)
 
-The verifier re-checks that an envelope's records match the Ed25519
-public key **embedded in that same envelope**. A valid result proves the
-records were not altered relative to that key; it does not prove
-provenance on its own — the auditor must independently confirm the
-public key belongs to the expected signer. Whole-run integrity
-(verifying the per-run signed `manifest.json` Merkle root) is out of
-scope for the current `envelope.v1` verifier and remains future work.
-
-The verifier runs entirely client-side and makes no network calls, so
-no envelope, PDF, or PII ever leaves the auditor's browser. A bug that
-caused any of this data to be transmitted off-device would be treated as
-critical.
+- A valid result proves the envelope's records match the Ed25519 public key embedded in the same
+  envelope. Anyone can sign an envelope with their own key, so it does not prove who signed them.
+- The PDF check compares the SHA-256 of the PDF you supply with the envelope's `file_hash`. The
+  CLI computes `file_hash` over the PDF it merges from every file in the evidence folder, and it
+  does not store that merged PDF. The check can pass only when the folder held exactly one PDF,
+  which the CLI uses unchanged. For a folder with several files or with images, no file you can
+  supply matches.
+- Fan-out envelopes (one folder per vendor) carry their hashes per vendor and no top-level
+  `file_hash`. `/verify` checks their signature only.
+- `/verify` checks one envelope at a time. It does not verify the per-run signed `manifest.json`,
+  so it can't tell you whether a run's files are complete.

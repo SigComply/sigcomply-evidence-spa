@@ -41,8 +41,8 @@ gh run list --branch main --limit 5
 gh run watch <run-id> --exit-status
 ```
 
-Which `gh` account to use on this machine is in `AGENTS.local.md` (if present). A red deploy affects the live
-site: fix forward before anything else.
+Which `gh` account to use on this machine is in `AGENTS.local.md` (if present). A red deploy
+affects the live site: fix forward before anything else.
 
 ## Gate: run before every commit
 
@@ -91,8 +91,8 @@ automation your harness provides; this machine's browser setup is in `AGENTS.loc
 2. Drive the flow the change touches:
    - **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration and a checklist
      entry, fill the form, submit. Confirm `evidence.pdf` downloads and the upload-path screen
-     shows `{prefix}/{evidence_id}/{period}/evidence.pdf`. Open the PDF and check the header block
-     and metadata.
+     shows `{prefix}{evidence_id}/{period}/evidence.pdf` with the default prefix `manual/`. Open
+     the PDF and check the header block and metadata.
    - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`.
      The verdict must show pass with no button press. Change one character inside `records` and
      confirm the verdict flips to fail. For manual-flow changes, use
@@ -108,14 +108,15 @@ Pure-logic changes with no visible surface are covered by the unit suite; say so
 | Change | Agent-internal docs | Customer-facing docs |
 |---|---|---|
 | New or changed npm script, gate step or CI workflow | `AGENTS.md` Commands, this file | `CONTRIBUTING.md`, `README.md` (Build, Deployment) |
-| Envelope, canonical JSON or signature verification | `AGENTS.md` Contracts and Gotchas, `docs/TESTING.md` | `SECURITY.md` ("What `/verify` proves"), `/verify` verdict copy |
-| Catalog shape, evidence types, frequencies, period keys | `AGENTS.md` Contracts and How Data Flows | `README.md` if user-visible |
-| Upload path, PDF filename, PDF layout or metadata | `AGENTS.md` Contracts and PDF Layout | `README.md` ("How it fits"), upload-path screen copy |
-| Runtime config or frameworks list | `AGENTS.md` Runtime Config and Conventions | `README.md` (Runtime config) |
-| New form, page or UI flow | `AGENTS.md` Directory Map and Conventions | In-app copy, `README.md` if it changes what users do |
+| Envelope, canonical JSON or signature verification | `AGENTS.md` Contracts and Verifier limits, `docs/TESTING.md` | `SECURITY.md` ("What `/verify` proves"), `README.md` ("What `/verify` can and can't check"), `/verify` verdict copy |
+| Catalog shape, evidence types, frequencies, period keys | `AGENTS.md` Contracts | `README.md` if user-visible |
+| Upload path, prefix, PDF filename, PDF layout or metadata | `AGENTS.md` Contracts and Conventions | `README.md` ("Check the upload path", Self-host), upload-path screen copy |
+| Runtime config or frameworks list | `AGENTS.md` Runtime config | `README.md` (Self-host) |
+| New form, page or UI flow | `AGENTS.md` Role and scope, Conventions | In-app copy, `README.md` if it changes what users do |
 | Test layout, fixtures, test tooling | `docs/TESTING.md`, this file | none |
-| Dependency or toolchain change | `AGENTS.md` Stack and Gotchas | `README.md` (Stack) |
-| Scope of the SPA | `AGENTS.md` This Repo's Role | `README.md`, `.github/ISSUE_TEMPLATE/feature_request.md` |
+| Dependency or toolchain change | `AGENTS.md` Gotchas | `CONTRIBUTING.md` if setup changes |
+| Scope of the SPA | `AGENTS.md` Role and scope | `README.md`, `.github/ISSUE_TEMPLATE/feature_request.md` |
+| How users fill forms or verify envelopes | none | `sigcomply-cli` `docs/guides/manual-evidence.md` and `docs/guides/verify-evidence.md` (they own the how-to) |
 
 A contract change also needs the matching doc change in `sigcomply-cli`.
 
@@ -127,13 +128,13 @@ The self-review "contracts and invariants" lens checks these against `AGENTS.md`
   library); `canonical.ts` byte-equal to the CLI's `internal/sign`; signed bytes are exactly
   `{format_version, produced_at, records}`; large integers survive (raw text reaches
   `verifyEnvelopeSignature`); unknown `format_version` majors are refused; verdict copy claims
-  integrity relative to the embedded key, not provenance. See "Contracts with Sibling Repos" and
-  "Gotchas".
+  integrity relative to the embedded key, not provenance. See "Contracts with sigcomply-cli" and
+  "Verifier limits".
 - **Nothing leaves the browser**: no new network call, upload, telemetry or third-party script;
-  `localStorage` stays a non-authoritative `sigcomply:*` breadcrumb. See "This Repo's Role".
-- **PDF output contract**: upload path matches the CLI folder scheme (no framework segment, period
-  keyed off the entry's frequency); metadata in the Info dictionary, header and `keywords` string
-  stays consistent. See "PDF Layout & Metadata".
+  `localStorage` stays a non-authoritative `sigcomply:*` breadcrumb. See "Role and scope".
+- **PDF output contract**: upload path matches the CLI folder scheme (default prefix `manual/`, no
+  framework segment, period keyed off the entry's frequency); the PDF Info `keywords` string from
+  `metadataKeywords()` stays stable. See "Contracts with sigcomply-cli".
 - **Catalog contract**: types in `src/types/catalog.ts` match the output of
   `sigcomply evidence catalog`; only `declaration` and `checklist` reach the browser;
   `public/config.json` stays the single framework list.
