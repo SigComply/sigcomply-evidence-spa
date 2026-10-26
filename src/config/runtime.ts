@@ -4,10 +4,12 @@ let cachedConfig: RuntimeConfig | null = null;
 
 // The built-in fallback used when config.json is missing, unreachable, or
 // malformed. Mirrors public/config.json so the app always has a sane default
-// and never renders a blank page over a config hiccup.
+// and never renders a blank page over a config hiccup. The prefix equals the
+// CLI's manual.pdf default ("manual/", sigcomply-cli internal/sources/manual
+// defaultPrefix), so the shown upload path names the folder the CLI reads.
 const DEFAULT_CONFIG: RuntimeConfig = {
   frameworks: ["soc2"],
-  storage: { show_upload_path: true, prefix: "manual-evidence" },
+  storage: { show_upload_path: true, prefix: "manual/" },
 };
 
 // normalizeConfig coerces arbitrary parsed JSON into a valid RuntimeConfig,
