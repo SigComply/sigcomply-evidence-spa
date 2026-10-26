@@ -3,7 +3,7 @@ import { currentPeriod, formatPeriodRange } from "./period";
 
 // Anchor dates are constructed with the local-time Date constructor to match
 // currentPeriod, which works in local time (period boundaries are the
-// browser's midnight — see CLAUDE.md gotcha).
+// browser's midnight — see the Gotchas section of AGENTS.md).
 
 describe("currentPeriod keys", () => {
   it("daily → YYYY-MM-DD with a one-day window", () => {

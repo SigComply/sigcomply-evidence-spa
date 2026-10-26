@@ -1,64 +1,111 @@
-# SigComply Evidence SPA — Claude Context
+# SigComply Evidence SPA: agent instructions
+
+Personal, machine-local instructions live in `AGENTS.local.md` (gitignored; may not exist). Read
+it if it exists; it adds to and overrides this file. @AGENTS.local.md
+
+## How work happens here
+
+- Agents do the whole SDLC: research, plan, tests, code, browser verification, docs, review and
+  push.
+- The human sets intent, approves plans and owns the decisions listed under "When to ask the
+  human" in the `task-workflow` skill.
+- Pre-launch, zero users: commit and push straight to `main`, no PRs. No backfills or
+  backward-compat shims (no install base, no server state), except the cross-repo contracts with
+  the CLI, which stay in lockstep.
+- A push to `main` deploys the live public site to GitHub Pages and runs the security suite.
+  Details in `docs/WORKFLOW.md`.
+- This is a static SPA with no backend. Verifying a change means running the app and driving it in
+  a browser.
+
+## Every task
+
+Run the `task-workflow` skill (`.claude/skills/task-workflow/SKILL.md`) for every change. This
+repo's bindings (gate commands, test layers, real-product verification, what a push triggers, doc
+routing) are in `docs/WORKFLOW.md`. Review skills: `self-review`, `adversarial-review`; lenses
+`review-security`, `review-testing`, `review-performance`; docs: `writing-docs`. The `.claude/`
+skills and agents are shared byte-for-byte with the other four SigComply repos
+(`.claude/README.md`); repo-specific rules go here or in the workflow doc, never in them.
+
+## Always-on rules
+
+1. Verify by running, not by reasoning. Report failures and skipped steps plainly.
+2. Write tests first. Never weaken, skip or delete a test to get green.
+3. Docs change with the code, agent-internal and customer-facing, in the same task.
+4. Make the smallest change that fixes the root cause. Note unrelated problems instead of fixing
+   them.
+5. Never bypass hooks (`--no-verify`, `LEFTHOOK=0`), force-push, or rewrite pushed history.
+6. No secrets or real customer data in code, fixtures, logs or docs.
+7. Breaking an invariant below is a stop-and-ask. So is a change that turns out much more complex
+   than planned.
+8. Fan out subagents for wide research and parallel review. Keep the main context for decisions.
+9. Comments explain why, not what.
+10. Run the full local gate before every commit. CI never runs ESLint or Vitest, so a skipped
+    local run ships unlinted, untested code to the live site.
+11. Nothing leaves the browser. Never add a backend, an upload, analytics, or a network call that
+    sends user data anywhere (see "This Repo's Role").
+12. Change a CLI contract (envelope, canonical JSON, signature, catalog shape, upload path, period
+    keys) only together with the matching `sigcomply-cli` change (see "Contracts with Sibling
+    Repos").
+
+## Commands
+
+| Purpose | Command | Notes |
+|---|---|---|
+| Install | `npm ci` | Re-resolving with `npm install` needs npm >= 11 (see Gotchas). CI uses Node 24. |
+| Dev server | `npm run dev` | Vite on http://localhost:5173. Uses the committed `public/data/catalogs/*.json`; no CLI needed. |
+| Unit tests | `npm run test` | `vitest run`, Node environment, no jsdom. Watch mode: `npx vitest`. |
+| Lint | `npm run lint` | `eslint .`, the only style gate. No formatter, no `format` script. |
+| Typecheck | `npx tsc -b` | Strict project refs. No npm script. |
+| Build | `npm run build` | `prebuild` runs `fetch-catalogs` (needs `sigcomply` on `PATH`, fatal on any error), then `tsc -b && vite build`. What `deploy.yml` runs. |
+| Build without the CLI | `npx tsc -b && npx vite build` | Skips `prebuild`; bundles the committed catalogs. |
+| Refresh catalogs | `npm run fetch-catalogs` | Regenerates `public/data/catalogs/*.json` from the local `sigcomply` CLI. |
+| Preview the bundle | `npm run preview` | Serves `dist/`; closest local match to GitHub Pages. |
+| Full gate | `npm run lint && npx tsc -b && npm run test && npm run build` | Run before every commit. |
+
+`VITE_BASE_PATH` sets the base path (default `/`; the Pages build sets `/<repo-name>/`).
+
+Hooks: the repo tracks no lefthook config, so no git hook checks code. Machine-local hooks, if any,
+are described in `AGENTS.local.md`. CI only: `npm audit --audit-level=high` and the build in
+`deploy.yml`; the security suite in `security.yml`; Vale on changed customer-facing docs in
+`docs-lint.yml`. No workflow runs ESLint or Vitest.
+
+## Docs map
+
+Agent-internal (read when):
+
+- `AGENTS.md` (this file): always loaded. Role, stack, directory map, data flows, PDF layout,
+  cross-repo contracts, conventions, gotchas.
+- `docs/WORKFLOW.md`: at the start of every task. Gate, test layers, browser verification, deploy
+  model, doc routing, review lenses.
+- `docs/TESTING.md`: before adding or changing tests. Vitest layout, coverage gap, crypto contract
+  tests, Web Crypto and PDF specifics.
+- `../AGENTS.md`: when a change touches the product architecture, the two evidence flows or the
+  privacy invariants.
+- `.claude/README.md`: before changing a shared skill or agent.
+
+Customer-facing (audience):
+
+- `README.md`: people running or self-hosting the SPA.
+- `SECURITY.md`: vulnerability reporters and auditors (includes "What `/verify` proves").
+- `CONTRIBUTING.md`: outside contributors.
+- `.github/ISSUE_TEMPLATE/*`: people filing issues.
+- In-app UI copy (form labels, upload-path screen, `/verify` verdict text): end users and auditors.
+
+---
 
 ## Sibling Repos
 
-Full product architecture (engine, dashboard, two flows, privacy invariants) lives in the [parent CLAUDE.md](../CLAUDE.md). Don't repeat it here.
+Full product architecture (engine, dashboard, two flows, privacy invariants) lives in the [parent AGENTS.md](../AGENTS.md). Don't repeat it here.
 
 The five SigComply repos are cloned as siblings under the same parent directory:
 
 | Repo | Goal | Local | Origin |
 |------|------|-------|--------|
-| Engine (Go CLI) | Runs OPA/Rego policies locally in customer CI/CD; signs evidence to the customer's own bucket — raw evidence never leaves their environment. | `../sigcomply-cli/` | `git@github.com:SigComply/sigcomply-cli.git` |
-| Compliance Dashboard (Rails) | Receives only aggregated counts/scores from the CLI; powers customer & auditor dashboards. No raw evidence, no PII. | `../sigcomply/` | `git@github.com:SigComply/sigcomply.git` |
-| Manual Evidence SPA (this repo) | Static helper that turns declaration/checklist forms into PDFs and verifies CLI-signed envelopes in-browser. No backend. | `./` | `git@github.com:SigComply/sigcomply-evidence-spa.git` |
-| E2E — GitHub | Simulated customer repo that runs the full CLI pipeline in GitHub Actions against test-org credentials. | `../sigcomply-cli-testing-project-github/` | `git@github.com:SigComply/sigcomply-cli-testing-project-github.git` |
-| E2E — GitLab | Simulated customer repo that runs the full CLI pipeline in GitLab CI against test-org credentials. | `../sigcomply-cli-testing-project-gitlab/` | `git@gitlab-personal:sigcomply/sigcomply-cli-testing-project-gitlab.git` |
-
----
-
-## Documentation Map
-
-This file is the lean, always-loaded index. It carries the **context** ("what the system is") and
-points to focused **guideline** docs ("how we work") that load just-in-time. Read the guideline doc
-for your task before starting.
-
-| Doc | Family | Read it when |
-|-----|--------|-------------|
-| **CLAUDE.md** (this file) | Context — role, stack, directory map, data flows, PDF layout, cross-repo contracts, conventions, gotchas | Always loaded; the baseline |
-| [docs/WORKFLOW.md](docs/WORKFLOW.md) | Guideline — the agent-driven loop (plan → test → implement → verify → docs → ship), the local verification gate, browser verification, the GitHub Pages deploy model | Before **any** feature or fix |
-| [docs/TESTING.md](docs/TESTING.md) | Guideline — Vitest layout, the current coverage gap, the crypto contract tests, Web-Crypto/PDF specifics | Before adding or changing tests |
-
-Full product architecture (engine, dashboard, two evidence flows, privacy invariants) lives in the
-[parent CLAUDE.md](../CLAUDE.md).
-
----
-
-## Development Rules
-
-This SDLC is run almost entirely by **Claude Code agents** in the cmux terminal — planning, code,
-tests, browser verification, debugging. The human directs, monitors, verifies. The full step-by-step
-loop is [docs/WORKFLOW.md](docs/WORKFLOW.md); the summary:
-
-- **Ship working code.** Tested code is the measure of progress.
-- **TDD.** Colocated `*.test.ts` first → minimum code to pass → **local gate green** → browser-verify
-  UI changes → **update the docs your change touched** → commit. See [TESTING.md](docs/TESTING.md).
-- **Local is the gate — CI does not lint or run the suite.** Before every push run **all four**
-  clean: `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`. `deploy.yml` runs
-  `npm run build` (so it installs the CLI, regenerates the catalogs, and typechecks) + `npm audit`;
-  it never runs Vitest or ESLint.
-- **Docs are part of "done".** Every change updates the focused doc it affects (this file, WORKFLOW,
-  or TESTING) in the **same commit** — not "only when architecture moves".
-- **Architecture-first.** If a change feels overly complex, **stop and ask** — difficulty is a signal
-  to pause, not push through. Respect the scope guardrails in [Conventions](#conventions).
-- **Pre-launch: commit directly to `main`.** No users yet. Push to `main` → GitHub Pages
-  auto-deploys; no PRs, no reviews for internal work (flips to a PR + review flow at public launch).
-  No backfills / backward-compat burden — **except** the CLI cross-repo contracts
-  ([Contracts with Sibling Repos](#contracts-with-sibling-repos)) stay in lockstep.
-- **Small atomic commits.** One logical change. Format `<type>: <description>`
-  (`feat`/`fix`/`refactor`/`test`/`docs`/`chore`) with a
-  `Co-Authored-By: Claude <model> <noreply@anthropic.com>` trailer.
-- **Never break `main`.** Direct-to-main means a red Pages build is live-affecting — confirm CI green
-  after pushing (`gh run watch`) and fix forward.
+| Engine (Go CLI) | Runs OPA/Rego policies locally in customer CI/CD; signs evidence to the customer's own bucket — raw evidence never leaves their environment. | `../sigcomply-cli/` | https://github.com/SigComply/sigcomply-cli |
+| Compliance Dashboard (Rails) | Receives only aggregated counts/scores from the CLI; powers customer & auditor dashboards. No raw evidence, no PII. | `../sigcomply/` | https://github.com/SigComply/sigcomply |
+| Manual Evidence SPA (this repo) | Static helper that turns declaration/checklist forms into PDFs and verifies CLI-signed envelopes in-browser. No backend. | `./` | https://github.com/SigComply/sigcomply-evidence-spa |
+| E2E — GitHub | Simulated customer repo that runs the full CLI pipeline in GitHub Actions against test-org credentials. | `../sigcomply-cli-testing-project-github/` | https://github.com/SigComply/sigcomply-cli-testing-project-github |
+| E2E — GitLab | Simulated customer repo that runs the full CLI pipeline in GitLab CI against test-org credentials. | `../sigcomply-cli-testing-project-gitlab/` | https://gitlab.com/sigcomply/sigcomply-cli-testing-project-gitlab |
 
 ---
 
@@ -232,32 +279,6 @@ Missing, unreachable, or malformed `config.json` → falls back to the default i
 `public/config.json` is the **single source of truth** for the framework list. `scripts/fetch-catalogs.ts` derives its prefetch list from it (`frameworksFromConfig()`), so the shipped catalogs under `public/data/catalogs/` can't drift from what the UI exposes — today `soc2.json` and `iso27001.json`. A framework listed here that the CLI can't serve (`sigcomply evidence catalog` returns a non-zero `ExitConfig` for an unknown framework, or one with no manual catalog) is a hard build failure, not a skip.
 
 Note how few entries survive the filter: ISO 27001 ships 87 manual catalog entries and 8 reach this app (SOC 2: 50 ship, 5 reach it). Both figures are what the committed catalogs actually contain — re-check them with `npm run fetch-catalogs` plus a `jq '.entries | length'` rather than trusting this line. That is the intended ratio, not a bug. Most compliance evidence is a document the organization authors elsewhere — a risk register, internal audit findings, management review minutes — and the SPA's job is only the subset a person can honestly complete by clicking: declarations and checklists. In particular the 16 ISO clause 4-10 management-system entries are all `document_upload` by deliberate choice; rendering a management review as a checkbox would assert something nobody verified.
-
----
-
-## Commands
-
-```bash
-npm run dev              # vite dev server — uses the committed public/data/catalogs/*.json (offline fallback)
-npm run fetch-catalogs   # regenerate public/data/catalogs/*.json from the local sigcomply CLI (fatal on any error)
-npm run build            # prebuild (fetch-catalogs) + tsc -b + vite build — what deploy.yml runs
-npm run lint             # eslint . — the only style gate (no Prettier/Biome, no `format` script)
-npm run test             # vitest run — the colocated *.test.ts suite
-npx tsc -b               # typecheck (strict project refs); there is no `typecheck` npm script
-npm run preview          # serve dist/ — closest local approximation to the GitHub Pages deploy
-```
-
-**Local verification gate** (CI runs `npm run build` — catalogs + typecheck — but never ESLint or
-Vitest; see [WORKFLOW.md](docs/WORKFLOW.md)):
-before every push, `npm run lint`, `npm run test`, `npx tsc -b`, and `npm run build` must all be
-clean.
-
-`fetch-catalogs` (and therefore `prebuild`/`npm run build`) requires `sigcomply` on PATH and aborts
-on any failure. If the CLI is unavailable, the committed `public/data/catalogs/*.json` files are
-sufficient for `dev`, `preview`, and a `npx tsc -b && npx vite build` (the prebuild-free path).
-`deploy.yml` installs the CLI from GitHub Releases and runs the full `npm run build`.
-
-Base path: `VITE_BASE_PATH` env var (defaults to `/`). Set when deploying to a subpath.
 
 ---
 

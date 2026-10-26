@@ -1,235 +1,165 @@
-# Development Workflow — Agent-Driven SDLC
+# Workflow: sigcomply-evidence-spa
 
-How engineering actually happens in this repo. **Read this before starting any feature or fix.**
-It is the process spine; [CLAUDE.md](../CLAUDE.md) is the always-loaded index, and the
-subject-specific docs linked below (e.g. [TESTING.md](TESTING.md)) load on demand.
+This file binds the shared `task-workflow` skill (`.claude/skills/task-workflow/SKILL.md`) to this
+repo. Read it with `AGENTS.md` before step 1 of every task.
 
-## The model: one agent runs the SDLC
+## What a push to main triggers
 
-Every engineering activity here — planning, writing code, writing tests, running the suite,
-manual verification in a browser, debugging — is performed by **Claude Code running in the cmux
-terminal**. There is no separate human engineer. The human's role is to **direct, monitor, and
-verify**: set intent, watch the run, confirm the result.
+A push to `main` updates the live public site. There is no staging environment.
 
-What to internalize:
+- `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
+  except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`). It
+  also has `workflow_dispatch`. Steps: `npm ci`, `npm audit --audit-level=high` (hard gate),
+  install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time),
+  `npm run build` with `VITE_BASE_PATH=/<repo-name>/`, copy `index.html` to `404.html` for
+  client-side routes, deploy `dist/` to GitHub Pages.
+- `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
+  OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` and
+  `secret-scan` jobs are hard gates; the rest are advisory. It has no `paths-ignore`, so docs-only
+  pushes run it too.
+- `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
+  `CONTRIBUTING.md` when a push changes one of them (or the Vale config).
+- No workflow runs ESLint or Vitest. The local gate below is the only place they run.
 
-- Carry each task **end to end**. Don't hand back a half-finished change for someone to "wire up."
-  If a step in the loop below is genuinely skipped, say so explicitly.
-- You can verify your own work — the Vitest suite, `tsc -b`, and a real browser driven from the
-  terminal. Use them. Don't assert "this should work" when you can observe whether it does.
-- This is a **static, backend-free SPA** deployed to GitHub Pages. There is no server, no
-  database, no Render deploy, no Sentry — do not import those assumptions from the Rails dashboard
-  repo. "Verify" here means *run the dev/preview server and drive the browser*.
+Deploy facts that matter when you change the build:
 
-Two facts shape every task:
+- `prebuild` (`fetch-catalogs`) regenerates `public/data/catalogs/*.json` from the CLI on every
+  deploy and fails the deploy on any error. A CLI catalog change reaches the live site on the next
+  deploy without a commit here.
+- The deploy job has `contents: read` and never commits the regenerated catalogs. The committed
+  copies are the dev and offline fallback and can lag the CLI without affecting production.
+  Refresh them with `npm run fetch-catalogs`.
+- A framework in `public/config.json` that the released CLI can't serve fails the deploy.
 
-- **Pre-launch.** The product has no users yet. Until public launch, internal work commits
-  **directly to `main`**; the push auto-deploys to GitHub Pages (see [Ship](#6-ship)). No PRs, no
-  reviews. This flips to a PR + review flow at public launch — this doc gets revised then.
-- **No backfills / backward-compat.** There is no released install base and no persisted server
-  state (the app writes only to the user's disk and reads catalog JSON — regenerated from the CLI
-  at deploy time, committed as the dev/offline fallback). Write the code
-  you want directly; don't add compatibility shims. **The one exception:** the cross-repo contracts
-  with the CLI (see [Cross-repo contracts](#cross-repo-contracts)) must stay in lockstep.
-
-## The loop — implementing a feature or change
-
-For "implement feature X" or "make change Y", work these steps in order. Steps 1 and 5 don't apply
-to every task, but **2 → 3 → 4 → 6 → 7 are non-negotiable.**
-
-1. **[Plan / design](#1-plan--design)** — read the relevant CLAUDE.md context section; if it feels complex, stop and ask.
-2. **[Write tests first](#2-write-tests-first)** — colocated `*.test.ts`, per [TESTING.md](TESTING.md).
-3. **[Implement](#3-implement)** — minimum code to pass.
-4. **[Verify locally](#4-verify-locally-the-real-gate)** — `npm run lint`, `npm run test`, `npx tsc -b`, `npm run build`; all clean. **This is the real gate — CI runs only the typecheck half.**
-5. **[Verify in a browser](#5-verify-in-a-browser-ui-changes)** — for any UI change, drive the form→PDF and/or `/verify` flow.
-6. **[Update docs](#6-update-docs-definition-of-done)** — guideline **and** context. Not optional.
-7. **[Ship](#7-ship)** — commit directly to `main` (pre-launch); Pages auto-deploys.
-
-A change is **not done** until steps 4 and 6 both hold. "Green tests" alone is not done; "docs left
-stale" is not done.
-
----
-
-### 1. Plan / design
-
-Read the CLAUDE.md section that owns the area you're touching (Directory Map, How Data Flows, PDF
-Layout, Contracts) **before** writing anything. If the design feels overly complex, that difficulty
-is a signal to **pause and ask**, not push through.
-
-Respect the scope guardrails in [CLAUDE.md → Conventions](../CLAUDE.md#conventions): the form
-generator is **user-attestations only** (declaration + checklist) — don't add a form type for
-evidence that already exists as a file; `/verify` stays **button-free and dep-free** on Web Crypto;
-the framework picker stays **non-blocking**. These are architectural, not stylistic.
-
-### 2. Write tests first
-
-TDD. Write the failing test before the implementation. Tests are colocated Vitest files
-(`foo.ts` → `foo.test.ts`). What kind of test lives where, the remaining coverage gaps, and the
-Web-Crypto/PDF specifics are all in [TESTING.md](TESTING.md) — read it before adding tests. Unit
-tests currently cover the `/verify` crypto path (`canonical`, `verify`) plus `period` and
-`storage-path`; the React components and PDF renderer are still browser-verified, not unit-tested.
-
-The expectation: **new logic ships with tests.** Pure functions (canonicalization, period math,
-path building, metadata strings) are cheap to unit-test and must be. If you touch
-`src/lib/verification/canonical.ts`, the byte-for-byte contract test against the CLI reference
-fixture must stay green (see [Cross-repo contracts](#cross-repo-contracts)).
-
-### 3. Implement
-
-Write the minimum code to pass the tests. Match the surrounding code's idiom, naming, and comment
-density. Use `@/…` imports, not relative `../../`. Never hand-edit `src/components/ui/*` (shadcn
-generated — regenerate via `npx shadcn add <name>`). Keep `@react-pdf/renderer` lazy-imported inside
-the submit handler.
-
-### 4. Verify locally (the real gate)
-
-**CI does not lint or run the test suite.** `deploy.yml` runs `npm run build` (so it *does*
-regenerate catalogs and typecheck) plus `npm audit`; the broad security suite lives in
-`security.yml`. Local is still the only gate for lint and tests. Before every push, run all four and
-confirm each is clean:
+Watch the run to the end after every push:
 
 ```bash
-npm run lint      # eslint . — flat config; the only style gate (no Prettier/Biome)
-npm run test      # vitest run — the colocated *.test.ts suite
-npx tsc -b        # typecheck — strict project refs; there is no `typecheck` npm script
-npm run build     # tsc -b + vite build — catches what dev mode's on-demand transpile hides
+gh run list --branch main --limit 5
+gh run watch <run-id> --exit-status
 ```
 
-Notes:
+Which `gh` account to use on this machine is in `AGENTS.local.md`. A red deploy affects the live
+site: fix forward before anything else.
 
-- `npx tsc -b` is the standalone typecheck. `npm run build` also runs it, but run `tsc -b` on its own
-  during the inner loop — it's faster than a full Vite build.
-- `npm run build` runs the `prebuild` (`fetch-catalogs`) step, which shells out to the `sigcomply`
-  CLI. Any failure there — CLI missing from `PATH`, a non-zero exit, malformed output, a framework
-  in `public/config.json` the CLI can't serve — aborts the build; it never falls back to the
-  committed JSON. That is deliberate: a silent fallback is what let stale catalogs reach production.
-  To typecheck/bundle without the CLI, run `npx tsc -b && npx vite build` directly, which skips the
-  prebuild and uses the committed `public/data/catalogs/*.json`. CI installs the CLI and runs the
-  full `npm run build` — see [Deploy model](#deploy-model).
-- There is **no `format` script.** ESLint is the sole style gate — don't reach for Prettier.
-
-### 5. Verify in a browser (UI changes)
-
-Specs don't catch rendering, routing, download behavior, or the drag-drop verify flow. For anything
-user-facing, boot the app and drive a real browser from the terminal via the **cmux browser CLI**
-(`/Applications/cmux.app/Contents/Resources/bin/cmux browser …`, Playwright-style):
+## Gate: run before every commit
 
 ```bash
-npm run dev       # Vite dev server on http://localhost:5173 (uses the committed catalog JSON — no CLI needed)
-# or, to exercise the actual shipped bundle:
-npm run build && npm run preview   # serves dist/ — closest to GitHub Pages
+npm run lint && npx tsc -b && npm run test && npm run build
 ```
 
-Exercise the two flows the app exists for:
+- `npm run lint`: `eslint .`. There is no formatter; don't add Prettier or Biome.
+- `npx tsc -b`: the standalone typecheck. Faster than a build during the inner loop.
+- `npm run test`: the Vitest suite.
+- `npm run build`: `prebuild` (`fetch-catalogs`, needs `sigcomply` on `PATH`) then
+  `tsc -b && vite build`. It catches what the dev server's on-demand transpile hides.
 
-- **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration/checklist entry, fill
-  the form, submit, confirm `evidence.pdf` downloads and the upload-path screen renders. Open the PDF
-  and eyeball the header block + metadata.
-- **Verify** (`/verify`): drop a signed `EvidenceEnvelope` JSON (fixtures live in
-  `src/lib/verification/__fixtures__/`), confirm the verdict banner shows pass automatically (no
-  Verify button), and that tampering with the JSON flips it to fail.
+Without the CLI on `PATH`, `npm run build` fails at `prebuild` by design: it never falls back to
+the committed JSON, because a silent fallback is how stale catalogs once reached production. Run
+`npx tsc -b && npx vite build` instead and state in your report that the catalog refresh was not
+exercised. Any change to `scripts/fetch-catalogs.ts` or `public/config.json` needs the CLI and the
+full `npm run build`.
 
-Keep this just-in-time: only spin up the browser when the change has a visible surface. Pure-logic
-changes are covered by the Vitest suite. (The cmux browser CLI has quirks — the WKWebView URL bar
-doesn't update after client-side navigation; confirm route changes by reading the rendered DOM, not
-the address bar.)
+When you change `README.md`, `SECURITY.md` or `CONTRIBUTING.md`, also run
+`vale --minAlertLevel=error <files>`, the check `docs-lint.yml` enforces.
 
-### 6. Update docs (definition of done)
+No git hook runs this gate (see "Commands" in `AGENTS.md`). Running it is your job.
 
-**Document-driven development.** Every unit of work updates the docs it touches — part of "done",
-not later cleanup. Two doc families, both in scope:
+## Test layers
 
-| Family | What it is | Where |
+| Layer | Where | Run | Add one when |
+|---|---|---|---|
+| Unit | Colocated `*.test.ts` next to the code (`foo.ts` → `foo.test.ts`), mostly `src/lib/` | `npm run test`, one file: `npx vitest run <path>` | Any logic change. Extract logic from React components into pure functions in `src/lib/` so it can be tested. |
+| Crypto contract | `src/lib/verification/{canonical,verify}.test.ts` with CLI-produced fixtures in `src/lib/verification/__fixtures__/` | `npm run test` | Any change to canonicalization, signature verification or the envelope type. Refresh fixtures from the CLI, never by hand. |
+| End-to-end | None automated | Agent-driven browser check (next section) | Any user-visible change |
+
+Tests run in Vitest's Node environment. jsdom, `@testing-library/react` and Playwright are not
+installed, so there are no component or browser tests. Adding one of them is a deliberate
+dependency change: put it in the plan. `docs/TESTING.md` has the fixture rules, the coverage gap
+and the Web Crypto and PDF specifics.
+
+## Verify in the real product
+
+Every user-visible change is verified by driving the app in a real browser. Use whatever browser
+automation your harness provides; this machine's browser setup is in `AGENTS.local.md`.
+
+1. Start the app. `npm run dev` serves http://localhost:5173 from the committed catalogs. For a
+   change to bundling, lazy loading, routing or the base path, run `npm run build` (or the
+   CLI-free build) and `npm run preview` instead; that serves the shipped `dist/` bundle.
+2. Drive the flow the change touches:
+   - **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration and a checklist
+     entry, fill the form, submit. Confirm `evidence.pdf` downloads and the upload-path screen
+     shows `{prefix}/{evidence_id}/{period}/evidence.pdf`. Open the PDF and check the header block
+     and metadata.
+   - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`.
+     The verdict must show pass with no button press. Change one character inside `records` and
+     confirm the verdict flips to fail. For manual-flow changes, use
+     `sample-envelope-v1-manual.json`.
+3. Confirm route changes from the rendered page, not the address bar.
+4. For a change near data handling, check the browser's network log: the only requests are the
+   app's own static assets, `config.json` and `data/catalogs/*.json`.
+
+Pure-logic changes with no visible surface are covered by the unit suite; say so in the report.
+
+## Docs routing
+
+| Change | Agent-internal docs | Customer-facing docs |
 |---|---|---|
-| **Development-guideline** ("how we work") | Process, testing, tooling | this file, [TESTING.md](TESTING.md) |
-| **Codebase / domain context** ("what the system is") | Role, stack, data flows, PDF layout, cross-repo contracts, conventions, gotchas | [CLAUDE.md](../CLAUDE.md) |
+| New or changed npm script, gate step or CI workflow | `AGENTS.md` Commands, this file | `CONTRIBUTING.md`, `README.md` (Build, Deployment) |
+| Envelope, canonical JSON or signature verification | `AGENTS.md` Contracts and Gotchas, `docs/TESTING.md` | `SECURITY.md` ("What `/verify` proves"), `/verify` verdict copy |
+| Catalog shape, evidence types, frequencies, period keys | `AGENTS.md` Contracts and How Data Flows | `README.md` if user-visible |
+| Upload path, PDF filename, PDF layout or metadata | `AGENTS.md` Contracts and PDF Layout | `README.md` ("How it fits"), upload-path screen copy |
+| Runtime config or frameworks list | `AGENTS.md` Runtime Config and Conventions | `README.md` (Runtime config) |
+| New form, page or UI flow | `AGENTS.md` Directory Map and Conventions | In-app copy, `README.md` if it changes what users do |
+| Test layout, fixtures, test tooling | `docs/TESTING.md`, this file | none |
+| Dependency or toolchain change | `AGENTS.md` Stack and Gotchas | `README.md` (Stack) |
+| Scope of the SPA | `AGENTS.md` This Repo's Role | `README.md`, `.github/ISSUE_TEMPLATE/feature_request.md` |
 
-Rule of thumb: if a future agent would be **misled** by a doc after your change, that doc is part of
-your change — in the same commit. Added a command? Update the Commands table in CLAUDE.md. Changed
-the envelope shape or canonicalization? Update the Contracts table **and** the matching CLI type.
-Changed the loop or a gate? Update this file. Prefer updating the nearest existing doc over inventing
-a new one; keep CLAUDE.md lean and push detail into a focused doc.
+A contract change also needs the matching doc change in `sigcomply-cli`.
 
-### 7. Ship
+## Repo-specific review lenses
 
-**Pre-launch (now): commit directly to `main`.** Once lint, test, `tsc -b`, and build are green (and
-the browser check passes for UI work):
+The self-review "contracts and invariants" lens checks these against `AGENTS.md`:
 
-- Small **atomic** commits — one logical change each. Format `<type>: <description>`
-  (`feat`/`fix`/`refactor`/`test`/`docs`/`chore`), message ending with
-  `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
-- Push to `main`. There is no PR and no review gate for internal work (`main` is not
-  branch-protected — intentional for pre-launch).
-- The push triggers `deploy.yml` → **GitHub Pages auto-deploys** (see [Deploy model](#deploy-model)).
-  Confirm the Pages build is green afterward (`gh run watch` / `gh run list`). Direct-to-main means a
-  red build is live-affecting — never knowingly break `main`; fix forward immediately.
+- **Crypto and verification correctness**: Ed25519 through Web Crypto only (no JS crypto
+  library); `canonical.ts` byte-equal to the CLI's `internal/sign`; signed bytes are exactly
+  `{format_version, produced_at, records}`; large integers survive (raw text reaches
+  `verifyEnvelopeSignature`); unknown `format_version` majors are refused; verdict copy claims
+  integrity relative to the embedded key, not provenance. See "Contracts with Sibling Repos" and
+  "Gotchas".
+- **Nothing leaves the browser**: no new network call, upload, telemetry or third-party script;
+  `localStorage` stays a non-authoritative `sigcomply:*` breadcrumb. See "This Repo's Role".
+- **PDF output contract**: upload path matches the CLI folder scheme (no framework segment, period
+  keyed off the entry's frequency); metadata in the Info dictionary, header and `keywords` string
+  stays consistent. See "PDF Layout & Metadata".
+- **Catalog contract**: types in `src/types/catalog.ts` match the output of
+  `sigcomply evidence catalog`; only `declaration` and `checklist` reach the browser;
+  `public/config.json` stays the single framework list.
+- **Scope guardrails and bundle discipline**: no form type for evidence that exists as a file;
+  `@react-pdf/renderer` stays lazy-loaded; `/verify` stays button-free, dependency-free and never
+  gated on a framework; `src/components/ui/` untouched by hand. See "Conventions".
 
-**Post-launch (future): open a PR.** After public launch, internal work moves to PRs with review
-before merge. **Revise this section when that switch happens** — we are deliberately not building it
-now.
+For a change to `deploy.yml` or `security.yml`, also check that the deploy still fails on a
+`fetch-catalogs` error and that `actionlint` passes.
 
----
+## Pre-launch rules
 
-## Deploy model
-
-GitHub Pages, on push to `main`, via [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
-
-- The deploy job **installs the latest `sigcomply` CLI release** (resolved from
-  `releases/latest` at run time) and then runs **`npm run build`** — so `prebuild`/`fetch-catalogs`
-  regenerates `public/data/catalogs/*.json` from the CLI on **every deploy**, and `tsc -b` runs in
-  CI. A CLI catalog change reaches the live site on the next push to `main`; no human regeneration
-  step, and no stale-catalog failure mode. `fetch-catalogs` is fatal on any error, so a broken CLI
-  invocation fails the deploy loudly instead of silently shipping the committed JSON.
-- The committed `public/data/catalogs/*.json` stay in git as the **dev/offline fallback**
-  (`npm run dev`, `npm run preview`, contributors without the CLI, and the prebuild-free
-  `npx tsc -b && npx vite build` path). The deploy job does **not** commit regenerated catalogs back
-  — `permissions:` is `contents: read` — so the committed copies can lag the CLI without affecting
-  production. Refresh them with `npm run fetch-catalogs` when you want local dev to match.
-- `deploy.yml` also runs `npm audit --audit-level=high` as a hard pre-deploy gate. It does **not**
-  run lint or the test suite — those stay your local responsibility (see [Verify locally](#4-verify-locally-the-real-gate)).
-- [`.github/workflows/security.yml`](../.github/workflows/security.yml) runs a broad security suite
-  (npm-audit, OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM) on push, PR, and
-  weekly. Its `npm-audit` and `secret-scan` jobs are hard gates; the rest are advisory.
-- `VITE_BASE_PATH` is set to `/<repo-name>/` in the Pages build (the app is served from a subpath).
-  Locally it defaults to `/`.
-- **Preview a production build locally** with `npm run preview` after `npm run build` — this serves
-  the actual `dist/` bundle and is the closest local approximation to the deployed site.
-
-## Cross-repo contracts
-
-The CLI repo (`../sigcomply-cli/`) is the **source of truth** for the two shared contracts; verify
-against it, don't guess. Break either and the app silently misbehaves:
-
-1. **EvidenceEnvelope shape + canonicalization** — `src/types/envelope.ts` and
-   `src/lib/verification/canonical.ts` must mirror the CLI's `internal/core/envelope.go` and
-   `internal/sign` byte-for-byte. The contract test in `canonical.test.ts` checks the SPA output
-   against a committed CLI-produced reference fixture. If it drifts, `/verify` rejects valid
-   signatures. Change one side → change the other in lockstep.
-2. **Framework list + catalog shape** — `public/config.json` is the single source of truth for which
-   frameworks the UI exposes; `scripts/fetch-catalogs.ts` reads that list (`frameworksFromConfig()`)
-   and the deploy regenerates from the CLI, so the served catalogs can't drift from what the app can
-   reach. To add a framework, add it to `public/config.json` — there is no second list to keep in
-   sync, but the CLI must be able to serve it (`sigcomply evidence catalog` exits non-zero for an
-   unknown framework, which now fails the deploy). The catalog JSON shape mirrors the CLI's
-   `ManualCatalogExport()` → `src/types/catalog.ts`.
-
-Full contract table: [CLAUDE.md → Contracts with Sibling Repos](../CLAUDE.md#contracts-with-sibling-repos).
+- Commit and push straight to `main`. No PRs, no branch protection. This flips to a PR and review
+  flow at public launch; revise this file then.
+- No backward-compat shims or backfills: there is no install base and no server state. The
+  exception is the CLI contracts, which change in lockstep with `sigcomply-cli`.
+- Commit messages follow the `task-workflow` skill. End each with the attribution trailer your
+  harness provides.
+- `main` is the live site. Never push with a red gate.
 
 ## Debugging
 
-No Sentry, no server logs — this is a client-side app. To debug:
+There is no server, no log store and no error tracker. Errors show up in three places:
 
-1. **Reproduce as a failing test** where possible (canonicalization, period, path, metadata bugs are
-   all pure functions — turn the bug into a `*.test.ts` case first).
-2. **For UI/runtime bugs**, reproduce in the browser (`npm run dev`) and read the browser console via
-   the cmux browser CLI. Verify flow bugs often come from envelope/canonicalization drift — diff the
-   SPA's canonical bytes against the CLI reference fixture.
-3. **CI (Pages) failures:** `gh run list` → `gh run view <id> --log-failed`. The build reproduces
-   locally with `npm run build` (the exact command CI runs, with the `sigcomply` CLI on `PATH`);
-   without the CLI, `npx tsc -b && npx vite build` covers everything but the catalog refresh.
-4. Fix → re-run [Verify locally](#4-verify-locally-the-real-gate) → update docs → commit.
-
-## Related
-
-- [CLAUDE.md](../CLAUDE.md) — always-loaded index: role, stack, data flows, PDF layout, contracts, conventions, gotchas
-- [TESTING.md](TESTING.md) — Vitest layout, coverage gap, Web-Crypto/PDF specifics, commands
+- **Unit-level bugs** (canonicalization, period math, upload path, metadata strings): reproduce as
+  a failing `*.test.ts` case first. `/verify` failures on a valid envelope usually mean
+  canonicalization drift: compare `canonicalJSON()` output with the CLI reference fixture.
+- **UI and runtime bugs**: reproduce with `npm run dev` and read the browser console. A render
+  error shows the `ErrorBoundary` fallback instead of a blank page; the stack is in the console.
+- **Deploy failures**: `gh run view <run-id> --log-failed`. Reproduce with `npm run build` and the
+  CLI on `PATH`; without the CLI, `npx tsc -b && npx vite build` covers everything but the catalog
+  refresh.

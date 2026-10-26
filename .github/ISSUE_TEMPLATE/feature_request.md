@@ -19,7 +19,7 @@ This SPA is intentionally scoped to **user attestations** (declaration and
 checklist catalog entries) plus the client-side `/verify` verifier. Evidence
 that already exists as a file (HR exports, training certificates, scanned
 documents) is uploaded directly to the storage bucket and is out of scope
-here — see the README and `CLAUDE.md`.
+here — see the README and `AGENTS.md`.
 
 - [ ] My request fits that scope, or explains why it should change.
 

@@ -1,7 +1,7 @@
 # Testing
 
 Test strategy for the Manual Evidence SPA. Read this before adding or changing tests.
-[WORKFLOW.md](WORKFLOW.md) owns the full change loop; this doc is the testing detail it links to.
+[WORKFLOW.md](WORKFLOW.md) owns the gate and the test layers; this doc is the testing detail it links to.
 
 ## Toolchain
 
@@ -13,7 +13,7 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   nothing enforces a floor.
 - **No Playwright, no `@testing-library/react`, no jsdom** installed. There are currently **no
   component/DOM tests** and no end-to-end browser tests. UI is verified manually in a real browser —
-  see [WORKFLOW.md → Verify in a browser](WORKFLOW.md#5-verify-in-a-browser-ui-changes).
+  see [WORKFLOW.md → Verify in the real product](WORKFLOW.md#verify-in-the-real-product).
 
 ## Commands
 
@@ -24,7 +24,7 @@ npx vitest run <path>     # a single file, e.g. src/lib/verification/canonical.t
 npx vitest run --coverage # ad-hoc coverage (no config, no threshold)
 ```
 
-`npm run test` is one of the four local gates in [WORKFLOW.md § 4](WORKFLOW.md#4-verify-locally-the-real-gate)
+`npm run test` is one of the four local gates in [WORKFLOW.md → Gate](WORKFLOW.md#gate-run-before-every-commit)
 (`lint`, `test`, `tsc -b`, `build`). CI does **not** run it — local is the gate.
 
 ## Layout
@@ -65,7 +65,7 @@ boundaries) and `src/lib/storage-path.ts` (upload-path building). Still **untest
 - all React components, hooks, and pages (verified manually in a browser instead).
 
 This is a known gap, not a decision that these don't need tests. **The expectation going forward: new
-or changed logic ships with tests in the same commit** (see [WORKFLOW.md § 2](WORKFLOW.md#2-write-tests-first)).
+or changed logic ships with tests in the same commit** (see [WORKFLOW.md → Test layers](WORKFLOW.md#test-layers)).
 The cheap, high-value targets are the **pure functions** in `src/lib/` — canonicalization, period
 boundaries, path templates, metadata key=value strings. Prefer testing those over the React shell.
 
@@ -81,14 +81,14 @@ load-bearing tests in the repo:
   byte-for-byte against `__fixtures__/sample-envelope-v1.canonical.txt`, which was produced by the Go
   signer. **This byte-equality is the contract.** If canonicalization drifts on either side, `/verify`
   silently rejects valid signatures — keep `canonical.ts` and the CLI's `internal/sign` in lockstep
-  (see [CLAUDE.md → Contracts](../CLAUDE.md#contracts-with-sibling-repos)).
+  (see [AGENTS.md → Contracts](../AGENTS.md#contracts-with-sibling-repos)).
 - **`verify.test.ts`** exercises `verifyEnvelopeSignature()` against real CLI-written envelope
   fixtures (both automated and manual flows) and tampered clones (flipped signature, mutated records)
   to confirm valid→valid and tampered→invalid, and that the signed bytes never include the `signature`
   block (only the three signed fields `format_version`, `produced_at`, `records`).
 
 **Web Crypto note:** `verify.ts` uses `crypto.subtle` with the `Ed25519` algorithm. This works in the
-Node version the tests run under (Node 22, pinned in CI) without any polyfill — do **not** add
+Node version the tests run under (CI builds use Node 24; tests run only locally) without any polyfill — do **not** add
 `tweetnacl`/`noble-ed25519` to make tests pass. Browser-support gating lives in `verify.ts`
 (`WebCryptoUnsupportedError`); in the test environment Ed25519 is present, so the graceful-degradation
 path is not exercised by the current suite.

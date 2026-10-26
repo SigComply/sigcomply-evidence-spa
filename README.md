@@ -71,7 +71,7 @@ hosting under a different sub-path.
 
 This SPA is an optional helper, off the CLI's critical path. When a user *chooses* to use it for a declaration or checklist entry: they fill the form here → SPA renders `evidence.pdf` → the SPA shows the upload path `{prefix}/{evidence_id}/{period}/evidence.pdf` (matching the CLI's manual-reader folder layout) and the user uploads the file to the manual-evidence folder in their own bucket → the [SigComply CLI](https://github.com/SigComply/sigcomply-cli) picks it up on the next run (presence + temporal-window check), hashes it, and submits aggregated results to the Compliance Dashboard. The CLI reads every supported file in the period folder regardless of name, so users who skip the SPA can upload their own PDF to the same folder; the CLI sees no difference.
 
-See [`CLAUDE.md`](CLAUDE.md) for development conventions, cross-repo contracts, and the wider product architecture.
+See [`AGENTS.md`](AGENTS.md) for development conventions, cross-repo contracts, and the wider product architecture.
 
 ## Stack
 
