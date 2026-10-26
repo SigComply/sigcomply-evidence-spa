@@ -23,7 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
-# Private, machine-local files (Claude instructions, lefthook overrides)
+# AI agent files: shared ones are committed, personal ones are not
+!.claude/
+.claude/settings.local.json
+.claude/worktrees/
+.claude/*.lock
+AGENTS.local.md
 CLAUDE.local.md
+
+# Private, machine-local lefthook overrides
 lefthook-local.yml
 .lefthook-local/
