@@ -1,0 +1,7 @@
+{
+  "framework": "soc2",
+  "evidence_id": "incident_response_tested",
+  "completed_by": "E2E Bot <e2e@example.com>",
+  "checked": ["plan_tested", "roles_verified", "communication_tested"],
+  "notes": { "plan_tested": "Tabletop exercise, see ticket IR-12" }
+}

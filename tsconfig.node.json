@@ -22,7 +22,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Scripts import pure modules from src/ */
+    /* Scripts import pure modules from src/, including the JSX PDF renderer */
+    "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"]
     }

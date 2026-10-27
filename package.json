@@ -15,7 +15,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "verify-envelopes": "tsx --tsconfig tsconfig.app.json scripts/verify-envelopes.ts",
+    "render-evidence-pdf": "tsx --tsconfig tsconfig.app.json scripts/render-evidence-pdf.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

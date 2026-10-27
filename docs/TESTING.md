@@ -116,6 +116,24 @@ checks the `%PDF` header and the Info `Keywords` string with `readPdfInfoString`
 PDFs: the CLI only hashes the file, so the `keywords` string is the contract worth pinning, not the
 layout. Test the inputs (`buildPdfInput`, `metadataKeywords`) for everything else.
 
+## Node entry points for the E2E repos
+
+`scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts` let the E2E repos run this
+app's verifier and PDF renderer on a real CLI run, without a browser. They import the same
+`src/lib/` modules the pages use; keep it that way, or the E2E check stops proving what `/verify`
+and the form do. Run them through the npm scripts (or `npx tsx --tsconfig tsconfig.app.json …`):
+`tsx` needs that file for the `@/` alias and JSX. Relative paths resolve against the caller's
+directory, so `npm --prefix <spa> run verify-envelopes -- ./vault` works from another checkout.
+
+`verify-envelopes` treats any JSON under an `envelopes/` folder as an envelope (a broken one fails)
+and any other JSON that passes `isEvidenceEnvelope`; everything else (`manifest.json`,
+`summary.json`, `result.json`, state shards) is skipped. It does not verify the run manifest.
+`render-evidence-pdf` takes the period from `completed_at` in the machine's local time zone, like
+the form; CI runs in UTC.
+
+Their tests (`scripts/*.test.ts`) build a CLI-shaped run folder from the `__fixtures__` envelopes
+and tamper with copies.
+
 ## Component tests
 
 Start the file with `// @vitest-environment jsdom`. Serve `config.json` and catalogs with

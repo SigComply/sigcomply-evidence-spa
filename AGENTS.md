@@ -64,6 +64,8 @@ doc.
 | Build without the CLI | `npx tsc -b && npx vite build` | Skips `prebuild`; bundles the committed catalogs. |
 | Refresh catalogs | `npm run fetch-catalogs` | Rewrites `public/data/catalogs/*.json` from the local CLI. |
 | Preview the bundle | `npm run preview` | Serves `dist/`. |
+| Verify a vault | `npm run verify-envelopes -- <dir> [--require-attachments]` | Node entry point for the E2E repos: verifies every envelope under `<dir>` with the `/verify` code, and each manual PDF in `attachments/`. Exit 0 only if at least one envelope was found and all verify. |
+| Render a PDF | `npm run render-evidence-pdf -- --input <json> --out <pdf>` | The form's PDF from JSON (`scripts/examples/`); prints the upload path. |
 | Full gate | `npm run lint && npx tsc -b && npm run test && npm run build` | Before every commit. |
 
 `VITE_BASE_PATH` sets the base path (default `/`; the Pages build sets `/<repo-name>/`). No tracked
@@ -96,7 +98,8 @@ Two independent client-side tools in one Vite bundle. The CLI never calls this a
 
 Code map: routes in `src/App.tsx`; pages in `src/pages/`; pure logic in `src/lib/` (`period.ts`,
 `storage-path.ts`, `pdf/`, `verification/`); shared types in `src/types/`; runtime config in
-`src/config/runtime.ts`; catalog prefetch in `scripts/fetch-catalogs.ts`.
+`src/config/runtime.ts`; catalog prefetch in `scripts/fetch-catalogs.ts`; Node entry points for the
+E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 
 ## Contracts with sigcomply-cli
 
