@@ -13,13 +13,23 @@ environment.
   `npm run test:e2e` (Playwright, Chromium and WebKit).
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
-  daily at 07:00 UTC, and on `workflow_dispatch`. Steps: `npm ci`, `npm audit --audit-level=high`
-  (hard gate), install the latest `sigcomply` CLI release (resolved from `releases/latest` at run
-  time), `npm run build` with `VITE_BASE_PATH=/<repo-name>/`, copy `index.html` to `404.html` for
-  client-side routes, then the gate on that build: lint, `npm run test:coverage` and Playwright
-  against the `dist/` about to ship (`E2E_DIST=dist`). Only then does it deploy `dist/` to GitHub
-  Pages. A `smoke` job then runs `e2e/smoke.live.spec.ts` against the live URL (home loads a
-  catalog, `/verify` verifies a CLI envelope).
+  daily at 07:00 UTC, and on `workflow_dispatch`. Three jobs:
+  - `build` (`contents: read`, checkout without persisted credentials): `npm ci`,
+    `npm audit --audit-level=high` (hard gate), install the latest `sigcomply` CLI release
+    (resolved from `releases/latest` at run time; the tarball's SHA-256 must match the release's
+    `checksums.txt` before it is extracted), `npm run build` with `VITE_BASE_PATH=/<repo-name>/`,
+    copy `index.html` to `404.html` for client-side routes, then the gate on that build: lint,
+    `npm run test:coverage` and Playwright against the `dist/` about to ship (`E2E_DIST=dist`).
+    Only then does it upload `dist/` as the Pages artifact.
+  - `deploy` (`pages: write`, `id-token: write`): publishes that artifact. It checks out nothing
+    and runs no repo code.
+  - `smoke`: runs `e2e/smoke.live.spec.ts` against the live URL (home loads a catalog, `/verify`
+    verifies a CLI envelope).
+
+  Two causes of a red or missing daily deploy that have nothing to do with a commit: a new
+  high or critical advisory makes `npm audit` fail the `build` job, and GitHub disables
+  scheduled workflows after 60 days without activity in the repo (re-enable it in the Actions
+  tab, or push).
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
   OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` and
   `secret-scan` jobs are hard gates; the rest are advisory. It has no `paths-ignore`, so docs-only
@@ -40,7 +50,7 @@ Deploy facts that matter when you change the build:
   `render-evidence-pdf.test.ts` read them. A new CLI catalog can't fail those tests. The other
   specs use the built catalogs, and `fetch-catalogs.test.ts` checks that the fresh ones pass the
   validator unchanged.
-- The deploy job has `contents: read` and never commits the regenerated catalogs. The committed
+- No job in `deploy.yml` can push, so the regenerated catalogs are never committed. The committed
   copies are the dev and offline fallback and can lag the CLI without affecting production.
   Refresh them with `npm run fetch-catalogs`.
 - A framework in `public/config.json` that the released CLI can't serve fails the deploy.
@@ -200,7 +210,8 @@ The self-review "contracts and invariants" lens checks these against `AGENTS.md`
 
 For a change to any workflow under `.github/workflows/`, check that `actionlint` reports no new
 findings on the changed file. For a change to `deploy.yml`, also check that the deploy still fails
-on a `fetch-catalogs` error and that the gate steps still run before the upload.
+on a `fetch-catalogs` error, that the gate steps still run before the upload, and that only the
+`deploy` job holds `pages: write` and `id-token: write`.
 
 ## Pre-launch rules
 

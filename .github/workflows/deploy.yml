@@ -18,26 +18,26 @@ on:
   schedule:
     - cron: '0 7 * * *'
 
+# Least privilege per job: the build (npm ci, the CLI download, every test)
+# runs with a read-only token and no Pages or OIDC rights; only the small
+# deploy job can publish.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -72,9 +72,19 @@ jobs:
             aarch64|arm64) ARCH="arm64" ;;
           esac
           OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ASSET="sigcomply_${VERSION#v}_${OS}_${ARCH}.tar.gz"
+          BASE="https://github.com/SigComply/sigcomply-cli/releases/download/${VERSION}"
           echo "Installing SigComply CLI ${VERSION} for ${OS}/${ARCH}"
-          curl -fsSL "https://github.com/SigComply/sigcomply-cli/releases/download/${VERSION}/sigcomply_${VERSION#v}_${OS}_${ARCH}.tar.gz" | tar xz -C /tmp
-          sudo mv /tmp/sigcomply /usr/local/bin/
+          DL=$(mktemp -d)
+          curl -fsSL -o "${DL}/${ASSET}" "${BASE}/${ASSET}"
+          curl -fsSL -o "${DL}/checksums.txt" "${BASE}/checksums.txt"
+          # Check the tarball against the release's checksums.txt before
+          # extracting it. Exactly one line must name the asset.
+          awk -v a="${ASSET}" '$2 == a' "${DL}/checksums.txt" > "${DL}/want.txt"
+          [ "$(wc -l < "${DL}/want.txt")" -eq 1 ]
+          (cd "${DL}" && sha256sum -c want.txt)
+          tar xzf "${DL}/${ASSET}" -C "${DL}" sigcomply
+          sudo mv "${DL}/sigcomply" /usr/local/bin/
           sigcomply version
 
       # `npm run build` = prebuild (fetch-catalogs) + tsc -b + vite build.
@@ -114,11 +124,27 @@ jobs:
             test-results
           retention-days: 7
 
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
+      # Only reached when every step above passed.
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
+
+  # Publishes the artifact the build job tested. No checkout, no npm: the
+  # only job holding pages: write and id-token: write runs no repo code.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Deploy to GitHub Pages
         id: deployment
@@ -127,7 +153,7 @@ jobs:
   # Post-deploy smoke test against the live site: home loads a catalog and
   # /verify verifies a CLI envelope. Red here means the live site is broken.
   smoke:
-    needs: build-and-deploy
+    needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -150,4 +176,4 @@ jobs:
       - name: Smoke test the live site
         run: npm run test:e2e:live
         env:
-          E2E_LIVE_URL: ${{ needs.build-and-deploy.outputs.page_url }}
+          E2E_LIVE_URL: ${{ needs.deploy.outputs.page_url }}
