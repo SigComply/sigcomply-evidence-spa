@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "fetch-catalogs": "tsx scripts/fetch-catalogs.ts",
+    "check:goldens": "scripts/check-goldens.sh",
     "prebuild": "tsx scripts/fetch-catalogs.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

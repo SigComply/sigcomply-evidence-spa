@@ -40,7 +40,8 @@ Shared component-test helpers live in `src/test/`.
 
 ```
 scripts/
-  fetch-catalogs.ts       fetch-catalogs.test.ts   ← validate + filter, fixed point on public/data/catalogs
+  fetch-catalogs.ts       fetch-catalogs.test.ts   ← validate + filter, fixed point on public/data/catalogs, CLI catalog goldens
+  check-goldens.sh                                 ← diffs the CLI goldens against a sigcomply-cli checkout
 src/config/
   runtime.ts              runtime.test.ts   ← CLI default prefix, config.json fallback matrix
 src/hooks/
@@ -58,6 +59,8 @@ src/lib/
   device-memory.ts        device-memory.test.ts
   period.ts               period.test.ts
   storage-path.ts         storage-path.test.ts
+                          period-golden.test.ts   ← period.ts + storage-path.ts against the CLI periods golden
+  __fixtures__/golden/                            ← CLI goldens: periods.json, <framework>_golden.json
   pdf/
     metadata.ts           metadata.test.ts        ← the keywords contract string
     render.tsx            render.test.tsx         ← real PDF in Node: %PDF header, Info keywords
@@ -67,7 +70,9 @@ src/lib/
     verify.ts             verify.test.ts    ← plus bad base64, key/signature length, no Ed25519
     manual.ts             manual.test.ts    ← manual-record hashes and fan-out member verdicts
     parse-envelope.ts     parse-envelope.test.ts ← JSON errors, shape, format_version, raw text kept
+                          golden.test.ts    ← every CLI golden envelope and manual PDF
     __fixtures__/
+      golden/                                 ← CLI golden envelopes, canonical bytes and PDFs
       sample-envelope-v1.json                 ← CLI-produced envelope (automated flow)
       sample-envelope-v1-manual.json          ← CLI-produced envelope (manual flow)
       sample-envelope-v1-fanout.json          ← CLI-produced fan-out envelope (4 vendors under `instances`)
@@ -84,6 +89,33 @@ JSON module — that would round the 64-bit ints through float64 before the test
 also asserts the bignum envelope verifies **only** when the raw text is passed to
 `verifyEnvelopeSignature` — the object path (rounded) must fail, which is exactly why `Verify.tsx`
 keeps the original source text.
+
+## CLI golden fixtures
+
+The CLI generates golden files for the contracts this app shares with it, and this repo keeps
+byte-for-byte copies. The README in each `golden/` folder names the CLI source.
+
+| Golden | Here | Test |
+|---|---|---|
+| Envelopes `basic`, `bignum`, `manual`, `fanout`, their `.canonical.txt` and manual PDFs | `src/lib/verification/__fixtures__/golden/` | `golden.test.ts`: each envelope verifies, its signed bytes equal `.canonical.txt`, the file is the canonical JSON of the whole envelope plus a newline, each PDF matches its record's (or fan-out member's) hash, and a one-byte change to the envelope or the PDF fails |
+| `periods.json`: UTC instants × cadences → period ID, window, folder; prefix table | `src/lib/__fixtures__/golden/` | `period-golden.test.ts`: `currentPeriod` and `computeUploadPath` give the same period ID, window and folder for every row, and the same folder for every prefix |
+| `soc2_golden.json`, `iso27001_golden.json`: `sigcomply evidence catalog -o json` | `src/lib/__fixtures__/golden/` | `fetch-catalogs.test.ts`: no validator errors or warnings, and `prepareCatalog` keeps every renderable entry |
+
+The CLI works in UTC; `currentPeriod` uses the local clock. `period-golden.test.ts` hands each
+instant to the SPA as the same wall-clock time in the local zone (what a browser in UTC sees), so
+it passes in any `TZ`. The window check compares the CLI's inclusive `period_end` with the SPA's
+exclusive `end` minus 1 ms.
+
+Refresh, in the same task as the CLI change:
+
+1. In `sigcomply-cli`, regenerate with `-update` (the commands are in each README).
+2. Here, `npm run check:goldens -- --copy`. It copies every golden from `CLI_REPO` (default
+   `../sigcomply-cli`) and deletes a copy whose source is gone.
+3. Run the gate.
+
+`npm run check:goldens` without `--copy` only compares: exit 0 when every copy matches, 1 on a
+changed, missing or extra file, 2 when `CLI_REPO` is not a CLI checkout. CI has no CLI checkout and
+doesn't run it; run it locally whenever a contract changes on either side.
 
 ## Pinned catalogs
 

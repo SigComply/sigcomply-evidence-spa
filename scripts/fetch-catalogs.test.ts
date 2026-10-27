@@ -2,11 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prepareCatalog } from "./fetch-catalogs.ts";
+import { validateCatalog } from "../src/lib/catalog-validate.ts";
 
 // public/data/catalogs/, not the pinned e2e copies: in deploy.yml this runs
 // after `npm run build` wrote the latest CLI's catalogs there, so it is the
 // deploy-time check that the fresh catalogs pass the validator unchanged.
 const catalogsDir = join(import.meta.dirname, "..", "public", "data", "catalogs");
+// The CLI's catalog goldens (sigcomply-cli internal/manualcatalog/testdata/,
+// exactly what `sigcomply evidence catalog -o json` prints), copied byte for
+// byte; scripts/check-goldens.sh catches drift.
+const goldenDir = join(import.meta.dirname, "..", "src", "lib", "__fixtures__", "golden");
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -64,5 +69,22 @@ describe("prepareCatalog", () => {
     expect(() =>
       prepareCatalog(cliOutput([{ ...decl, frequency: "annual", owner: "x" }]), "soc2"),
     ).toThrow(/does not match src\/types\/catalog\.ts[\s\S]*unknown field "owner"[\s\S]*frequency/);
+  });
+});
+
+describe("CLI catalog goldens", () => {
+  it.each(["soc2", "iso27001"])("%s passes the validator with no errors or warnings", (fw) => {
+    const text = readFileSync(join(goldenDir, `${fw}_golden.json`), "utf-8");
+    const raw = JSON.parse(text) as { entries: { type: string }[] };
+    const result = validateCatalog(raw, fw);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+
+    const { catalog, before, after } = prepareCatalog(text, fw);
+    const renderable = raw.entries.filter((e) => e.type !== "document_upload").length;
+    expect(before).toBe(raw.entries.length);
+    expect(after).toBe(renderable);
+    expect(after).toBeGreaterThan(0);
+    expect(catalog.framework).toBe(fw);
   });
 });
