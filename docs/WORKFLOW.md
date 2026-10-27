@@ -96,21 +96,25 @@ browser's quirks.
 
    ```bash
    PORT=5173   # taken by another session's server? leave it running and pick a free port
-   npm run dev -- --strictPort --port $PORT > /tmp/spa_dev.$PORT.log 2>&1 & echo $! > /tmp/spa_dev.$PORT.pid
-   for i in $(seq 1 30); do
-     grep -q "Local:" /tmp/spa_dev.$PORT.log && { echo ready; break; }
-     kill -0 "$(cat /tmp/spa_dev.$PORT.pid)" 2>/dev/null || { echo "vite exited: see the log"; break; }
-     sleep 1
-   done
+   if lsof -ti :$PORT >/dev/null; then echo "port $PORT is taken: pick another"; else
+     rm -f /tmp/spa_dev.$PORT.log
+     NO_COLOR=1 npm run dev -- --strictPort --port $PORT > /tmp/spa_dev.$PORT.log 2>&1 &
+     echo $! > /tmp/spa_dev.$PORT.pid
+     for i in $(seq 1 30); do
+       grep -q "Local:" /tmp/spa_dev.$PORT.log && { echo ready; break; }
+       kill -0 "$(cat /tmp/spa_dev.$PORT.pid)" 2>/dev/null || { echo "vite exited: see the log"; break; }
+       sleep 1
+     done
+   fi
    BASE=http://localhost:$PORT
    ```
 
-   `npm run dev` serves the committed catalogs. `--strictPort` makes Vite exit when the port is
-   taken instead of moving to the next one. The loop waits for your Vite's own `Local:` line, not
-   for the port to answer, so another session's server on that port can't pass for yours. On "vite exited", read the log, pick another port and
-   start again. For a change to bundling, lazy loading, routing or the base path, run `npm run build`
-   (or the CLI-free build) and `npm run preview -- --strictPort --port $PORT` instead; that serves
-   the shipped `dist/` bundle.
+   `npm run dev` serves the committed catalogs. The port check runs first, so the log and pid
+   files for a free port can only be stale ones. `--strictPort` makes Vite exit rather than move
+   to another port, and the loop waits for your Vite's own `Local:` line, not for the port to
+   answer. If nothing prints after 30 seconds, read the log. For a change to bundling, lazy
+   loading, routing or the base path, run `npm run build` (or the CLI-free build), then the same
+   block with `npm run preview` in place of `npm run dev`; that serves the shipped `dist/` bundle.
 2. Drive the flow the change touches:
    - **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration and a checklist
      entry, fill the form, submit. Confirm `evidence.pdf` downloads (`download list --json` shows
