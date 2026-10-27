@@ -106,8 +106,9 @@ in `AGENTS.local.md` (if present).
 4. For a change near data handling, check the browser's network log: the only requests are the
    app's own static assets, `config.json` and `data/catalogs/*.json`.
 
-Only code no page calls (scripts, build tooling, test helpers) is covered by the unit suite alone;
-say so in the report. A refactor of code a page uses still gets driven.
+Only code whose output no page uses (lint config, test helpers) is covered by the unit suite
+alone; say so in the report. A refactor of code a page uses still gets driven, and so does a
+change to the build or to `scripts/fetch-catalogs.ts`.
 
 ## Docs routing
 
