@@ -73,7 +73,7 @@ No git hook runs this gate (see "Commands" in `AGENTS.md`). Running it is your j
 |---|---|---|---|
 | Unit | Colocated `*.test.ts` next to the code (`foo.ts` → `foo.test.ts`), mostly `src/lib/` | `npm run test`, one file: `npx vitest run <path>` | Any logic change. Extract logic from React components into pure functions in `src/lib/` so it can be tested. |
 | Crypto contract | `src/lib/verification/{canonical,verify}.test.ts` with CLI-produced fixtures in `src/lib/verification/__fixtures__/` | `npm run test` | Any change to canonicalization, signature verification or the envelope type. Refresh fixtures from the CLI, never by hand. |
-| End-to-end | None automated | Agent-driven browser check (next section) | Any user-visible change |
+| End-to-end | None automated | Agent-driven browser check (next section) | Any change that can alter what the app renders or does |
 
 Tests run in Vitest's Node environment. jsdom, `@testing-library/react` and Playwright are not
 installed, so there are no component or browser tests. Adding one of them is a deliberate
@@ -82,8 +82,12 @@ and the Web Crypto and PDF specifics.
 
 ## Verify in the real product
 
-Every user-visible change is verified by driving the app in a real browser. Use whatever browser
-automation your harness provides; this machine's browser setup is in `AGENTS.local.md` (if present).
+Every change that can alter what the app renders or does is verified by driving the app in a real
+browser. That covers more than components: `src/lib/` code a page calls, catalogs, runtime config,
+routing, styles, PDF generation and verification all reach the screen. Drive it at task-workflow
+step 9, again after every review fix that touches it, and to reproduce a review finding about app
+behaviour. Use whatever browser automation your harness provides; this machine's browser setup is
+in `AGENTS.local.md` (if present).
 
 1. Start the app. `npm run dev` serves http://localhost:5173 from the committed catalogs. For a
    change to bundling, lazy loading, routing or the base path, run `npm run build` (or the
@@ -102,7 +106,8 @@ automation your harness provides; this machine's browser setup is in `AGENTS.loc
 4. For a change near data handling, check the browser's network log: the only requests are the
    app's own static assets, `config.json` and `data/catalogs/*.json`.
 
-Pure-logic changes with no visible surface are covered by the unit suite; say so in the report.
+Only code no page calls (scripts, build tooling, test helpers) is covered by the unit suite alone;
+say so in the report. A refactor of code a page uses still gets driven.
 
 ## Docs routing
 

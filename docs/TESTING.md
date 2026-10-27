@@ -12,8 +12,9 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
 - **No coverage config**, no coverage gate, no threshold. `vitest run --coverage` works ad hoc but
   nothing enforces a floor.
 - **No Playwright, no `@testing-library/react`, no jsdom** installed. There are **no
-  component/DOM tests** and no end-to-end browser tests. UI is verified manually in a real browser —
-  see [WORKFLOW.md → Verify in the real product](WORKFLOW.md#verify-in-the-real-product).
+  component/DOM tests** and no end-to-end browser tests. Any change that can alter what the app
+  renders or does is driven by hand in a real browser, again after review fixes. See
+  [WORKFLOW.md → Verify in the real product](WORKFLOW.md#verify-in-the-real-product).
 
 ## Commands
 
