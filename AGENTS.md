@@ -41,7 +41,7 @@ doc.
    than planned.
 8. Fan out subagents for wide research and parallel review. Keep the main context for decisions.
 9. Comments explain why, not what.
-10. Run the full local gate before every commit. No CI workflow runs ESLint or Vitest.
+10. Run the full local gate before every commit. CI (`ci.yml`) and the deploy run it again.
 11. Nothing leaves the browser. Never add a backend, an upload, analytics, a third-party script or
     a network call that sends user data anywhere.
 12. Change a CLI contract (table below) only together with the matching `sigcomply-cli` change.

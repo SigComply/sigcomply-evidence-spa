@@ -19,14 +19,17 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
 ## Commands
 
 ```bash
-npm run test              # vitest run — one-shot, what you run before pushing
+npm run test              # vitest run, one-shot
 npx vitest                # watch mode during development
 npx vitest run <path>     # a single file, e.g. src/lib/verification/canonical.test.ts
-npm run test:coverage     # coverage with the floors enforced
+npm run test:coverage     # coverage with the floors enforced (what the gate and CI run)
+npm run test:e2e          # Playwright on a Pages-like build (Chromium and WebKit)
+npx playwright test e2e/verify.spec.ts --project=chromium   # one spec, one browser
 ```
 
-`npm run test` is one of the four local gates in [WORKFLOW.md → Gate](WORKFLOW.md#gate-run-before-every-commit)
-(`lint`, `test`, `tsc -b`, `build`). CI does **not** run it — local is the gate.
+`npm run test:coverage` and `npm run test:e2e` are part of the gate in
+[WORKFLOW.md → Gate](WORKFLOW.md#gate-run-before-every-commit). CI runs them on every push
+(`ci.yml`) and again before every deploy (`deploy.yml`).
 
 ## Layout
 

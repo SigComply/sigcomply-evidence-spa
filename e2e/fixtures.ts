@@ -15,6 +15,24 @@ export function fixture(name: string): Buffer {
   return readFileSync(join(FIXTURES, name));
 }
 
+const COMMITTED_CATALOGS = join(import.meta.dirname, "..", "public", "data", "catalogs");
+
+/**
+ * Serves the committed catalogs instead of the ones in the build. deploy.yml
+ * runs this suite on a build with catalogs fresh from the latest CLI; specs
+ * that name entries pin the committed copy so a CLI catalog change can't turn
+ * the deploy red. Specs that don't name entries use the built catalogs.
+ */
+export async function pinCatalogs(page: Page) {
+  await page.route("**/data/catalogs/*.json", (route) => {
+    const name = new URL(route.request().url()).pathname.split("/").pop()!;
+    return route.fulfill({
+      contentType: "application/json",
+      body: readFileSync(join(COMMITTED_CATALOGS, name)),
+    });
+  });
+}
+
 /** Hands the /verify page an envelope through its file input. */
 export async function loadEnvelope(page: Page, name: string, body = fixture(name)) {
   await page

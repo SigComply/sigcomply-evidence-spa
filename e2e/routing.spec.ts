@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, pinCatalogs, test } from "./fixtures";
 
 // GitHub Pages answers unknown paths with 404.html (a copy of index.html)
 // and status 404; the SPA must still boot and route.
@@ -9,6 +9,7 @@ test("a deep link to /verify loads the app", async ({ page }) => {
 });
 
 test("a deep link to an evidence form loads the app", async ({ page }) => {
+  await pinCatalogs(page);
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await expect(page.getByRole("heading", { name: "Code Of Conduct Acknowledgment" })).toBeVisible();
 });
@@ -45,6 +46,7 @@ test("a framework without a catalog shows an error, not a blank page", async ({ 
 });
 
 test("a missing config.json falls back to the defaults", async ({ page }) => {
+  await pinCatalogs(page);
   await page.route("**/config.json", (route) => route.fulfill({ status: 404, body: "" }));
   await page.goto("./");
   // Default: soc2 only, so no picker.

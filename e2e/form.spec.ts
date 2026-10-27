@@ -1,6 +1,6 @@
 import type { Download, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { expect, test } from "./fixtures";
+import { expect, pinCatalogs, test } from "./fixtures";
 import { pdfBytesToText, readPdfInfoString } from "../src/lib/pdf/pdf-info";
 
 // 15 May 2026 12:00 UTC: yearly entries fall in period 2026.
@@ -8,6 +8,7 @@ const NOW = new Date("2026-05-15T12:00:00Z");
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(NOW);
+  await pinCatalogs(page);
   // One framework chosen already, so the picker dialog stays closed.
   await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
 });

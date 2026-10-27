@@ -15,10 +15,11 @@ npm run dev        # http://localhost:5173, uses the committed catalogs (no sigc
 
 ## Run the checks before you commit
 
-CI doesn't lint or run the tests, so run them locally:
+CI runs the same checks on every push and pull request; run them locally first. Use Node 24
+(`.nvmrc`) and install the test browsers once with `npx playwright install chromium webkit`.
 
 ```bash
-npm run lint && npx tsc -b && npm run test && npm run build
+npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e
 ```
 
 `npm run build` needs the `sigcomply` CLI on your `PATH` to refresh the catalogs. Without it, run
@@ -27,7 +28,8 @@ it in a browser (`npm run dev`).
 
 ## Conventions
 
-- Write tests first, as `*.test.ts` files next to the code they test.
+- Write tests first, as `*.test.ts` files next to the code they test. A change to a page flow
+  also needs a Playwright spec in `e2e/`.
 - One logical change per commit, subject `<type>: <summary>` (`feat`, `fix`, `refactor`, `perf`,
   `test`, `docs`, `ci`, `chore`).
 - Update the docs your change makes wrong in the same commit.

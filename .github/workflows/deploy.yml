@@ -13,6 +13,10 @@ on:
       - '.vale/**'
       - '.vale.ini'
   workflow_dispatch:
+  # Daily, so a new CLI release's catalogs reach the site within a day
+  # without a commit here (the build regenerates them from releases/latest).
+  schedule:
+    - cron: '0 7 * * *'
 
 permissions:
   contents: read
@@ -26,6 +30,9 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -34,7 +41,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
@@ -81,6 +88,32 @@ jobs:
       - name: Copy index.html to 404.html for SPA routing
         run: cp dist/index.html dist/404.html
 
+      # The same gate as ci.yml, run on this build (fresh CLI catalogs
+      # included) before anything is uploaded. A red step stops the deploy.
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests with coverage floors
+        run: npm run test:coverage
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: E2E on the dist/ about to be deployed
+        run: npm run test:e2e
+        env:
+          E2E_DIST: dist
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
@@ -90,3 +123,31 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # Post-deploy smoke test against the live site: home loads a catalog and
+  # /verify verifies a CLI envelope. Red here means the live site is broken.
+  smoke:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke test the live site
+        run: npm run test:e2e:live
+        env:
+          E2E_LIVE_URL: ${{ needs.build-and-deploy.outputs.page_url }}

@@ -8,12 +8,18 @@ repo. Read it with `AGENTS.md` before step 1 of every task.
 A push to `main` that changes more than docs updates the live public site. There is no staging
 environment.
 
+- `.github/workflows/ci.yml` runs on every push and pull request: `npm ci`, `npm run lint`,
+  `npx tsc -b`, `npm run test:coverage`, `npx vite build` (committed catalogs) and
+  `npm run test:e2e` (Playwright, Chromium and WebKit).
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
-  except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`). It
-  also has `workflow_dispatch`. Steps: `npm ci`, `npm audit --audit-level=high` (hard gate),
-  install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time),
-  `npm run build` with `VITE_BASE_PATH=/<repo-name>/`, copy `index.html` to `404.html` for
-  client-side routes, deploy `dist/` to GitHub Pages.
+  except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
+  daily at 07:00 UTC, and on `workflow_dispatch`. Steps: `npm ci`, `npm audit --audit-level=high`
+  (hard gate), install the latest `sigcomply` CLI release (resolved from `releases/latest` at run
+  time), `npm run build` with `VITE_BASE_PATH=/<repo-name>/`, copy `index.html` to `404.html` for
+  client-side routes, then the gate on that build: lint, `npm run test:coverage` and Playwright
+  against the `dist/` about to ship (`E2E_DIST=dist`). Only then does it deploy `dist/` to GitHub
+  Pages. A `smoke` job then runs `e2e/smoke.live.spec.ts` against the live URL (home loads a
+  catalog, `/verify` verifies a CLI envelope).
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
   OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` and
   `secret-scan` jobs are hard gates; the rest are advisory. It has no `paths-ignore`, so docs-only
@@ -21,14 +27,15 @@ environment.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
   `CONTRIBUTING.md`. A push or pull request that changes `.vale.ini`, `.vale/**` or the workflow
   itself lints all three. Otherwise it lints only the ones that changed.
-- No workflow runs ESLint or Vitest. The local gate below is the only place they run.
 
 Deploy facts that matter when you change the build:
 
 - `prebuild` (`fetch-catalogs`) regenerates `public/data/catalogs/*.json` from the CLI on every
-  deploy and fails the deploy on any error. A CLI catalog change reaches the live site on the next
-  deploy without a commit here. To ship it without a code change, run the deploy workflow by hand
-  (`workflow_dispatch`); a docs-only push doesn't deploy.
+  deploy and fails the deploy on any error, including output that doesn't match
+  `src/types/catalog.ts`. A CLI catalog change reaches the live site on the next deploy without a
+  commit here: at the latest the daily run, sooner with `workflow_dispatch`.
+- Playwright specs that name catalog entries serve the committed catalogs (`pinCatalogs` in
+  `e2e/fixtures.ts`), so a new CLI catalog can't fail them; the rest use the built ones.
 - The deploy job has `contents: read` and never commits the regenerated catalogs. The committed
   copies are the dev and offline fallback and can lag the CLI without affecting production.
   Refresh them with `npm run fetch-catalogs`.
@@ -47,14 +54,16 @@ affects the live site: fix forward before anything else.
 ## Gate: run before every commit
 
 ```bash
-npm run lint && npx tsc -b && npm run test && npm run build
+npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e
 ```
 
 - `npm run lint`: `eslint .`. There is no formatter; don't add Prettier or Biome.
 - `npx tsc -b`: the standalone typecheck. Faster than a build during the inner loop.
-- `npm run test`: the Vitest suite.
+- `npm run test:coverage`: the Vitest suite with the coverage floors.
 - `npm run build`: `prebuild` (`fetch-catalogs`, needs `sigcomply` on `PATH`) then
   `tsc -b && vite build`. It catches what the dev server's on-demand transpile hides.
+- `npm run test:e2e`: builds `dist-e2e/` with the Pages base path and runs Playwright on it
+  (Chromium and WebKit). Install the browsers once with `npx playwright install chromium webkit`.
 
 Without the CLI on `PATH`, `npm run build` fails at `prebuild` by design: it never falls back to
 the committed JSON, because a silent fallback is how stale catalogs once reached production. Run
@@ -65,7 +74,8 @@ full `npm run build`.
 When you change `README.md`, `SECURITY.md` or `CONTRIBUTING.md`, also run
 `vale --minAlertLevel=error <files>`, the check `docs-lint.yml` enforces.
 
-No git hook runs this gate (see "Commands" in `AGENTS.md`). Running it is your job.
+No git hook runs this gate (see "Commands" in `AGENTS.md`). CI runs it again (`ci.yml`, and
+`deploy.yml` before upload), but run it locally before every commit.
 
 ## Test layers
 
@@ -183,7 +193,7 @@ The self-review "contracts and invariants" lens checks these against `AGENTS.md`
 
 For a change to any workflow under `.github/workflows/`, check that `actionlint` reports no new
 findings on the changed file. For a change to `deploy.yml`, also check that the deploy still fails
-on a `fetch-catalogs` error.
+on a `fetch-catalogs` error and that the gate steps still run before the upload.
 
 ## Pre-launch rules
 
