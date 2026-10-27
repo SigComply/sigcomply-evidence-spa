@@ -107,6 +107,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Install Playwright browsers
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium webkit
 
       - name: E2E on the dist/ about to be deployed
