@@ -5,15 +5,19 @@
 //
 //   npm run render-evidence-pdf -- --input <json> --out <pdf>
 //
-// Input fields (example: scripts/examples/render-evidence-pdf.declaration.json):
-//   framework      catalog framework, e.g. "soc2" (required)
+// Input fields (example: scripts/examples/render-evidence-pdf.declaration.json).
+// Unknown fields and wrong types are errors:
+//   framework      catalog framework, e.g. "soc2" (required; [a-z0-9_]+, and
+//                  listed in public/config.json unless `catalog` is given)
 //   evidence_id    catalog entry id, a declaration or checklist (required)
 //   completed_by   the "Completed by" field (required)
 //   accepted       declaration: the acceptance tick
-//   checked        checklist: ids of the ticked items
-//   notes          checklist: { item_id: "note" }
+//   checked        checklist: ids of the ticked items (array of strings)
+//   notes          checklist: { item_id: "note" }, ids must be items
 //   completed_at   ISO 8601; default now
-//   period         period key; default the entry's current period at completed_at
+//   period         period key in the entry's frequency format (2026-05-15,
+//                  2026-W20, 2026-05, 2026-Q2, 2026); default the entry's
+//                  current period at completed_at
 //   catalog        path to a catalog JSON; default public/data/catalogs/<framework>.json
 //   prefix         storage prefix for the printed upload path; default "manual/"
 //
@@ -30,6 +34,7 @@ import {
   type EvidenceFormState,
 } from "../src/lib/evidence-form.ts";
 import { currentPeriod } from "../src/lib/period.ts";
+import type { Frequency } from "../src/types/catalog.ts";
 import { computeUploadPath } from "../src/lib/storage-path.ts";
 import { renderEvidencePdf } from "../src/lib/pdf/render.tsx";
 
@@ -52,24 +57,88 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-function readInput(raw: unknown): RenderInput {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    fail("input must be a JSON object");
+const FIELDS: Record<keyof RenderInput, "string" | "boolean" | "strings" | "notes"> = {
+  framework: "string",
+  evidence_id: "string",
+  completed_by: "string",
+  accepted: "boolean",
+  checked: "strings",
+  notes: "notes",
+  completed_at: "string",
+  period: "string",
+  catalog: "string",
+  prefix: "string",
+};
+
+// The framework names a file under public/data/catalogs/, so it must be a
+// plain name.
+const FRAMEWORK_RE = /^[a-z0-9_]+$/;
+
+// Period keys per frequency, as currentPeriod() and the CLI write them.
+const PERIOD_FORMATS: Record<Frequency, [RegExp, string]> = {
+  daily: [/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "YYYY-MM-DD"],
+  weekly: [/^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/, "YYYY-Www"],
+  monthly: [/^\d{4}-(0[1-9]|1[0-2])$/, "YYYY-MM"],
+  quarterly: [/^\d{4}-Q[1-4]$/, "YYYY-Qn"],
+  yearly: [/^\d{4}$/, "YYYY"],
+};
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function configFrameworks(): string[] {
+  const config = JSON.parse(readFileSync(join(repoRoot, "public", "config.json"), "utf-8")) as {
+    frameworks?: string[];
+  };
+  return config.frameworks ?? [];
+}
+
+/** Checks the input's shape. Throws on the first problem. */
+export function readInput(raw: unknown): RenderInput {
+  if (!isPlainObject(raw)) fail("input must be a JSON object");
+  for (const k of Object.keys(raw)) {
+    if (!(k in FIELDS)) fail(`input: unknown field "${k}"`);
   }
-  const r = raw as Record<string, unknown>;
   for (const k of ["framework", "evidence_id", "completed_by"]) {
-    if (typeof r[k] !== "string" || !(r[k] as string).trim()) {
+    if (typeof raw[k] !== "string" || !(raw[k] as string).trim()) {
       fail(`input.${k} must be a non-empty string`);
     }
   }
-  return r as unknown as RenderInput;
+  for (const [k, kind] of Object.entries(FIELDS)) {
+    const v = raw[k];
+    if (v === undefined) continue;
+    if (kind === "string" && typeof v !== "string") fail(`input.${k} must be a string`);
+    if (kind === "boolean" && typeof v !== "boolean") fail(`input.${k} must be a boolean`);
+    if (kind === "strings" && !(Array.isArray(v) && v.every((s) => typeof s === "string"))) {
+      fail(`input.${k} must be an array of strings`);
+    }
+    if (kind === "notes" && !(isPlainObject(v) && Object.values(v).every((s) => typeof s === "string"))) {
+      fail(`input.${k} must be an object of strings`);
+    }
+  }
+  const input = raw as unknown as RenderInput;
+  if (!FRAMEWORK_RE.test(input.framework)) {
+    fail(`input.framework must match ${FRAMEWORK_RE.source}, got "${input.framework}"`);
+  }
+  if (input.catalog === undefined) {
+    const known = configFrameworks();
+    if (!known.includes(input.framework)) {
+      fail(
+        `input.framework "${input.framework}" is not in public/config.json (${known.join(", ")}); ` +
+          `pass "catalog" to use another catalog file`,
+      );
+    }
+  }
+  return input;
 }
 
 /** Renders the PDF bytes and the upload path for one input. */
 export async function renderFromInput(
-  input: RenderInput,
+  raw: RenderInput,
   baseDir: string,
 ): Promise<{ pdf: Uint8Array; uploadPath: string; period: string }> {
+  const input = readInput(raw);
   const catalogPath = input.catalog
     ? resolve(baseDir, input.catalog)
     : join(repoRoot, "public", "data", "catalogs", `${input.framework}.json`);
@@ -85,10 +154,17 @@ export async function renderFromInput(
   const completedAt = input.completed_at ?? new Date().toISOString();
   if (Number.isNaN(Date.parse(completedAt))) fail(`completed_at "${completedAt}" is not a date`);
   const period = input.period ?? currentPeriod(entry.frequency, new Date(completedAt)).key;
+  const [periodRe, periodFormat] = PERIOD_FORMATS[entry.frequency];
+  if (!periodRe.test(period)) {
+    fail(`input.period "${period}" is not a ${entry.frequency} period (${periodFormat})`);
+  }
 
   const checked = new Set(input.checked ?? []);
   for (const id of checked) {
     if (!entry.items?.some((i) => i.id === id)) fail(`"${id}" is not an item of ${entry.id}`);
+  }
+  for (const id of Object.keys(input.notes ?? {})) {
+    if (!entry.items?.some((i) => i.id === id)) fail(`notes: "${id}" is not an item of ${entry.id}`);
   }
   const state: EvidenceFormState = {
     completedBy: input.completed_by,

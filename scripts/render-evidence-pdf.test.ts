@@ -90,10 +90,61 @@ describe("renderFromInput", () => {
     ["an unaccepted declaration", { accepted: false }, /You must accept the declaration/],
     ["an unknown entry", { evidence_id: "nope" }, /no entry "nope"/],
     ["a missing catalog file", { framework: "nist", catalog: "nist.json" }, /ENOENT/],
+    ["a framework without a shipped catalog", { framework: "nist", catalog: undefined }, /input\.framework "nist" is not in public\/config\.json \(soc2, iso27001\)/],
+    ["a framework that is not a plain name", { framework: "../soc2", catalog: undefined }, /input\.framework must match/],
     ["a bad date", { completed_at: "yesterday" }, /is not a date/],
     ["a checklist item on a declaration", { checked: ["x"] }, /"x" is not an item/],
+    ["checked that is not an array", { checked: "plan_tested" as never }, /input\.checked must be an array of strings/],
+    ["checked with a number", { checked: [1] as never }, /input\.checked must be an array of strings/],
+    ["notes that is not an object", { notes: "n" as never }, /input\.notes must be an object of strings/],
+    ["a note that is not a string", { notes: { a: 1 } as never }, /input\.notes must be an object of strings/],
+    ["a note for an unknown item", { notes: { x: "n" } }, /notes: "x" is not an item/],
+    ["accepted that is not a boolean", { accepted: "yes" as never }, /input\.accepted must be a boolean/],
+    ["a period in another format", { period: "2026-Q2" }, /input\.period "2026-Q2" is not a yearly period \(YYYY\)/],
+    ["a path-like period", { period: "../2026" }, /is not a yearly period/],
+    ["a prefix that is not a string", { prefix: 3 as never }, /input\.prefix must be a string/],
+    ["an unknown field", { complete_by: "x" } as never, /input: unknown field "complete_by"/],
   ])("refuses %s", async (_n, over, want) => {
     await expect(renderFromInput({ ...declaration, ...over }, dir)).rejects.toThrow(want);
+  });
+
+  it.each<[string, string, string]>([
+    ["daily", "2026-05-15", "2026-5-15"],
+    ["weekly", "2026-W20", "2026-W5"],
+    ["monthly", "2026-05", "2026-5"],
+    ["quarterly", "2026-Q2", "2026-Q5"],
+    ["yearly", "2026", "FY2026"],
+  ])("checks a %s period's format", async (frequency, good, bad) => {
+    const catalog = {
+      framework: "soc2",
+      version: "1",
+      entries: [
+        {
+          id: "e",
+          control: "C",
+          type: "declaration",
+          frequency,
+          temporal_rule: "anytime",
+          grace_period: "1d",
+          name: "E",
+          description: "d",
+          severity: "low",
+          declaration_text: "ok",
+        },
+      ],
+    };
+    writeFileSync(join(dir, "cat.json"), JSON.stringify(catalog));
+    const input: RenderInput = {
+      framework: "soc2",
+      evidence_id: "e",
+      completed_by: "x",
+      accepted: true,
+      catalog: "cat.json",
+    };
+    await expect(renderFromInput({ ...input, period: good }, dir)).resolves.toMatchObject({ period: good });
+    await expect(renderFromInput({ ...input, period: bad }, dir)).rejects.toThrow(
+      new RegExp(`input\\.period "${bad}" is not a ${frequency} period`),
+    );
   });
 
   it("refuses a checklist with a required item unticked", async () => {

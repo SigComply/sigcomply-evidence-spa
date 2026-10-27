@@ -147,7 +147,10 @@ directory, so `npm --prefix <spa> run verify-envelopes -- ./vault` works from an
 and any other JSON that passes `isEvidenceEnvelope`; everything else (`manifest.json`,
 `summary.json`, `result.json`, state shards) is skipped. It does not verify the run manifest.
 `render-evidence-pdf` takes the period from `completed_at` in the machine's local time zone, like
-the form; CI runs in UTC.
+the form; CI runs in UTC. It rejects input with an unknown field or a wrong type, a `framework`
+that isn't `[a-z0-9_]+` or (without `catalog`) isn't in `public/config.json`, notes for items the
+entry doesn't have, and a `period` that doesn't match the entry's frequency (`2026-05-15`,
+`2026-W20`, `2026-05`, `2026-Q2`, `2026`).
 
 Their tests (`scripts/*.test.ts`) build a CLI-shaped run folder from the `__fixtures__` envelopes
 and tamper with copies.
