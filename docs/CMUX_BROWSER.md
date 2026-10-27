@@ -16,7 +16,8 @@ Run this before the first browser step:
 cmux identify | jq -e '.caller.surface_ref' >/dev/null && cmux browser status
 ```
 
-Inside a cmux terminal it exits 0 and prints `enabled`. If `cmux` is not found, or the check fails,
+It needs `jq` (part of macOS 15 and later). Inside a cmux terminal it exits 0 and prints
+`enabled`; in any other terminal it fails. If `cmux` is not found, or the check fails,
 or the browser is disabled, stop before the browser step and ask the human to set cmux up:
 
 1. Install cmux: download it from https://cmux.com, or run
@@ -35,7 +36,7 @@ automation they have, and says which one in the report.
 - Drive the browser yourself. Never ask the human to open a page, click through a flow or read a
   page for you.
 - Ask the human only to sign in to a site behind their personal single sign-on. Never type their
-  real credentials. The local test accounts in the workflow doc are fine.
+  real credentials. The local test accounts the repo docs list are fine.
 - Other agent sessions may be running in other cmux panes, against the same app. Open your own
   surface, and never drive, reload or close a surface you didn't open. Never stop a server you
   didn't start: if the app's port is taken, find out whose server it is and use another port.
@@ -74,7 +75,7 @@ Prefix each with `cmux browser --surface $S`.
 | Structure | `snapshot --interactive --compact`, `snapshot --selector "form"`, `snapshot --max-depth <n>` |
 | Locate and read | `find role button --name "Save"`, `find text "Save"`, `find label/placeholder/testid <t>`, `get text/html/value <sel>`, `get attr <sel> --attr <name>`, `get count <sel>`, `is visible/enabled/checked <sel>` |
 | Interact | `click`, `dblclick`, `hover`, `fill <sel> "<text>"` (`""` clears), `type <sel> "<text>"` (key by key), `check`, `uncheck`, `select <sel> <value>`, `press Enter`, `scroll --dy 400`, `scroll-into-view <sel>` |
-| Files | `set-input-files --selector "input[type=file]" --file <absolute path>` (repeat `--file` for several) |
+| Files | `set-input-files --selector "input[type=file]" --file <absolute path>` (repeat `--file` for several), `download list --json` (each download's saved path, normally `~/Downloads`) |
 | Wait | `wait --selector <sel>`, `wait --text "<t>"`, `wait --load-state complete`, `wait --url-contains "<s>"`; `--timeout` is seconds, `--timeout-ms` milliseconds |
 | Debug | `screenshot --out <png>`, `console list`, `errors list`, `eval "<js>"` (an async IIFE works), `dialog accept/dismiss`, `highlight <sel>` |
 

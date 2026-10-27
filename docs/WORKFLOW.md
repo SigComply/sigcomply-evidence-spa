@@ -88,27 +88,30 @@ routing, styles, PDF generation and verification all reach the screen. Drive it 
 step 9, again after every review fix that touches it, and to reproduce a review finding about app
 behaviour.
 
-The browser is the cmux in-terminal browser. [CMUX_BROWSER.md](CMUX_BROWSER.md) has the setup check
-(run it first), the rules, the commands and the browser's quirks. If you aren't inside cmux, ask the
-human to set it up before the browser step (that file says how).
+The browser is the cmux in-terminal browser. Run the setup check in
+[CMUX_BROWSER.md](CMUX_BROWSER.md) first; that file also has the rules, the commands and the
+browser's quirks.
 
 1. Start the app in the background and wait until it answers:
 
    ```bash
-   npm run dev > /tmp/spa_dev.log 2>&1 & echo $! > /tmp/spa_dev.pid
-   for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5173/ && { echo ready; break; }; sleep 1; done
+   PORT=5173   # taken by another session's server? leave it running and pick a free port
+   npm run dev -- --strictPort --port $PORT > /tmp/spa_dev.$PORT.log 2>&1 & echo $! > /tmp/spa_dev.$PORT.pid
+   for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:$PORT/ && { echo ready; break; }; sleep 1; done
+   BASE=http://localhost:$PORT
    ```
 
-   `npm run dev` serves http://localhost:5173 from the committed catalogs. For a change to
-   bundling, lazy loading, routing or the base path, run `npm run build` (or the CLI-free build)
-   and `npm run preview` instead; that serves the shipped `dist/` bundle on
-   http://localhost:4173. If the port is taken by another session's server, leave it running and
-   pass `-- --port <free port>`.
+   `npm run dev` serves the committed catalogs. `--strictPort` makes Vite fail when the port is
+   taken instead of moving to the next one, so the loop can't report another session's server as
+   yours. For a change to bundling, lazy loading, routing or the base path, run `npm run build`
+   (or the CLI-free build) and `npm run preview -- --strictPort --port $PORT` instead; that serves
+   the shipped `dist/` bundle.
 2. Drive the flow the change touches:
    - **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration and a checklist
-     entry, fill the form, submit. Confirm `evidence.pdf` downloads and the upload-path screen
-     shows `{prefix}{evidence_id}/{period}/evidence.pdf` with the default prefix `manual/`. Open
-     the PDF and check the header block and metadata.
+     entry, fill the form, submit. Confirm `evidence.pdf` downloads (`download list --json` shows
+     where the browser saved it, normally `~/Downloads`; delete it when done) and the upload-path
+     screen shows `{prefix}{evidence_id}/{period}/evidence.pdf` with the default prefix `manual/`.
+     Open the PDF and check the header block and metadata.
    - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`
      (`set-input-files --selector "input[type=file]" --file <absolute path>`). The verdict must
      show pass ("Signature valid") with no button press. Change one character inside `records` and
@@ -125,7 +128,7 @@ human to set it up before the browser step (that file says how).
 
    Drop the filter to see the full list: the app's own static assets (Vite modules under
    `npm run dev`), `config.json` and `data/catalogs/*.json`.
-5. Tear down: `cmux close-surface --surface $S`, then `kill "$(cat /tmp/spa_dev.pid)"`.
+5. Tear down: `cmux close-surface --surface $S`, then `kill "$(cat /tmp/spa_dev.$PORT.pid)"`.
 
 Only code whose output no page uses (lint config, test helpers) is covered by the unit suite
 alone; say so in the report. A refactor of code a page uses still gets driven, and so does a
