@@ -45,6 +45,10 @@ doc.
 11. Nothing leaves the browser. Never add a backend, an upload, analytics, a third-party script or
     a network call that sends user data anywhere.
 12. Change a CLI contract (table below) only together with the matching `sigcomply-cli` change.
+13. Drive every change that can alter what the app renders or does in a real browser, again after
+    review fixes (`docs/WORKFLOW.md` "Verify in the real product"). The browser is cmux
+    (`docs/CMUX_BROWSER.md`). Run its setup check first; if you aren't inside cmux, ask the human
+    to set it up rather than to click through the flow for you.
 
 ## Commands
 
@@ -68,6 +72,8 @@ git hooks; machine-local ones are in `AGENTS.local.md`.
 
 - `docs/WORKFLOW.md`: start of every task. Gate, CI and deploy, browser checks, doc routing.
 - `docs/TESTING.md`: before adding or changing tests. Fixtures, crypto contract tests, gaps.
+- `docs/CMUX_BROWSER.md`: the cmux browser: setup check, rules, commands, quirks. Shared
+  byte-for-byte with the other SigComply web app repo.
 - `README.md` (users and self-hosters), `SECURITY.md` (reporters and auditors; owns "What
   `/verify` proves"), `CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/*`: customer-facing.
 - In-app copy (form labels, upload-path screen, `/verify` verdicts): customer-facing.

@@ -86,25 +86,46 @@ Every change that can alter what the app renders or does is verified by driving 
 browser. That covers more than components: `src/lib/` code a page calls, catalogs, runtime config,
 routing, styles, PDF generation and verification all reach the screen. Drive it at task-workflow
 step 9, again after every review fix that touches it, and to reproduce a review finding about app
-behaviour. Use whatever browser automation your harness provides; this machine's browser setup is
-in `AGENTS.local.md` (if present).
+behaviour.
 
-1. Start the app. `npm run dev` serves http://localhost:5173 from the committed catalogs. For a
-   change to bundling, lazy loading, routing or the base path, run `npm run build` (or the
-   CLI-free build) and `npm run preview` instead; that serves the shipped `dist/` bundle.
+The browser is the cmux in-terminal browser. [CMUX_BROWSER.md](CMUX_BROWSER.md) has the setup check
+(run it first), the rules, the commands and the browser's quirks. If you aren't inside cmux, ask the
+human to set it up before the browser step (that file says how).
+
+1. Start the app in the background and wait until it answers:
+
+   ```bash
+   npm run dev > /tmp/spa_dev.log 2>&1 & echo $! > /tmp/spa_dev.pid
+   for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:5173/ && { echo ready; break; }; sleep 1; done
+   ```
+
+   `npm run dev` serves http://localhost:5173 from the committed catalogs. For a change to
+   bundling, lazy loading, routing or the base path, run `npm run build` (or the CLI-free build)
+   and `npm run preview` instead; that serves the shipped `dist/` bundle on
+   http://localhost:4173. If the port is taken by another session's server, leave it running and
+   pass `-- --port <free port>`.
 2. Drive the flow the change touches:
    - **Form → PDF** (`/`, `/evidence/:framework/:evidenceId`): pick a declaration and a checklist
      entry, fill the form, submit. Confirm `evidence.pdf` downloads and the upload-path screen
      shows `{prefix}{evidence_id}/{period}/evidence.pdf` with the default prefix `manual/`. Open
      the PDF and check the header block and metadata.
-   - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`.
-     The verdict must show pass with no button press. Change one character inside `records` and
+   - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`
+     (`set-input-files --selector "input[type=file]" --file <absolute path>`). The verdict must
+     show pass ("Signature valid") with no button press. Change one character inside `records` and
      confirm the verdict flips to fail. For manual-flow changes, use
      `sample-envelope-v1-manual.json`; for fan-out changes, `sample-envelope-v1-fanout.json` and
      its two `sample-envelope-v1-fanout.<vendor>.pdf` files.
 3. Confirm route changes from the rendered page, not the address bar.
-4. For a change near data handling, check the browser's network log: the only requests are the
-   app's own static assets, `config.json` and `data/catalogs/*.json`.
+4. For a change near data handling, check what the page requested. After a fresh `goto` and the
+   flow, this must print `[]` (no request left the app's own origin):
+
+   ```bash
+   cmux browser --surface $S eval "performance.getEntriesByType('resource').map(e => e.name).filter(n => !n.startsWith(location.origin))"
+   ```
+
+   Drop the filter to see the full list: the app's own static assets (Vite modules under
+   `npm run dev`), `config.json` and `data/catalogs/*.json`.
+5. Tear down: `cmux close-surface --surface $S`, then `kill "$(cat /tmp/spa_dev.pid)"`.
 
 Only code whose output no page uses (lint config, test helpers) is covered by the unit suite
 alone; say so in the report. A refactor of code a page uses still gets driven, and so does a
