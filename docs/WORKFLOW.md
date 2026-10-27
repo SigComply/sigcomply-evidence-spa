@@ -13,14 +13,16 @@ environment.
   `npm run test:e2e` (Playwright, Chromium and WebKit).
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
-  daily at 07:00 UTC, and on `workflow_dispatch`. Three jobs:
+  daily at 07:00 UTC, and on `workflow_dispatch`. Four jobs:
   - `build` (`contents: read`, checkout without persisted credentials): `npm ci`,
     `npm audit --audit-level=high` (hard gate), install the latest `sigcomply` CLI release
     (resolved from `releases/latest` at run time; the tarball's SHA-256 must match the release's
     `checksums.txt` before it is extracted), `npm run build` with `VITE_BASE_PATH=/<repo-name>/`,
-    copy `index.html` to `404.html` for client-side routes, then the gate on that build: lint,
-    `npm run test:coverage` and Playwright against the `dist/` about to ship (`E2E_DIST=dist`).
-    Only then does it upload `dist/` as the Pages artifact.
+    copy `index.html` to `404.html` for client-side routes, then lint and
+    `npm run test:coverage`. It hands `dist/` to the next job as an artifact.
+  - `e2e` (in the `mcr.microsoft.com/playwright` image, so no apt mirror is involved; keep its tag
+    equal to `@playwright/test` in `package-lock.json`, here and in `ci.yml`): Playwright against
+    that exact `dist/` (`E2E_DIST=dist`). Only a green run uploads `dist/` as the Pages artifact.
   - `deploy` (`pages: write`, `id-token: write`): publishes that artifact. It checks out nothing
     and runs no repo code.
   - `smoke`: runs `e2e/smoke.live.spec.ts` against the live URL (home loads a catalog, `/verify`

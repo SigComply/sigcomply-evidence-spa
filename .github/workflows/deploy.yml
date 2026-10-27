@@ -106,9 +106,48 @@ jobs:
       - name: Unit and component tests with coverage floors
         run: npm run test:coverage
 
-      - name: Install Playwright browsers
-        timeout-minutes: 10
-        run: npx playwright install --with-deps chromium webkit
+      - name: Hand the tested build to the E2E job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site
+          path: dist
+          retention-days: 1
+
+  # Playwright on the exact dist/ built above, in Playwright's image: it ships
+  # the browsers and their system libraries, so the deploy never waits on an
+  # Ubuntu package mirror (a slow mirror stalled `install --with-deps` past
+  # its timeout). Keep the tag equal to @playwright/test in package-lock.json.
+  # Only a green run uploads the Pages artifact.
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site
+          path: dist
+
+      # A no-op when the image matches the lockfile; downloads only the
+      # browsers (no apt) if they ever drift apart.
+      - name: Ensure Playwright browsers match the lockfile
+        run: npx playwright install chromium webkit
 
       - name: E2E on the dist/ about to be deployed
         run: npm run test:e2e
@@ -130,10 +169,10 @@ jobs:
         with:
           path: dist
 
-  # Publishes the artifact the build job tested. No checkout, no npm: the
+  # Publishes the artifact the e2e job tested. No checkout, no npm: the
   # only job holding pages: write and id-token: write runs no repo code.
   deploy:
-    needs: build
+    needs: e2e
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -159,6 +198,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -171,8 +213,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Ensure Chromium matches the lockfile
+        run: npx playwright install chromium
 
       - name: Smoke test the live site
         run: npm run test:e2e:live
