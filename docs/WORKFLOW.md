@@ -97,13 +97,18 @@ browser's quirks.
    ```bash
    PORT=5173   # taken by another session's server? leave it running and pick a free port
    npm run dev -- --strictPort --port $PORT > /tmp/spa_dev.$PORT.log 2>&1 & echo $! > /tmp/spa_dev.$PORT.pid
-   for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:$PORT/ && { echo ready; break; }; sleep 1; done
+   for i in $(seq 1 30); do
+     grep -q "Local:" /tmp/spa_dev.$PORT.log && { echo ready; break; }
+     kill -0 "$(cat /tmp/spa_dev.$PORT.pid)" 2>/dev/null || { echo "vite exited: see the log"; break; }
+     sleep 1
+   done
    BASE=http://localhost:$PORT
    ```
 
-   `npm run dev` serves the committed catalogs. `--strictPort` makes Vite fail when the port is
-   taken instead of moving to the next one, so the loop can't report another session's server as
-   yours. For a change to bundling, lazy loading, routing or the base path, run `npm run build`
+   `npm run dev` serves the committed catalogs. `--strictPort` makes Vite exit when the port is
+   taken instead of moving to the next one. The loop waits for your Vite's own `Local:` line, not
+   for the port to answer, so another session's server on that port can't pass for yours. On "vite exited", read the log, pick another port and
+   start again. For a change to bundling, lazy loading, routing or the base path, run `npm run build`
    (or the CLI-free build) and `npm run preview -- --strictPort --port $PORT` instead; that serves
    the shipped `dist/` bundle.
 2. Drive the flow the change touches:

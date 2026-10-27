@@ -47,9 +47,8 @@ automation they have, and says which one in the report.
 
 ```bash
 # 1. Start the app (see the workflow doc) and wait until it answers.
-# 2. Open your own surface. It prints a handle such as "OK surface=surface:34 ..."; keep it.
-cmux browser open "$BASE/"
-S=surface:34
+# 2. Open your own surface and keep its handle (open prints "OK surface=surface:34 ...").
+S=$(cmux browser open "$BASE/" | grep -o 'surface:[0-9]*')
 # 3. Act and check.
 cmux browser --surface $S goto "$BASE/some/page"
 cmux browser --surface $S wait --selector "#something" --timeout 10
