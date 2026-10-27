@@ -75,10 +75,9 @@ No git hook runs this gate (see "Commands" in `AGENTS.md`). Running it is your j
 | Crypto contract | `src/lib/verification/{canonical,verify}.test.ts` with CLI-produced fixtures in `src/lib/verification/__fixtures__/` | `npm run test` | Any change to canonicalization, signature verification or the envelope type. Refresh fixtures from the CLI, never by hand. |
 | End-to-end | None automated | Agent-driven browser check (next section) | Any change that can alter what the app renders or does |
 
-Tests run in Vitest's Node environment. jsdom, `@testing-library/react` and Playwright are not
-installed, so there are no component or browser tests. Adding one of them is a deliberate
-dependency change: put it in the plan. `docs/TESTING.md` has the fixture rules, the coverage gap
-and the Web Crypto and PDF specifics.
+Tests run in Vitest's Node environment; a component test opts into jsdom per file. Playwright is
+not installed, so there are no browser tests. `docs/TESTING.md` has the fixture rules, the coverage
+floors and the Web Crypto and PDF specifics.
 
 ## Verify in the real product
 

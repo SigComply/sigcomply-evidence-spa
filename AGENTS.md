@@ -54,9 +54,10 @@ doc.
 
 | Purpose | Command | Notes |
 |---|---|---|
-| Install | `npm ci` | `npm install` needs npm >= 11 (see Gotchas). |
+| Install | `npm ci` | Node 24 (`.nvmrc`). `npm install` needs npm >= 11 (see Gotchas). |
 | Dev server | `npm run dev` | http://localhost:5173, uses the committed catalogs; no CLI needed. |
-| Unit tests | `npm run test` | `vitest run`, Node environment, no jsdom. |
+| Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
+| Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
 | Lint | `npm run lint` | `eslint .`. No formatter. |
 | Typecheck | `npx tsc -b` | No npm script. |
 | Build | `npm run build` | `prebuild` runs `fetch-catalogs` (needs `sigcomply` on `PATH`, fatal on any error), then `tsc -b && vite build`. |

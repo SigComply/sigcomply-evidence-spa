@@ -5,16 +5,15 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
 
 ## Toolchain
 
-- **Runner:** [Vitest](https://vitest.dev) (`vitest run`). Config is inherited from
-  [`vite.config.ts`](../vite.config.ts) — there is no separate `vitest.config.ts` and no custom test
-  block, so tests run in Vitest's **default Node environment** (no jsdom). The `@/…` path alias
+- **Runner:** [Vitest](https://vitest.dev) (`vitest run`). Config is the `test` block in
+  [`vite.config.ts`](../vite.config.ts). Tests run in Vitest's **Node environment**; a component
+  test opts into jsdom with `// @vitest-environment jsdom` as its first line. The `@/…` path alias
   resolves in tests because Vitest reuses the Vite `resolve.alias`.
-- **No coverage config**, no coverage gate, no threshold. `vitest run --coverage` works ad hoc but
-  nothing enforces a floor.
-- **No Playwright, no `@testing-library/react`, no jsdom** installed. There are **no
-  component/DOM tests** and no end-to-end browser tests. Any change that can alter what the app
-  renders or does is driven by hand in a real browser, again after review fixes. See
-  [WORKFLOW.md → Verify in the real product](WORKFLOW.md#verify-in-the-real-product).
+- **Coverage:** `@vitest/coverage-v8`. `npm run test:coverage` fails when `src/lib/**` or
+  `src/config/**` drop below the floors in `vite.config.ts`. Raise a floor when
+  coverage goes up; never lower one to get green.
+- **Component tests:** `jsdom`, `@testing-library/react` and `@testing-library/user-event`.
+- **Node:** 24 (`.nvmrc`, `engines`). Vitest 5 does not support Node 23.
 
 ## Commands
 
@@ -22,7 +21,7 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
 npm run test              # vitest run — one-shot, what you run before pushing
 npx vitest                # watch mode during development
 npx vitest run <path>     # a single file, e.g. src/lib/verification/canonical.test.ts
-npx vitest run --coverage # ad-hoc coverage (no config, no threshold)
+npm run test:coverage     # coverage with the floors enforced
 ```
 
 `npm run test` is one of the four local gates in [WORKFLOW.md → Gate](WORKFLOW.md#gate-run-before-every-commit)
