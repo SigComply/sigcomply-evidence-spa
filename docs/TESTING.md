@@ -13,6 +13,7 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   `src/config/**` or `src/hooks/**` drop below the floors in `vite.config.ts`. Raise a floor when
   coverage goes up; never lower one to get green.
 - **Component tests:** `jsdom`, `@testing-library/react` and `@testing-library/user-event`.
+- **E2E:** `@playwright/test`, Chromium and WebKit projects (`playwright.config.ts`).
 - **Node:** 24 (`.nvmrc`, `engines`). Vitest 5 does not support Node 23.
 
 ## Commands
@@ -133,6 +134,28 @@ the form; CI runs in UTC.
 
 Their tests (`scripts/*.test.ts`) build a CLI-shaped run folder from the `__fixtures__` envelopes
 and tamper with copies.
+
+## E2E (Playwright)
+
+`npm run test:e2e` builds `dist-e2e/` with the GitHub Pages base path (`npm run build:e2e`, which
+also copies `index.html` to `404.html` as `deploy.yml` does) and serves it with
+`e2e/pages-server.ts`. That server behaves like Pages, not like `vite preview`: a missing path
+answers `404.html` with status 404, so deep links boot the app through the 404 page and a missing
+catalog is a real 404. Set `E2E_DIST=dist` to test an existing Pages build instead (deploy does,
+after `npm run build`). Port 4791 (`E2E_PORT`); the server is never reused, so a port held by
+another session fails fast instead of testing someone else's build.
+
+- Specs: `e2e/form.spec.ts` (form → `evidence.pdf` download, keywords, upload path, config
+  overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
+  no Web Crypto), `e2e/routing.spec.ts` (deep links, in-app 404, picker, missing catalog, missing
+  `config.json`).
+- `e2e/fixtures.ts` exports `test` with an automatic check that no request leaves the app's
+  origin. Import `test` from there, never from `@playwright/test`.
+- Time: `page.clock.setFixedTime(...)` with `timezoneId: "UTC"` (set in the config) pins the
+  period. No sleeps: wait on locators, `waitForEvent("download")` or `waitForResponse`.
+- Config overrides: `page.route("**/config.json", ...)`.
+- `e2e/smoke.live.spec.ts` runs only under `playwright.live.config.ts`, against the live site.
+- Failures keep a trace in `test-results/`: `npx playwright show-trace <zip>`.
 
 ## Component tests
 

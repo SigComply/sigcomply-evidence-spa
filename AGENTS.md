@@ -58,6 +58,8 @@ doc.
 | Dev server | `npm run dev` | http://localhost:5173, uses the committed catalogs; no CLI needed. |
 | Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
+| E2E | `npm run test:e2e` (`npx playwright test`) | Playwright, Chromium and WebKit, on a fresh `dist-e2e/` build served like GitHub Pages (`e2e/pages-server.ts`). Browsers: `npx playwright install chromium webkit` once. |
+| Live smoke | `npm run test:e2e:live` | `e2e/smoke.live.spec.ts` against the live site; deploy runs it after each deploy. |
 | Lint | `npm run lint` | `eslint .`. No formatter. |
 | Typecheck | `npx tsc -b` | No npm script. |
 | Build | `npm run build` | `prebuild` runs `fetch-catalogs` (needs `sigcomply` on `PATH`, fatal on any error), then `tsc -b && vite build`. |
@@ -66,7 +68,7 @@ doc.
 | Preview the bundle | `npm run preview` | Serves `dist/`. |
 | Verify a vault | `npm run verify-envelopes -- <dir> [--require-attachments]` | Node entry point for the E2E repos: verifies every envelope under `<dir>` with the `/verify` code, and each manual PDF in `attachments/`. Exit 0 only if at least one envelope was found and all verify. |
 | Render a PDF | `npm run render-evidence-pdf -- --input <json> --out <pdf>` | The form's PDF from JSON (`scripts/examples/`); prints the upload path. |
-| Full gate | `npm run lint && npx tsc -b && npm run test && npm run build` | Before every commit. |
+| Full gate | `npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e` | Before every commit. |
 
 `VITE_BASE_PATH` sets the base path (default `/`; the Pages build sets `/<repo-name>/`). No tracked
 git hooks; machine-local ones are in `AGENTS.local.md`.

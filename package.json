@@ -17,7 +17,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "verify-envelopes": "tsx --tsconfig tsconfig.app.json scripts/verify-envelopes.ts",
-    "render-evidence-pdf": "tsx --tsconfig tsconfig.app.json scripts/render-evidence-pdf.ts"
+    "render-evidence-pdf": "tsx --tsconfig tsconfig.app.json scripts/render-evidence-pdf.ts",
+    "build:e2e": "vite build --base /sigcomply-evidence-spa/ --outDir dist-e2e && cp dist-e2e/index.html dist-e2e/404.html",
+    "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test -c playwright.live.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

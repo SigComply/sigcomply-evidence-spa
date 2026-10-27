@@ -42,3 +42,4 @@ lefthook-local.yml
 coverage
 playwright-report
 test-results
+dist-e2e
