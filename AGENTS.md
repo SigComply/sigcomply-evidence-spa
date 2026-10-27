@@ -116,8 +116,10 @@ Code map: routes in `src/App.tsx`; pages in `src/pages/`; pure logic in `src/lib
 
 Rules:
 
-- Nothing checks the TypeScript catalog types against the Go struct. When either changes, compare
-  field by field (JSON tags and `omitempty` against optional `?`).
+- `fetch-catalogs` checks the CLI output strictly against `src/types/catalog.ts`
+  (`src/lib/catalog-validate.ts`): an unknown field, a missing required field or an unknown enum
+  value fails the build. When the Go struct changes, update the types and the validator together
+  (JSON tags and `omitempty` against optional `?`).
 - The signed bytes are `canonicalJSON({format_version, produced_at, records})`: sorted keys, no
   whitespace, `\u` escapes for control characters, U+2028 and U+2029 only, no HTML escaping, and
   numbers kept as their source lexeme (`parseJSONPreservingNumbers`). Pass the original envelope
@@ -158,7 +160,8 @@ replace `config.json` without a rebuild; the public site ships the committed fil
 - New PDF template: a `<Foo>Pdf.tsx` in `src/lib/pdf/`, wired in `renderEvidencePdf`. The PDF Info
   `keywords` string comes from `metadataKeywords()` in `src/lib/pdf/metadata.ts`; keep it stable.
 - New framework: add it to `public/config.json`, then `npm run fetch-catalogs`.
-- `localStorage` keys use the `sigcomply:` prefix and are never compliance status.
+- `localStorage` keys use the `sigcomply:` prefix and are never compliance status. Read and write
+  them through `src/lib/local-prefs.ts` or `device-memory.ts`, which survive storage that throws.
 - Imports use `@/...`. Plain `fetch`; no data-fetching library.
 - Lazy-load `@react-pdf/renderer` inside the submit handler (`useEvidenceForm`).
 - Crypto stays in `crypto.subtle`. No JS Ed25519 library, no polyfill.

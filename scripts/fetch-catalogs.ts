@@ -1,7 +1,9 @@
 import { execSync } from "child_process";
 import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
+import { validateCatalog } from "../src/lib/catalog-validate.ts";
+import type { Catalog } from "../src/types/catalog.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
@@ -33,6 +35,45 @@ function run(cmd: string): string {
   return execSync(cmd, { encoding: "utf-8" }).trim();
 }
 
+// SPA only renders user-attestation entries. document_upload entries are
+// produced externally and uploaded directly to the bucket — filter them out at
+// build time so they never reach the browser.
+const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
+
+/**
+ * Parses one framework's CLI output, checks it strictly against
+ * src/types/catalog.ts and drops the entries the SPA doesn't render. Throws
+ * with every shape error, so a CLI catalog change the types don't describe
+ * fails the build.
+ */
+export function prepareCatalog(
+  json: string,
+  framework: string,
+): { catalog: Catalog; before: number; after: number } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch (err) {
+    throw new Error(
+      `\`sigcomply evidence catalog --framework ${framework}\` emitted malformed JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+      { cause: err },
+    );
+  }
+  const { catalog, errors } = validateCatalog(raw, framework);
+  if (!catalog) {
+    throw new Error(
+      `catalog for ${framework} does not match src/types/catalog.ts. Update ` +
+        `the types (and this check) together with the CLI change:\n  ` +
+        errors.join("\n  "),
+    );
+  }
+  const before = catalog.entries.length;
+  const entries = catalog.entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type));
+  return { catalog: { ...catalog, entries }, before, after: entries.length };
+}
+
 function main() {
   // Check sigcomply binary exists
   try {
@@ -50,10 +91,6 @@ function main() {
   mkdirSync(catalogsDir, { recursive: true });
 
   const frameworks = frameworksFromConfig();
-  // SPA only renders user-attestation entries. document_upload entries are
-  // produced externally and uploaded directly to the bucket — filter them
-  // out at build time so they never reach the browser.
-  const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
   for (const fw of frameworks) {
     console.log(`Fetching catalog for ${fw}...`);
@@ -77,28 +114,13 @@ function main() {
       );
     }
 
-    let catalog: { entries?: unknown };
+    let prepared: ReturnType<typeof prepareCatalog>;
     try {
-      catalog = JSON.parse(json) as { entries?: unknown };
+      prepared = prepareCatalog(json, fw);
     } catch (err) {
-      fail(
-        `\`sigcomply evidence catalog --framework ${fw}\` emitted malformed JSON: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
+      fail(err instanceof Error ? err.message : String(err));
     }
-
-    if (!Array.isArray(catalog.entries)) {
-      fail(
-        `catalog for ${fw} has no \`entries\` array — the CLI's catalog shape ` +
-          `has changed or the wrong command output was captured.`
-      );
-    }
-
-    const entries = catalog.entries as Array<{ type: string }>;
-    const before = entries.length;
-    catalog.entries = entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type));
-    const after = (catalog.entries as unknown[]).length;
+    const { catalog, before, after } = prepared;
     writeFileSync(
       join(catalogsDir, `${fw}.json`),
       JSON.stringify(catalog, null, 2) + "\n"
@@ -111,4 +133,8 @@ function main() {
   console.log("Done.");
 }
 
-main();
+// Run only when executed (`tsx scripts/fetch-catalogs.ts`), not when a test
+// imports prepareCatalog.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

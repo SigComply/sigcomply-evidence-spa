@@ -9,8 +9,8 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   [`vite.config.ts`](../vite.config.ts). Tests run in Vitest's **Node environment**; a component
   test opts into jsdom with `// @vitest-environment jsdom` as its first line. The `@/…` path alias
   resolves in tests because Vitest reuses the Vite `resolve.alias`.
-- **Coverage:** `@vitest/coverage-v8`. `npm run test:coverage` fails when `src/lib/**` or
-  `src/config/**` drop below the floors in `vite.config.ts`. Raise a floor when
+- **Coverage:** `@vitest/coverage-v8`. `npm run test:coverage` fails when `src/lib/**`,
+  `src/config/**` or `src/hooks/**` drop below the floors in `vite.config.ts`. Raise a floor when
   coverage goes up; never lower one to get green.
 - **Component tests:** `jsdom`, `@testing-library/react` and `@testing-library/user-event`.
 - **Node:** 24 (`.nvmrc`, `engines`). Vitest 5 does not support Node 23.
@@ -29,19 +29,39 @@ npm run test:coverage     # coverage with the floors enforced
 
 ## Layout
 
-Tests are **colocated** next to the code they cover: `foo.ts` → `foo.test.ts` in the same directory.
-Test fixtures live in a sibling `__fixtures__/` directory.
+Tests are **colocated** next to the code they cover: `foo.ts` → `foo.test.ts` (`Foo.tsx` →
+`Foo.test.tsx`) in the same directory. Test fixtures live in a sibling `__fixtures__/` directory.
+Shared component-test helpers live in `src/test/`.
 
 ```
+scripts/
+  fetch-catalogs.ts       fetch-catalogs.test.ts   ← validate + filter, fixed point on committed catalogs
 src/config/
-  runtime.ts              runtime.test.ts   ← default upload prefix equals the CLI's ("manual/")
+  runtime.ts              runtime.test.ts   ← CLI default prefix, config.json fallback matrix
+src/hooks/
+  useCatalog.ts           useCatalog.test.ts      (jsdom)
+src/pages/                                        (jsdom, testing-library)
+  Dashboard.tsx           Dashboard.test.tsx      ← picker, stored framework, storage that throws
+  EvidenceForm.tsx        EvidenceForm.test.tsx   ← submit flow, validation, upload path
+  Verify.tsx              Verify.test.tsx         ← valid / tampered / bignum / PDF match verdicts
+src/types/
+  envelope.ts             envelope.test.ts        ← isEvidenceEnvelope negatives
 src/lib/
+  catalog-validate.ts     catalog-validate.test.ts ← strict catalog shape, run by fetch-catalogs
+  evidence-form.ts        evidence-form.test.ts   ← validation and form → PdfInput mapping
+  local-prefs.ts          local-prefs.test.ts     ← localStorage that throws or is missing
+  device-memory.ts        device-memory.test.ts
   period.ts               period.test.ts
   storage-path.ts         storage-path.test.ts
+  pdf/
+    metadata.ts           metadata.test.ts        ← the keywords contract string
+    render.tsx            render.test.tsx         ← real PDF in Node: %PDF header, Info keywords
+    pdf-info.ts           pdf-info.test.ts        ← reads Info strings for the tests
   verification/
     canonical.ts          canonical.test.ts
-    verify.ts             verify.test.ts
+    verify.ts             verify.test.ts    ← plus bad base64, key/signature length, no Ed25519
     manual.ts             manual.test.ts    ← manual-record hashes and fan-out member verdicts
+    parse-envelope.ts     parse-envelope.test.ts ← JSON errors, shape, format_version, raw text kept
     __fixtures__/
       sample-envelope-v1.json                 ← CLI-produced envelope (automated flow)
       sample-envelope-v1-manual.json          ← CLI-produced envelope (manual flow)
@@ -59,21 +79,12 @@ also asserts the bignum envelope verifies **only** when the raw text is passed t
 `verifyEnvelopeSignature` — the object path (rounded) must fail, which is exactly why `Verify.tsx`
 keeps the original source text.
 
-## Coverage and the gap
+## Coverage
 
-The suite covers the **`/verify` crypto path** — `src/lib/verification/{canonical,verify,manual}.ts` — plus
-the pure-function helpers `src/lib/period.ts` (period keys/ranges, incl. ISO week-year and W53
-boundaries), `src/lib/storage-path.ts` (upload-path building) and the default storage prefix in
-`src/config/runtime.ts` and `public/config.json`. Still **untested**:
-
-- the entire **form → PDF** app (`useEvidenceForm`, `renderEvidencePdf`, the PDF components),
-- PDF metadata strings (`src/lib/pdf/metadata.ts`),
-- all React components, hooks, and pages (verified manually in a browser instead),
-
-This is a known gap, not a decision that these don't need tests. **The expectation going forward: new
-or changed logic ships with tests in the same commit** (see [WORKFLOW.md → Test layers](WORKFLOW.md#test-layers)).
-The cheap, high-value targets are the **pure functions** in `src/lib/` — canonicalization, period
-boundaries, path templates, metadata key=value strings. Prefer testing those over the React shell.
+`npm run test:coverage` enforces floors on `src/lib/**`, `src/config/**` and `src/hooks/**`
+(`vite.config.ts`). Pages and components are covered by the jsdom tests in `src/pages/` and by the
+Playwright suite, without a floor. New or changed logic ships with tests in the same commit. Put
+logic in a pure function in `src/lib/` and test it there; keep the React shell thin.
 
 ## The crypto contract tests (don't break these)
 
@@ -96,21 +107,20 @@ load-bearing tests in the repo:
 **Web Crypto note:** `verify.ts` uses `crypto.subtle` with the `Ed25519` algorithm. This works in the
 Node version the tests run under without any polyfill — do **not** add
 `tweetnacl`/`noble-ed25519` to make tests pass. Browser-support gating lives in `verify.ts`
-(`WebCryptoUnsupportedError`); in the test environment Ed25519 is present, so the graceful-degradation
-path is not exercised by the suite.
+(`WebCryptoUnsupportedError`); `verify.test.ts` covers it by stubbing `crypto` and `importKey`.
 
 ## Testing PDF generation
 
-`@react-pdf/renderer` is heavy and lazy-imported. If you add tests for PDF output, prefer testing the
-**inputs** — the pure functions that build the PDF input shape and metadata (`metadataKeywords()`,
-the `PdfInput` mapping) — rather than rendering and byte-diffing a PDF, which is slow and brittle. The
-CLI does not parse PDF contents (presence + hash only), so the metadata *strings* are the
-contract worth pinning, not the rendered layout.
+`@react-pdf/renderer` runs in Node, so `render.test.tsx` renders real PDFs (about 50 ms each) and
+checks the `%PDF` header and the Info `Keywords` string with `readPdfInfoString`. Don't byte-diff
+PDFs: the CLI only hashes the file, so the `keywords` string is the contract worth pinning, not the
+layout. Test the inputs (`buildPdfInput`, `metadataKeywords`) for everything else.
 
-## Adding component/DOM tests (if a change ever needs them)
+## Component tests
 
-Not possible out of the box — jsdom and `@testing-library/react` are not installed. If a
-component genuinely needs a rendering test, that's a real dependency addition (`jsdom` +
-`@testing-library/react` + a `test.environment: "jsdom"` block in `vite.config.ts`): flag it, add it
-deliberately, and update this doc. Don't add it silently. Most logic can and should be extracted into
-a testable pure function in `src/lib/` instead, keeping the React shell thin.
+Start the file with `// @vitest-environment jsdom`. Serve `config.json` and catalogs with
+`serveJson` from `src/test/component-env.ts`, call `loadConfig()` before rendering a page, and
+`vi.resetModules()` after each test (config and catalogs are module-level caches). Mock
+`@/lib/pdf/render` and `@/lib/download` in form tests; the real renderer is covered in Node.
+`userEvent.setup({ applyAccept: false })` lets a test hand a file input a file its picker would
+hide, as a drag-and-drop can.

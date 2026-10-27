@@ -25,14 +25,16 @@ export default defineConfig({
         "src/components/ui/**",
         "src/types/**",
         "src/main.tsx",
+        "src/test/**",
       ],
       reporter: ["text", "html", "json-summary"],
       // Floors for the logic layers, set a little under what the suite
       // reaches. Raise them when coverage goes up; never lower them to get
       // green.
       thresholds: {
-        "src/lib/**": { lines: 40, statements: 40, functions: 25, branches: 45 },
-        "src/config/**": { lines: 70, statements: 65, functions: 70, branches: 45 },
+        "src/lib/**": { lines: 94, statements: 94, functions: 96, branches: 87 },
+        "src/config/**": { lines: 98, statements: 98, functions: 98, branches: 98 },
+        "src/hooks/**": { lines: 98, statements: 98, functions: 98, branches: 69 },
       },
     },
   },

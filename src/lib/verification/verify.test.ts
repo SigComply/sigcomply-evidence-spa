@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { verifyEnvelopeSignature } from "./verify";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  sha256Hex,
+  verifyEnvelopeSignature,
+  WebCryptoUnsupportedError,
+} from "./verify";
 import { isEvidenceEnvelope, type EvidenceEnvelope } from "@/types/envelope";
 import sampleEnvelope from "./__fixtures__/sample-envelope-v1.json";
 import manualEnvelope from "./__fixtures__/sample-envelope-v1-manual.json";
@@ -108,5 +112,62 @@ describe("verifyEnvelopeSignature", () => {
       const result = await verifyEnvelopeSignature(env);
       expect(result.valid).toBe(false);
     });
+  });
+
+  describe("malformed signature block", () => {
+    // 32 and 64 zero bytes, base64.
+    const KEY_31 = btoa("\0".repeat(31));
+    const SIG_63 = btoa("\0".repeat(63));
+
+    it.each([
+      ["public_key", "not base64!", /public_key is not valid base64/],
+      ["public_key", KEY_31, /public key must be 32 bytes; got 31/],
+      ["value", "%%%", /signature\.value is not valid base64/],
+      ["value", SIG_63, /signature must be 64 bytes; got 63/],
+    ] as const)("rejects a bad %s (%s)", async (field, value, reason) => {
+      const env = loadFixture(deepClone(sampleEnvelope));
+      env.signature[field] = value;
+      const result = await verifyEnvelopeSignature(env);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toMatch(reason);
+      // The canonical bytes are still reported so the UI can show them.
+      expect(result.signedBytes).toContain('"format_version":"envelope.v1"');
+    });
+  });
+
+  describe("browser without Ed25519", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it("throws WebCryptoUnsupportedError when crypto.subtle is missing", async () => {
+      vi.stubGlobal("crypto", {});
+      const env = loadFixture(deepClone(sampleEnvelope));
+      await expect(verifyEnvelopeSignature(env)).rejects.toBeInstanceOf(
+        WebCryptoUnsupportedError,
+      );
+    });
+
+    it("throws WebCryptoUnsupportedError when importKey rejects Ed25519", async () => {
+      vi.spyOn(crypto.subtle, "importKey").mockRejectedValue(
+        new DOMException("Unrecognized name.", "NotSupportedError"),
+      );
+      const env = loadFixture(deepClone(sampleEnvelope));
+      const err = await verifyEnvelopeSignature(env).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(WebCryptoUnsupportedError);
+      expect((err as Error).message).toMatch(/does not support Ed25519/);
+      expect((err as Error).message).toMatch(/Unrecognized name/);
+    });
+  });
+});
+
+describe("sha256Hex", () => {
+  it("returns lowercase hex of the SHA-256 digest", async () => {
+    const bytes = new TextEncoder().encode("abc");
+    const buf = bytes.buffer.slice(0, bytes.byteLength) as ArrayBuffer;
+    expect(await sha256Hex(buf)).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
   });
 });

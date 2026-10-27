@@ -1,7 +1,13 @@
 import { useState, useCallback } from "react";
 import type { CatalogEntry } from "@/types/catalog";
-import type { PdfInput } from "@/types/pdf-input";
-import type { ChecklistItemState } from "@/components/forms/ChecklistForm";
+import {
+  buildPdfInput,
+  evidenceFieldErrors,
+  initialItems,
+  validateEvidence,
+  type ChecklistItemState,
+} from "@/lib/evidence-form";
+import { readPref, writePref } from "@/lib/local-prefs";
 import { currentPeriod } from "@/lib/period";
 import {
   computeUploadPath,
@@ -10,6 +16,8 @@ import {
 import { downloadBlob } from "@/lib/download";
 import { markGenerated } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
+
+const COMPLETED_BY_KEY = "sigcomply:completed-by";
 
 // useEvidenceForm manages local form state for one catalog entry, validates on
 // submit, lazy-loads the PDF renderer, and triggers a browser download of
@@ -27,7 +35,7 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   // Checklist state — initialized from the catalog so every item has an entry
   // we can mutate as the user ticks boxes.
   const [items, setItems] = useState<ChecklistItemState[]>(() =>
-    (entry.items ?? []).map((i) => ({ id: i.id, checked: false, notes: "" }))
+    initialItems(entry)
   );
   const setItem = useCallback(
     (id: string, patch: Partial<ChecklistItemState>) => {
@@ -39,11 +47,11 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   );
 
   const [completedBy, setCompletedByRaw] = useState(
-    () => localStorage.getItem("sigcomply:completed-by") ?? ""
+    () => readPref(COMPLETED_BY_KEY) ?? ""
   );
   const setCompletedBy = useCallback((value: string) => {
     setCompletedByRaw(value);
-    localStorage.setItem("sigcomply:completed-by", value);
+    writePref(COMPLETED_BY_KEY, value);
   }, []);
 
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -54,95 +62,28 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
   // themselves are derived every render so they clear as the user fixes them.
   const [attempted, setAttempted] = useState(false);
 
-  const fieldErrors = (() => {
-    const errors: { completedBy?: string; attestation?: string } = {};
-    if (!completedBy.trim()) errors.completedBy = "Enter who completed this";
-    if (entry.type === "declaration") {
-      if (!accepted)
-        errors.attestation = "You must accept the declaration to continue";
-    } else if (entry.type === "checklist") {
-      const requiredIds = (entry.items ?? [])
-        .filter((i) => i.required)
-        .map((i) => i.id);
-      const checkedIds = new Set(
-        items.filter((i) => i.checked).map((i) => i.id),
-      );
-      if (requiredIds.some((id) => !checkedIds.has(id)))
-        errors.attestation = "Tick every required item (marked *)";
-    }
-    return errors;
-  })();
+  const fieldErrors = evidenceFieldErrors(entry, { completedBy, accepted, items });
 
-  const validate = useCallback((): string | null => {
-    if (!completedBy.trim()) return "Completed by is required";
-
-    if (entry.type === "declaration") {
-      if (!accepted) return "You must accept the declaration";
-      return null;
-    }
-
-    if (entry.type === "checklist") {
-      const requiredIds = (entry.items ?? [])
-        .filter((i) => i.required)
-        .map((i) => i.id);
-      const checkedIds = new Set(
-        items.filter((i) => i.checked).map((i) => i.id)
-      );
-      const missing = requiredIds.filter((id) => !checkedIds.has(id));
-      if (missing.length > 0) {
-        return `Required item(s) not checked: ${missing.join(", ")}`;
-      }
-      return null;
-    }
-
-    return "Unsupported evidence type for SPA rendering";
-  }, [completedBy, accepted, items, entry]);
+  const validate = useCallback(
+    (): string | null =>
+      validateEvidence(entry, { completedBy, accepted, items }),
+    [completedBy, accepted, items, entry],
+  );
 
   const submit = useCallback(async (): Promise<string | null> => {
     setAttempted(true);
     const error = validate();
     if (error) return error;
-    if (entry.type !== "declaration" && entry.type !== "checklist") {
-      return "Unsupported evidence type for SPA rendering";
-    }
 
     setSubmitting(true);
     try {
-      const completedAt = new Date().toISOString();
-
-      const catalogItemsByID = new Map(
-        (entry.items ?? []).map((i) => [i.id, i])
-      );
-
-      const input: PdfInput = {
-        evidence_id: entry.id,
+      const input = buildPdfInput({
+        entry,
         framework,
-        control: entry.control,
-        period: period.key,
-        type: entry.type,
-        entry_name: entry.name,
-        entry_description: entry.description,
-        severity: entry.severity,
-        frequency: entry.frequency,
-        completed_by: completedBy.trim(),
-        completed_at: completedAt,
-        declaration_text:
-          entry.type === "declaration" ? entry.declaration_text : undefined,
-        accepted: entry.type === "declaration" ? accepted : undefined,
-        items:
-          entry.type === "checklist"
-            ? items.map((s) => {
-                const c = catalogItemsByID.get(s.id);
-                return {
-                  id: s.id,
-                  text: c?.text ?? s.id,
-                  required: Boolean(c?.required),
-                  checked: s.checked,
-                  notes: s.notes || undefined,
-                };
-              })
-            : undefined,
-      };
+        periodKey: period.key,
+        completedAt: new Date().toISOString(),
+        state: { completedBy, accepted, items },
+      });
 
       // Lazy-load @react-pdf/renderer behind the form-submit handler so the
       // dashboard route stays light.

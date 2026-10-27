@@ -4,12 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListChecks } from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
-
-export interface ChecklistItemState {
-  id: string;
-  checked: boolean;
-  notes: string;
-}
+import type { ChecklistItemState } from "@/lib/evidence-form";
 
 interface ChecklistFormProps {
   entry: CatalogEntry;

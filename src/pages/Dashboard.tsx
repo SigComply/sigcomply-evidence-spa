@@ -5,6 +5,7 @@ import { PeriodOverview } from "@/components/dashboard/PeriodOverview";
 import { EvidenceList } from "@/components/dashboard/EvidenceList";
 import { useCatalog } from "@/hooks/useCatalog";
 import { getConfig } from "@/config/runtime";
+import { readPref, writePref } from "@/lib/local-prefs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,7 +53,7 @@ const SEVERITY_ORDER = ["high", "medium", "low"];
 const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
 function getStoredFramework(available: string[]): string | null {
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = readPref(STORAGE_KEY);
   if (stored && available.includes(stored)) return stored;
   return null;
 }
@@ -84,7 +85,7 @@ export function Dashboard() {
 
   const handleFrameworkChange = useCallback((value: string) => {
     setFramework(value);
-    localStorage.setItem(STORAGE_KEY, value);
+    writePref(STORAGE_KEY, value);
   }, []);
 
   const handlePickerSelect = useCallback(

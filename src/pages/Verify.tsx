@@ -15,8 +15,6 @@ import {
   XCircle,
 } from "lucide-react";
 import {
-  ENVELOPE_FORMAT_VERSION,
-  isEvidenceEnvelope,
   getManualDocumentPayload,
   type EvidenceEnvelope,
   type ManualDocumentPayload,
@@ -36,6 +34,7 @@ import {
   type ExpectedPdfHash,
   type MemberVerdict,
 } from "@/lib/verification/manual";
+import { parseEnvelopeText } from "@/lib/verification/parse-envelope";
 
 type SigStatus =
   | { state: "idle" }
@@ -67,18 +66,6 @@ function previewPayload(p: unknown): string {
   } catch {
     return String(p);
   }
-}
-
-// JSON.parse messages vary by engine; most include "position N". Turn
-// that offset into a line/column so a malformed paste points somewhere.
-function describeJsonError(err: Error, src: string): string {
-  const m = /position (\d+)/.exec(err.message);
-  if (!m) return `Invalid JSON: ${err.message}`;
-  const pos = Math.min(Number(m[1]), src.length);
-  const before = src.slice(0, pos);
-  const line = before.split("\n").length;
-  const col = pos - before.lastIndexOf("\n");
-  return `Invalid JSON at line ${line}, column ${col}: ${err.message}`;
 }
 
 export function Verify() {
@@ -126,7 +113,8 @@ export function Verify() {
     (text: string, opts?: { reformat?: boolean }) => {
       setPdfStatus({ state: "idle" });
 
-      if (!text.trim()) {
+      const result = parseEnvelopeText(text);
+      if (result.kind === "empty") {
         setRawJson(text);
         setEnvelope(null);
         setParseError(null);
@@ -134,51 +122,21 @@ export function Verify() {
         return;
       }
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch (err) {
-        setRawJson(text);
-        setEnvelope(null);
-        setParseError(describeJsonError(err as Error, text));
-        setSigStatus({ state: "idle" });
-        return;
-      }
-
-      // Parsed cleanly — safe to prettify the visible text. Helps the
+      // Once the text parses, prettify the visible copy. That helps the
       // "valid JSON, wrong shape" case where the box stays on screen.
-      let display = text;
-      if (opts?.reformat) {
-        try {
-          display = JSON.stringify(parsed, null, 2);
-        } catch {
-          display = text;
-        }
-      }
-      setRawJson(display);
+      setRawJson(opts?.reformat && result.pretty ? result.pretty : text);
 
-      if (!isEvidenceEnvelope(parsed)) {
+      if (result.kind === "invalid") {
         setEnvelope(null);
-        setParseError(
-          `This doesn't look like a SigComply signed-evidence file. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.`,
-        );
+        setParseError(result.message);
         setSigStatus({ state: "idle" });
         return;
       }
 
-      if (parsed.format_version !== ENVELOPE_FORMAT_VERSION) {
-        setEnvelope(null);
-        setParseError(
-          `Unsupported envelope format_version "${parsed.format_version}". This verifier handles "${ENVELOPE_FORMAT_VERSION}".`,
-        );
-        setSigStatus({ state: "idle" });
-        return;
-      }
-
-      setEnvelope(parsed);
-      // Preserve the original text (not the pretty-printed `display`) so the
+      setEnvelope(result.envelope);
+      // Preserve the original text (not the pretty-printed copy) so the
       // signature check canonicalises from a lexeme-preserving parse.
-      setSourceText(text);
+      setSourceText(result.sourceText);
       setParseError(null);
       // Verdict-first: flip to "verifying" the instant a valid envelope is
       // parsed. The effect below runs the async check and resolves it —
