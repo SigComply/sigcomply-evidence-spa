@@ -34,8 +34,12 @@ Deploy facts that matter when you change the build:
   deploy and fails the deploy on any error, including output that doesn't match
   `src/types/catalog.ts`. A CLI catalog change reaches the live site on the next deploy without a
   commit here: at the latest the daily run, sooner with `workflow_dispatch`.
-- Playwright specs that name catalog entries serve the committed catalogs (`pinCatalogs` in
-  `e2e/fixtures.ts`), so a new CLI catalog can't fail them; the rest use the built ones.
+- Tests that name catalog entries use the pinned copies in `e2e/fixtures/catalogs/`, never
+  `public/data/catalogs/`, which `npm run build` overwrites in deploy. Playwright specs serve them
+  with `pinCatalogs` (`e2e/fixtures.ts`); `catalog-validate.test.ts` and
+  `render-evidence-pdf.test.ts` read them. A new CLI catalog can't fail those tests. The other
+  specs use the built catalogs, and `fetch-catalogs.test.ts` checks that the fresh ones pass the
+  validator unchanged.
 - The deploy job has `contents: read` and never commits the regenerated catalogs. The committed
   copies are the dev and offline fallback and can lag the CLI without affecting production.
   Refresh them with `npm run fetch-catalogs`.

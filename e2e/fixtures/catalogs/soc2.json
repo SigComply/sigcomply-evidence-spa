@@ -1,0 +1,113 @@
+{
+  "framework": "soc2",
+  "version": "1.0",
+  "entries": [
+    {
+      "id": "code_of_conduct_acknowledgment",
+      "control": "CC1.1",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Code Of Conduct Acknowledgment",
+      "description": "Employees acknowledge the code of conduct.",
+      "severity": "medium",
+      "declaration_text": "I confirm that all personnel have acknowledged the organization's code of conduct during this period, either on hire or as part of the annual re-acknowledgment.",
+      "tsc": "security"
+    },
+    {
+      "id": "accountability_for_controls",
+      "control": "CC1.5",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Accountability For Controls",
+      "description": "Individuals are held accountable for their internal-control responsibilities.",
+      "severity": "medium",
+      "declaration_text": "I confirm that internal-control and information-security responsibilities are defined for each role, that individuals were evaluated against those responsibilities during this period, and that failures to meet them are addressed through the organization's performance and disciplinary processes.",
+      "tsc": "security"
+    },
+    {
+      "id": "fraud_risk_considered",
+      "control": "CC3.3",
+      "type": "declaration",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Fraud Risk Considered",
+      "description": "The potential for fraud is explicitly considered when assessing risks.",
+      "severity": "medium",
+      "declaration_text": "I confirm that the potential for fraud was explicitly considered when assessing risks during this period, including management override of controls, incentives and pressures to commit fraud, and opportunities arising from privileged system access.",
+      "tsc": "security"
+    },
+    {
+      "id": "incident_response_tested",
+      "control": "CC7.3",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Incident Response Tested",
+      "description": "The incident response plan is tested.",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "plan_tested",
+          "text": "Incident response plan was tested via tabletop exercise or simulation",
+          "required": true
+        },
+        {
+          "id": "roles_verified",
+          "text": "All incident response roles and responsibilities were verified",
+          "required": true
+        },
+        {
+          "id": "communication_tested",
+          "text": "Communication channels and escalation paths were tested",
+          "required": true
+        },
+        {
+          "id": "lessons_documented",
+          "text": "Lessons learned were documented and the plan updated accordingly",
+          "required": false
+        }
+      ],
+      "tsc": "security"
+    },
+    {
+      "id": "recovery_procedures_tested",
+      "control": "A1.3",
+      "type": "checklist",
+      "frequency": "yearly",
+      "temporal_rule": "retrospective",
+      "grace_period": "30d",
+      "name": "Recovery Procedures Tested",
+      "description": "Disaster-recovery procedures are tested.",
+      "severity": "medium",
+      "items": [
+        {
+          "id": "recovery_executed",
+          "text": "Recovery procedures were executed against a representative scenario",
+          "required": true
+        },
+        {
+          "id": "rto_rpo_met",
+          "text": "Recovery time and recovery point objectives (RTO/RPO) were met",
+          "required": true
+        },
+        {
+          "id": "data_integrity_verified",
+          "text": "Restored data integrity was verified",
+          "required": true
+        },
+        {
+          "id": "gaps_remediated",
+          "text": "Gaps identified during the test were documented and remediated",
+          "required": false
+        }
+      ],
+      "tsc": "availability"
+    }
+  ]
+}

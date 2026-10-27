@@ -15,20 +15,27 @@ export function fixture(name: string): Buffer {
   return readFileSync(join(FIXTURES, name));
 }
 
-const COMMITTED_CATALOGS = join(import.meta.dirname, "..", "public", "data", "catalogs");
+/**
+ * Pinned catalogs: copies of public/data/catalogs/ that only a person
+ * changes. They are not public/data/catalogs/ itself, because deploy.yml's
+ * `npm run build` overwrites that folder with the latest CLI's catalogs before
+ * this suite runs. Refresh them on purpose (docs/TESTING.md, "Pinned
+ * catalogs") when a spec needs an entry they lack.
+ */
+export const PINNED_CATALOGS = join(import.meta.dirname, "fixtures", "catalogs");
 
 /**
- * Serves the committed catalogs instead of the ones in the build. deploy.yml
+ * Serves the pinned catalogs instead of the ones in the build. deploy.yml
  * runs this suite on a build with catalogs fresh from the latest CLI; specs
- * that name entries pin the committed copy so a CLI catalog change can't turn
- * the deploy red. Specs that don't name entries use the built catalogs.
+ * that name entries pin them so a CLI catalog change can't turn the deploy
+ * red. Specs that don't name entries use the built catalogs.
  */
 export async function pinCatalogs(page: Page) {
   await page.route("**/data/catalogs/*.json", (route) => {
     const name = new URL(route.request().url()).pathname.split("/").pop()!;
     return route.fulfill({
       contentType: "application/json",
-      body: readFileSync(join(COMMITTED_CATALOGS, name)),
+      body: readFileSync(join(PINNED_CATALOGS, name)),
     });
   });
 }

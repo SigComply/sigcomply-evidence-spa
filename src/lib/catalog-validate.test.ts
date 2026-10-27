@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateCatalog } from "./catalog-validate";
-import soc2Raw from "../../public/data/catalogs/soc2.json?raw";
-import iso27001Raw from "../../public/data/catalogs/iso27001.json?raw";
+// The pinned copies under e2e/fixtures/catalogs/, not public/data/catalogs/:
+// deploy.yml's `npm run build` overwrites public/data/catalogs/ with the
+// latest CLI's catalogs before these tests run. scripts/fetch-catalogs.test.ts
+// checks the fresh ones.
+import soc2Raw from "../../e2e/fixtures/catalogs/soc2.json?raw";
+import iso27001Raw from "../../e2e/fixtures/catalogs/iso27001.json?raw";
 import publicConfigRaw from "../../public/config.json?raw";
 
 const committed: Record<string, string> = { soc2: soc2Raw, iso27001: iso27001Raw };
@@ -32,7 +36,7 @@ describe("validateCatalog", () => {
     expect(Object.keys(committed).sort()).toEqual([...frameworks].sort());
   });
 
-  it.each(Object.keys(committed))("accepts the committed %s catalog", (fw) => {
+  it.each(Object.keys(committed))("accepts the pinned %s catalog", (fw) => {
     const result = validateCatalog(JSON.parse(committed[fw]), fw);
     expect(result.errors).toEqual([]);
     expect(result.catalog?.framework).toBe(fw);
@@ -50,13 +54,6 @@ describe("validateCatalog", () => {
           items: undefined,
           declaration_text: "I confirm.",
         }),
-        entry({
-          id: "training",
-          type: "document_upload",
-          frequency: "monthly",
-          items: undefined,
-          accepted_formats: ["pdf", "png"],
-        }),
         entry({ id: "d", frequency: "daily" }),
         entry({ id: "w", frequency: "weekly" }),
       ]),
@@ -69,7 +66,6 @@ describe("validateCatalog", () => {
     ["a non-object", [], /catalog: expected an object/],
     ["a missing version", { framework: "soc2", entries: [] }, /catalog\.version: expected a string/],
     ["entries not an array", { framework: "soc2", version: "1", entries: null }, /catalog\.entries: expected an array/],
-    ["an unknown top-level key", { ...catalog(), extra: 1 }, /catalog: unknown field "extra"/],
     ["the wrong framework", { ...catalog(), framework: "iso27001" }, /catalog\.framework: expected "soc2", got "iso27001"/],
     ["an unknown type", catalog([entry({ type: "upload" })]), /entries\[0\]\.type: expected one of/],
     ["the CLI's internal 'annual' frequency", catalog([entry({ frequency: "annual" })]), /entries\[0\]\.frequency: expected one of/],
@@ -86,6 +82,56 @@ describe("validateCatalog", () => {
     const result = validateCatalog(raw, "soc2");
     expect(result.catalog).toBeUndefined();
     expect(result.errors.join("\n")).toMatch(want);
+  });
+
+  it("drops the entries the SPA does not render and counts them", () => {
+    const result = validateCatalog(
+      catalog([
+        entry(),
+        entry({
+          id: "training",
+          type: "document_upload",
+          items: undefined,
+          accepted_formats: ["pdf", "png"],
+        }),
+      ]),
+      "soc2",
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.dropped).toBe(1);
+    expect(result.catalog?.entries.map((e) => e.id)).toEqual(["offboarding"]);
+  });
+
+  it("only warns about unknown or malformed fields on dropped entries", () => {
+    const result = validateCatalog(
+      catalog([
+        entry(),
+        // A new CLI field on an entry the SPA never shows must not turn the
+        // deploy red; a missing name does not matter either.
+        { id: "cert", type: "document_upload", owner: "it", name: 3 },
+      ]),
+      "soc2",
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual(['entries[1] (document_upload, dropped): unknown field "owner"']);
+    expect(result.catalog?.entries).toHaveLength(1);
+  });
+
+  it("only warns about an unknown top-level field, which the SPA never reads", () => {
+    const result = validateCatalog({ ...catalog(), generated_at: "2026-10-01" }, "soc2");
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual(['catalog: unknown field "generated_at"']);
+    expect(Object.keys(result.catalog!)).toEqual(["framework", "version", "entries"]);
+  });
+
+  it("still fails an unknown field on an entry the SPA renders", () => {
+    const result = validateCatalog(
+      catalog([entry({ type: "declaration", items: undefined, declaration_text: "x", owner: "it" })]),
+      "soc2",
+    );
+    expect(result.catalog).toBeUndefined();
+    expect(result.errors).toEqual(['entries[0]: unknown field "owner"']);
   });
 
   it("reports every problem, not just the first", () => {

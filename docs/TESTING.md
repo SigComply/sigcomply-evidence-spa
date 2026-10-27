@@ -39,7 +39,7 @@ Shared component-test helpers live in `src/test/`.
 
 ```
 scripts/
-  fetch-catalogs.ts       fetch-catalogs.test.ts   ← validate + filter, fixed point on committed catalogs
+  fetch-catalogs.ts       fetch-catalogs.test.ts   ← validate + filter, fixed point on public/data/catalogs
 src/config/
   runtime.ts              runtime.test.ts   ← CLI default prefix, config.json fallback matrix
 src/hooks/
@@ -51,7 +51,7 @@ src/pages/                                        (jsdom, testing-library)
 src/types/
   envelope.ts             envelope.test.ts        ← isEvidenceEnvelope negatives
 src/lib/
-  catalog-validate.ts     catalog-validate.test.ts ← strict catalog shape, run by fetch-catalogs
+  catalog-validate.ts     catalog-validate.test.ts ← catalog shape, run by fetch-catalogs (pinned catalogs)
   evidence-form.ts        evidence-form.test.ts   ← validation and form → PdfInput mapping
   local-prefs.ts          local-prefs.test.ts     ← localStorage that throws or is missing
   device-memory.ts        device-memory.test.ts
@@ -82,6 +82,20 @@ JSON module — that would round the 64-bit ints through float64 before the test
 also asserts the bignum envelope verifies **only** when the raw text is passed to
 `verifyEnvelopeSignature` — the object path (rounded) must fail, which is exactly why `Verify.tsx`
 keeps the original source text.
+
+## Pinned catalogs
+
+`e2e/fixtures/catalogs/*.json` are copies of `public/data/catalogs/` that only a person changes.
+Tests that name catalog entries use them: Playwright specs through `pinCatalogs`
+(`e2e/fixtures.ts`), `catalog-validate.test.ts` and `render-evidence-pdf.test.ts`. They exist
+because deploy.yml's `npm run build` overwrites `public/data/catalogs/` with the latest CLI's
+catalogs before the tests run; a test that read those would turn the deploy red on any catalog
+change. The deploy-time check of the fresh catalogs is `fetch-catalogs.test.ts` (validator
+fixed point), plus `fetch-catalogs` itself.
+
+To refresh them, for example when a spec needs a new entry: `npm run fetch-catalogs` (CLI on
+`PATH`), then `cp public/data/catalogs/*.json e2e/fixtures/catalogs/`, update the specs that name
+entries, and run the gate.
 
 ## Coverage
 

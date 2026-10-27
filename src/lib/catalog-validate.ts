@@ -1,12 +1,24 @@
 import type { Catalog } from "@/types/catalog";
 
-// Strict shape check of `sigcomply evidence catalog -o json` output against
+// Shape check of `sigcomply evidence catalog -o json` output against
 // src/types/catalog.ts. scripts/fetch-catalogs.ts runs it on every build, so a
 // CLI catalog change that these types don't describe fails the deploy instead
-// of shipping data the UI misreads. Unknown fields are errors on purpose: a
-// new CLI field means src/types/catalog.ts needs the matching change.
+// of shipping data the UI misreads.
+//
+// Strict (errors) only where the SPA reads data: the top-level framework,
+// version and entries, and every entry the SPA renders. Unknown fields there
+// are errors on purpose: a new CLI field on a rendered entry means
+// src/types/catalog.ts needs the matching change. Entries of a type the SPA
+// drops (document_upload) and unknown top-level fields are never shipped, so
+// they only produce warnings.
 
 const EVIDENCE_TYPES = ["document_upload", "checklist", "declaration"];
+
+/** The entry types the SPA renders. Every other type is dropped. */
+export const SPA_RENDERABLE_TYPES: ReadonlySet<string> = new Set([
+  "declaration",
+  "checklist",
+]);
 const FREQUENCIES = ["daily", "weekly", "monthly", "quarterly", "yearly"];
 const TEMPORAL_RULES = ["retrospective", "anytime"];
 
@@ -33,9 +45,16 @@ const ENTRY_FIELDS: Record<string, { kind: FieldKind; optional?: boolean }> = {
 const ITEM_FIELDS = ["id", "text", "required"];
 
 export interface CatalogValidation {
-  /** Set only when there are no errors. */
+  /**
+   * Set only when there are no errors. Holds only the renderable entries and
+   * only the top-level fields in src/types/catalog.ts.
+   */
   catalog?: Catalog;
   errors: string[];
+  /** Problems in data the SPA drops; they never fail validation. */
+  warnings: string[];
+  /** How many entries were dropped as not renderable. */
+  dropped: number;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -100,9 +119,12 @@ export function validateCatalog(
   framework: string,
 ): CatalogValidation {
   const errors: string[] = [];
-  if (!isObject(raw)) return { errors: ["catalog: expected an object"] };
+  const warnings: string[] = [];
+  if (!isObject(raw)) {
+    return { errors: ["catalog: expected an object"], warnings, dropped: 0 };
+  }
 
-  unknownKeys(raw, ["framework", "version", "entries"], "catalog", errors);
+  unknownKeys(raw, ["framework", "version", "entries"], "catalog", warnings);
   if (typeof raw.framework !== "string") {
     errors.push("catalog.framework: expected a string");
   } else if (raw.framework !== framework) {
@@ -115,18 +137,31 @@ export function validateCatalog(
   }
   if (!Array.isArray(raw.entries)) {
     errors.push("catalog.entries: expected an array");
-    return { errors };
+    return { errors, warnings, dropped: 0 };
   }
 
   const seen = new Set<string>();
+  const kept: unknown[] = [];
+  let dropped = 0;
   raw.entries.forEach((e, i) => {
     const p = `entries[${i}]`;
     if (!isObject(e)) {
       errors.push(`${p}: expected an object`);
       return;
     }
+    // An unknown type is still an error: the type list is part of the
+    // contract, and a new type may be one the SPA should render.
+    checkField(e.type, EVIDENCE_TYPES, `${p}.type`, errors);
+    if (typeof e.type === "string" && EVIDENCE_TYPES.includes(e.type) &&
+        !SPA_RENDERABLE_TYPES.has(e.type)) {
+      dropped++;
+      unknownKeys(e, Object.keys(ENTRY_FIELDS), `${p} (${e.type}, dropped)`, warnings);
+      return;
+    }
+    kept.push(e);
     unknownKeys(e, Object.keys(ENTRY_FIELDS), p, errors);
     for (const [name, spec] of Object.entries(ENTRY_FIELDS)) {
+      if (name === "type") continue;
       if (e[name] === undefined) {
         if (!spec.optional) {
           errors.push(
@@ -143,5 +178,11 @@ export function validateCatalog(
     }
   });
 
-  return errors.length > 0 ? { errors } : { catalog: raw as unknown as Catalog, errors };
+  if (errors.length > 0) return { errors, warnings, dropped };
+  const catalog = {
+    framework: raw.framework,
+    version: raw.version,
+    entries: kept,
+  } as unknown as Catalog;
+  return { catalog, errors, warnings, dropped };
 }

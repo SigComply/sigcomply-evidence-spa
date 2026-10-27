@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prepareCatalog } from "./fetch-catalogs.ts";
 
+// public/data/catalogs/, not the pinned e2e copies: in deploy.yml this runs
+// after `npm run build` wrote the latest CLI's catalogs there, so it is the
+// deploy-time check that the fresh catalogs pass the validator unchanged.
 const catalogsDir = join(import.meta.dirname, "..", "public", "data", "catalogs");
+
+afterEach(() => vi.restoreAllMocks());
 
 function cliOutput(entries: unknown[]): string {
   return JSON.stringify({ framework: "soc2", version: "1.0", entries });
@@ -31,7 +36,19 @@ describe("prepareCatalog", () => {
     expect(Object.keys(catalog)).toEqual(["framework", "version", "entries"]);
   });
 
-  it("is a fixed point on the committed catalogs", () => {
+  it("only warns about unknown fields on a dropped entry or at the top level", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const upload = { id: "cert", type: "document_upload", owner: "it" };
+    const json = JSON.stringify({ framework: "soc2", version: "1.0", generated_at: "x", entries: [decl, upload] });
+    const { catalog, before, after } = prepareCatalog(json, "soc2");
+    expect([before, after]).toEqual([2, 1]);
+    expect(Object.keys(catalog)).toEqual(["framework", "version", "entries"]);
+    expect(warn.mock.calls.flat().join("\n")).toMatch(
+      /soc2 catalog:[\s\S]*catalog: unknown field "generated_at"[\s\S]*entries\[1\] \(document_upload, dropped\): unknown field "owner"/,
+    );
+  });
+
+  it("is a fixed point on the catalogs in public/data/catalogs", () => {
     for (const fw of ["soc2", "iso27001"]) {
       const text = readFileSync(join(catalogsDir, `${fw}.json`), "utf-8");
       const { catalog } = prepareCatalog(text, fw);

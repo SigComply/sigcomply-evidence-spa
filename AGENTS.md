@@ -123,10 +123,13 @@ E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 
 Rules:
 
-- `fetch-catalogs` checks the CLI output strictly against `src/types/catalog.ts`
-  (`src/lib/catalog-validate.ts`): an unknown field, a missing required field or an unknown enum
-  value fails the build. When the Go struct changes, update the types and the validator together
-  (JSON tags and `omitempty` against optional `?`).
+- `fetch-catalogs` checks the CLI output against `src/types/catalog.ts`
+  (`src/lib/catalog-validate.ts`). On the entries the SPA renders (`declaration`, `checklist`), an
+  unknown field, a missing required field or an unknown enum value fails the build; so does an
+  unknown `type` or a bad `framework`, `version` or `entries`. Unknown top-level fields and
+  anything on a dropped `document_upload` entry only print a warning, because the SPA never ships
+  them. When the Go struct changes, update the types and the validator together (JSON tags and
+  `omitempty` against optional `?`).
 - The signed bytes are `canonicalJSON({format_version, produced_at, records})`: sorted keys, no
   whitespace, `\u` escapes for control characters, U+2028 and U+2029 only, no HTML escaping, and
   numbers kept as their source lexeme (`parseJSONPreservingNumbers`). Pass the original envelope

@@ -6,6 +6,10 @@ import { main, renderFromInput, type RenderInput } from "./render-evidence-pdf.t
 import { pdfBytesToText, readPdfInfoString } from "../src/lib/pdf/pdf-info.ts";
 
 const examples = join(import.meta.dirname, "examples");
+// The pinned catalog, not the default public/data/catalogs/soc2.json: in
+// deploy.yml these tests run after `npm run build` refreshed that file from
+// the latest CLI, which may no longer carry the entries the examples name.
+const pinnedSoc2 = join(import.meta.dirname, "..", "e2e", "fixtures", "catalogs", "soc2.json");
 let dir: string;
 
 beforeEach(() => {
@@ -16,9 +20,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const declaration: RenderInput = JSON.parse(
-  readFileSync(join(examples, "render-evidence-pdf.declaration.json"), "utf-8"),
-);
+const declaration: RenderInput = {
+  ...JSON.parse(readFileSync(join(examples, "render-evidence-pdf.declaration.json"), "utf-8")),
+  catalog: pinnedSoc2,
+};
 
 describe("renderFromInput", () => {
   it("renders the declaration example with the form's keywords", async () => {
@@ -36,7 +41,10 @@ describe("renderFromInput", () => {
     const input = JSON.parse(
       readFileSync(join(examples, "render-evidence-pdf.checklist.json"), "utf-8"),
     ) as RenderInput;
-    const { pdf } = await renderFromInput({ ...input, completed_at: "2026-05-15T12:00:00Z" }, dir);
+    const { pdf } = await renderFromInput(
+      { ...input, completed_at: "2026-05-15T12:00:00Z", catalog: pinnedSoc2 },
+      dir,
+    );
     const keywords = readPdfInfoString(pdfBytesToText(pdf), "Keywords");
     expect(keywords).toMatch(/^evidence_id=incident_response_tested; .*type=checklist; /);
     expect(keywords).not.toContain("accepted=");
@@ -81,7 +89,7 @@ describe("renderFromInput", () => {
   it.each<[string, Partial<RenderInput>, RegExp]>([
     ["an unaccepted declaration", { accepted: false }, /You must accept the declaration/],
     ["an unknown entry", { evidence_id: "nope" }, /no entry "nope"/],
-    ["an unknown framework catalog", { framework: "nist" }, /ENOENT/],
+    ["a missing catalog file", { framework: "nist", catalog: "nist.json" }, /ENOENT/],
     ["a bad date", { completed_at: "yesterday" }, /is not a date/],
     ["a checklist item on a declaration", { checked: ["x"] }, /"x" is not an item/],
   ])("refuses %s", async (_n, over, want) => {
@@ -102,9 +110,8 @@ describe("main", () => {
   it("writes the PDF, prints the upload path and exits 0", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const out = join(dir, "nested", "evidence.pdf");
-    expect(
-      await main(["--input", join(examples, "render-evidence-pdf.declaration.json"), "--out", out]),
-    ).toBe(0);
+    writeFileSync(join(dir, "in.json"), JSON.stringify(declaration));
+    expect(await main(["--input", join(dir, "in.json"), "--out", out])).toBe(0);
     expect(readFileSync(out).subarray(0, 5).toString()).toBe("%PDF-");
     expect(log).toHaveBeenCalledWith("manual/code_of_conduct_acknowledgment/2026/evidence.pdf");
     const kw = readPdfInfoString(pdfBytesToText(readFileSync(out)), "Keywords");

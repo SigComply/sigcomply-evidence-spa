@@ -35,16 +35,13 @@ function run(cmd: string): string {
   return execSync(cmd, { encoding: "utf-8" }).trim();
 }
 
-// SPA only renders user-attestation entries. document_upload entries are
-// produced externally and uploaded directly to the bucket — filter them out at
-// build time so they never reach the browser.
-const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
-
 /**
- * Parses one framework's CLI output, checks it strictly against
- * src/types/catalog.ts and drops the entries the SPA doesn't render. Throws
- * with every shape error, so a CLI catalog change the types don't describe
- * fails the build.
+ * Parses one framework's CLI output, checks it against src/types/catalog.ts
+ * and drops the entries the SPA doesn't render (validateCatalog does both).
+ * document_upload entries are produced externally and uploaded directly to
+ * the bucket, so they never reach the browser. Throws with every shape error
+ * in data the SPA reads, so a CLI catalog change the types don't describe
+ * fails the build; problems in dropped data are printed as warnings.
  */
 export function prepareCatalog(
   json: string,
@@ -61,7 +58,13 @@ export function prepareCatalog(
       { cause: err },
     );
   }
-  const { catalog, errors } = validateCatalog(raw, framework);
+  const { catalog, errors, warnings, dropped } = validateCatalog(raw, framework);
+  if (warnings.length > 0) {
+    console.warn(
+      `Warning: ${framework} catalog: fields the SPA does not read (not shipped):\n  ` +
+        warnings.join("\n  "),
+    );
+  }
   if (!catalog) {
     throw new Error(
       `catalog for ${framework} does not match src/types/catalog.ts. Update ` +
@@ -69,9 +72,8 @@ export function prepareCatalog(
         errors.join("\n  "),
     );
   }
-  const before = catalog.entries.length;
-  const entries = catalog.entries.filter((e) => SPA_RENDERABLE_TYPES.has(e.type));
-  return { catalog: { ...catalog, entries }, before, after: entries.length };
+  const after = catalog.entries.length;
+  return { catalog, before: after + dropped, after };
 }
 
 function main() {
