@@ -80,10 +80,29 @@ export async function verifyEnvelopeSignature(
       : signedContent(envelope);
   const signedBytes = canonicalJSON(canonicalSource);
 
-  if (envelope.signature.algorithm !== "ed25519") {
+  return verifySignatureBlock(envelope.signature, signedBytes);
+}
+
+/** The `signature` block of an envelope or a run manifest. */
+export interface SignatureBlock {
+  algorithm: string;
+  public_key: string;
+  value: string;
+}
+
+/**
+ * Checks an Ed25519 `signature` block against `signedBytes` (a canonical JSON
+ * string, signed as UTF-8). The CLI uses the same block on envelopes and on
+ * the per-run manifest.json.
+ */
+export async function verifySignatureBlock(
+  sig: SignatureBlock,
+  signedBytes: string,
+): Promise<VerifyResult> {
+  if (sig.algorithm !== "ed25519") {
     return {
       valid: false,
-      reason: `Unsupported signature algorithm: ${envelope.signature.algorithm}. Expected "ed25519".`,
+      reason: `Unsupported signature algorithm: ${sig.algorithm}. Expected "ed25519".`,
       signedBytes,
     };
   }
@@ -97,7 +116,7 @@ export async function verifyEnvelopeSignature(
   let publicKey: Uint8Array<ArrayBuffer>;
   let signature: Uint8Array<ArrayBuffer>;
   try {
-    publicKey = base64ToBytes(envelope.signature.public_key);
+    publicKey = base64ToBytes(sig.public_key);
   } catch {
     return {
       valid: false,
@@ -113,7 +132,7 @@ export async function verifyEnvelopeSignature(
     };
   }
   try {
-    signature = base64ToBytes(envelope.signature.value);
+    signature = base64ToBytes(sig.value);
   } catch {
     return {
       valid: false,

@@ -68,7 +68,7 @@ doc.
 | Build without the CLI | `npx tsc -b && npx vite build` | Skips `prebuild`; bundles the committed catalogs. |
 | Refresh catalogs | `npm run fetch-catalogs` | Rewrites `public/data/catalogs/*.json` from the local CLI. |
 | Preview the bundle | `npm run preview` | Serves `dist/`. |
-| Verify a vault | `npm run verify-envelopes -- <dir> [--require-attachments]` | Node entry point for the E2E repos: verifies every envelope under `<dir>` with the `/verify` code, and each manual PDF in `attachments/`. Exit 0 only if at least one envelope was found and all verify. |
+| Verify a vault | `npm run verify-envelopes -- <dir> [--require-attachments] [--no-manifest] [--public-key <b64>]` | Node entry point for the E2E repos: checks each run's signed `manifest.json` and its `file_hashes` against the disk, every envelope with the `/verify` code, and each manual PDF in `attachments/`. Exit 0 only if at least one envelope was found and every check passed; 1 on any failure; 2 on bad arguments. Details: `docs/TESTING.md`. |
 | Render a PDF | `npm run render-evidence-pdf -- --input <json> --out <pdf>` | The form's PDF from JSON (`scripts/examples/`); prints the upload path. |
 | Full gate | `npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e` | Before every commit. |
 
@@ -120,6 +120,7 @@ E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 | Manual record payload | `ManualDocumentPayload` and `ManualInstancePayload` in `src/types/envelope.ts` | `manualManifest` and `instanceManifest` in `internal/sources/manual/manual.go` |
 | Canonical JSON | `src/lib/verification/canonical.ts` | `internal/sign/canonical.go`; byte-equal |
 | Signature | Ed25519 via Web Crypto, base64 32-byte key and 64-byte signature | `internal/sign` |
+| Run manifest | `verifyManifest` in `scripts/verify-envelopes.ts`: `run.v1`, signed object = manifest minus `signature`, `file_hashes` keyed by run-relative path, values `sha256:<hex>` | `internal/core/manifest.go`, `internal/sign/manifest.go`, `writeManifest` in `internal/orchestrator/orchestrator.go` |
 
 Rules:
 

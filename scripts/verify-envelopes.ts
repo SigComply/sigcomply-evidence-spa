@@ -1,18 +1,53 @@
-// Verifies every signed evidence envelope under a directory (a downloaded
-// vault, or one run folder) with the same code the /verify page runs:
-// parseEnvelopeText, verifyEnvelopeSignature and the manual-record PDF hash
-// match. Used by the E2E repos to check what a real CLI run wrote.
+// Verifies a downloaded vault (or one run folder) the way the CLI defines it
+// (sigcomply-cli docs/architecture/05-vault-layout.md, "Verification"), with
+// the same code the /verify page runs. Used by the E2E repos to check what a
+// real CLI run wrote.
 //
-//   npm run verify-envelopes -- <dir> [--require-attachments]
+//   npm run verify-envelopes -- <dir> [--require-attachments] [--no-manifest]
+//                                     [--public-key <base64>]
 //
-// Exit 0 only when at least one envelope was found and every one verified.
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+// For every run folder (a folder holding manifest.json):
+//   - the manifest's Ed25519 signature over the canonical JSON of the
+//     manifest minus `signature` (sign.VerifyManifest);
+//   - its file_hashes against the files on disk: a listed file that is
+//     missing, a file that is not listed, or a hash that differs fails.
+// For every envelope (*.json under envelopes/, or any JSON shaped like one):
+//   - its signature (parseEnvelopeText + verifyEnvelopeSignature);
+//   - a manual record's merged-PDF hashes against attachments/;
+//   - that a manifest covers it, unless --no-manifest.
+// --public-key: every envelope and manifest must carry exactly this key.
+// The CLI's built-in signer uses a fresh key per file, so this only fits a
+// long-lived (HSM/KMS) signer. Without it, each manifest's key fingerprint
+// (first 16 hex of SHA-256 of the raw key) is printed.
+//
+// Symlinks fail and are not followed. Other JSON is listed as SKIP.
+//
+// What a pass proves: no file in a run changed, appeared or went missing
+// since its manifest was signed, and every envelope is internally intact.
+// It does not prove the CLI signed anything: the keys travel in the files,
+// so anyone with write access can rewrite a run and re-sign it. Write-once
+// storage is what stops that.
+//
+// Exit codes: 0 every check passed and at least one envelope was found;
+// 1 any FAIL, or no envelope found; 2 bad arguments.
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseEnvelopeText } from "../src/lib/verification/parse-envelope.ts";
 import {
+  canonicalJSON,
+  parseJSONPreservingNumbers,
+} from "../src/lib/verification/canonical.ts";
+import {
   sha256Hex,
   verifyEnvelopeSignature,
+  verifySignatureBlock,
+  type SignatureBlock,
 } from "../src/lib/verification/verify.ts";
 import { expectedPdfHashes } from "../src/lib/verification/manual.ts";
 import {
@@ -29,16 +64,53 @@ export type FileVerdict =
 export interface VerifyOptions {
   /** Fail when the record names a PDF hash but no attachment is on disk. */
   requireAttachments?: boolean;
+  /** Fail an envelope that no manifest.json covers. Default true. */
+  requireManifest?: boolean;
+  /** base64 raw Ed25519 key every envelope and manifest must carry. */
+  publicKey?: string;
 }
 
-export function findJsonFiles(dir: string): string[] {
-  const out: string[] = [];
+const MANIFEST = "manifest.json";
+const MANIFEST_SCHEMA = "run.v1";
+
+export interface TreeListing {
+  /** Regular files, absolute paths, sorted. */
+  files: string[];
+  /** Symlinks (to files or folders), never followed. */
+  symlinks: string[];
+}
+
+export function listTree(dir: string): TreeListing {
+  const out: TreeListing = { files: [], symlinks: [] };
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, ent.name);
-    if (ent.isDirectory()) out.push(...findJsonFiles(p));
-    else if (ent.isFile() && ent.name.endsWith(".json")) out.push(p);
+    if (ent.isSymbolicLink()) out.symlinks.push(p);
+    else if (ent.isDirectory()) {
+      const sub = listTree(p);
+      out.files.push(...sub.files);
+      out.symlinks.push(...sub.symlinks);
+    } else if (ent.isFile()) out.files.push(p);
   }
-  return out.sort();
+  out.files.sort();
+  out.symlinks.sort();
+  return out;
+}
+
+/** First 16 hex characters of the SHA-256 of a raw public key. */
+export function keyFingerprint(publicKeyB64: string): string {
+  return createHash("sha256")
+    .update(Buffer.from(publicKeyB64, "base64"))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+// Compares decoded bytes, so two spellings of the same key match.
+function sameKey(a: string, b: string): boolean {
+  return Buffer.from(a, "base64").equals(Buffer.from(b, "base64"));
+}
+
+function keyMismatch(got: string, want: string): string {
+  return `signed by key ${keyFingerprint(got)}, expected ${keyFingerprint(want)}`;
 }
 
 // The CLI writes envelopes to policies/<id>/envelopes/*.json. A file there
@@ -53,6 +125,13 @@ function looksLikeEnvelope(text: string): boolean {
   } catch {
     return false;
   }
+}
+
+function fileSha256(path: string): Promise<string> {
+  const bytes = readFileSync(path);
+  return sha256Hex(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+  );
 }
 
 // Merged PDFs sit beside the envelopes: policies/<id>/attachments/
@@ -83,10 +162,7 @@ async function checkAttachments(
       else notes.push(msg);
       continue;
     }
-    const bytes = readFileSync(pdf);
-    const got = await sha256Hex(
-      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-    );
+    const got = await fileSha256(pdf);
     if (got === want.hash) notes.push(`pdf match ${want.label}`);
     else errors.push(`pdf hash mismatch for ${want.label}: got ${got}, signed ${want.hash}`);
   }
@@ -105,6 +181,10 @@ export async function verifyEnvelopeFile(
   if (parsed.kind !== "ok") {
     const detail = parsed.kind === "empty" ? "empty file" : parsed.message;
     return { status: "fail", path, detail };
+  }
+  const sig = parsed.envelope.signature;
+  if (opts.publicKey && !sameKey(sig.public_key, opts.publicKey)) {
+    return { status: "fail", path, detail: keyMismatch(sig.public_key, opts.publicKey) };
   }
   let result;
   try {
@@ -128,56 +208,223 @@ export async function verifyEnvelopeFile(
   return { status: "ok", path, detail: notes.join(", ") };
 }
 
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+// A file_hashes key is a path relative to the run folder, "/"-separated.
+function safeRelPath(p: string): boolean {
+  if (p === "" || p.startsWith("/") || p.includes("\\")) return false;
+  return p.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
+}
+
+/**
+ * Verifies <runDir>/manifest.json: its signature, then its file_hashes
+ * against every other regular file under runDir. `runFiles` are the
+ * regular files under runDir (absolute paths).
+ */
+export async function verifyManifest(
+  runDir: string,
+  runFiles: string[],
+  opts: VerifyOptions = {},
+): Promise<FileVerdict> {
+  const path = join(runDir, MANIFEST);
+  const fail = (detail: string): FileVerdict => ({ status: "fail", path, detail });
+
+  let raw: unknown;
+  try {
+    // Numbers keep their source text so the canonical bytes match the
+    // CLI's (a manifest has no numbers today; this keeps it exact anyway).
+    raw = parseJSONPreservingNumbers(readFileSync(path, "utf-8"));
+  } catch (err) {
+    return fail(`Invalid JSON: ${(err as Error).message}`);
+  }
+  if (!isObject(raw)) return fail("expected a JSON object");
+  if (raw.schema_version !== MANIFEST_SCHEMA) {
+    return fail(`unsupported schema_version ${JSON.stringify(raw.schema_version)}, expected "${MANIFEST_SCHEMA}"`);
+  }
+  const hashes = raw.file_hashes;
+  if (!isObject(hashes)) return fail("file_hashes: expected an object");
+  for (const [rel, h] of Object.entries(hashes)) {
+    if (!safeRelPath(rel)) return fail(`file_hashes: unsafe path ${JSON.stringify(rel)}`);
+    if (typeof h !== "string") return fail(`file_hashes[${JSON.stringify(rel)}]: expected a string`);
+  }
+  const sig = raw.signature;
+  if (
+    !isObject(sig) ||
+    typeof sig.algorithm !== "string" ||
+    typeof sig.public_key !== "string" ||
+    typeof sig.value !== "string"
+  ) {
+    return fail("signature: expected an object with algorithm, public_key and value strings");
+  }
+  const block = sig as unknown as SignatureBlock;
+  if (opts.publicKey && !sameKey(block.public_key, opts.publicKey)) {
+    return fail(keyMismatch(block.public_key, opts.publicKey));
+  }
+
+  // The signed object is the manifest minus `signature` (sign.VerifyManifest).
+  const signedFields = Object.fromEntries(
+    Object.entries(raw).filter(([k]) => k !== "signature"),
+  );
+  let result;
+  try {
+    result = await verifySignatureBlock(block, canonicalJSON(signedFields));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+  if (!result.valid) return fail(result.reason ?? "signature invalid");
+
+  const onDisk = new Map<string, string>();
+  for (const f of runFiles) {
+    const rel = relative(runDir, f).split(sep).join("/");
+    if (rel !== MANIFEST) onDisk.set(rel, f);
+  }
+  const problems: string[] = [];
+  for (const rel of Object.keys(hashes).sort()) {
+    const file = onDisk.get(rel);
+    if (!file) {
+      problems.push(`missing on disk: ${rel}`);
+      continue;
+    }
+    const got = `sha256:${await fileSha256(file)}`;
+    if (got !== hashes[rel]) problems.push(`hash mismatch: ${rel}`);
+  }
+  for (const rel of [...onDisk.keys()].sort()) {
+    if (!(rel in hashes)) problems.push(`not in file_hashes: ${rel}`);
+  }
+  if (problems.length > 0) return fail(problems.join("; "));
+
+  const n = Object.keys(hashes).length;
+  return {
+    status: "ok",
+    path,
+    detail: `signature valid (key ${keyFingerprint(block.public_key)}), ${n} files match file_hashes`,
+  };
+}
+
+// The nearest folder at or above `file`'s folder (inside root) that is a
+// run folder.
+function runDirOf(file: string, runDirs: Set<string>, root: string): string | undefined {
+  let d = dirname(file);
+  for (;;) {
+    if (runDirs.has(d)) return d;
+    if (d === root) return undefined;
+    const up = dirname(d);
+    if (up === d) return undefined;
+    d = up;
+  }
+}
+
 export async function verifyDirectory(
   dir: string,
   opts: VerifyOptions = {},
 ): Promise<{ lines: string[]; ok: boolean; verified: number; failed: number }> {
+  const requireManifest = opts.requireManifest ?? true;
   const lines: string[] = [];
+  const failLine = (path: string, detail: string) => {
+    failed++;
+    lines.push(`FAIL ${relative(dir, path)}: ${detail}`);
+  };
   let verified = 0;
   let failed = 0;
+  let envelopes = 0;
   let skipped = 0;
-  for (const file of findJsonFiles(dir)) {
-    const v = await verifyEnvelopeFile(file, opts);
-    const rel = relative(dir, file);
-    if (v.status === "skip") {
-      skipped++;
-    } else if (v.status === "ok") {
-      verified++;
-      lines.push(`OK   ${rel}: ${v.detail}`);
-    } else {
-      failed++;
-      lines.push(`FAIL ${rel}: ${v.detail}`);
+  let manifestsOk = 0;
+  let manifestsFailed = 0;
+
+  if (opts.publicKey) lines.push(`pinned public key ${keyFingerprint(opts.publicKey)}`);
+
+  const { files, symlinks } = listTree(dir);
+  for (const s of symlinks) failLine(s, "symlink, not followed");
+
+  const manifests = files.filter((f) => f.split(sep).pop() === MANIFEST);
+  const manifestSet = new Set(manifests);
+  const runDirs = new Set(manifests.map((m) => dirname(m)));
+  for (const m of manifests) {
+    const runDir = dirname(m);
+    const prefix = runDir + sep;
+    const v = await verifyManifest(runDir, files.filter((f) => f.startsWith(prefix)), opts);
+    if (v.status === "ok") {
+      manifestsOk++;
+      lines.push(`OK   ${relative(dir, m)}: ${v.detail}`);
+    } else if (v.status === "fail") {
+      manifestsFailed++;
+      failLine(m, v.detail);
     }
   }
-  const total = verified + failed;
+
+  for (const file of files) {
+    if (!file.endsWith(".json") || manifestSet.has(file)) continue;
+    const rel = relative(dir, file);
+    const v = await verifyEnvelopeFile(file, opts);
+    if (v.status === "skip") {
+      skipped++;
+      lines.push(`SKIP ${rel}: not an evidence envelope`);
+      continue;
+    }
+    envelopes++;
+    if (v.status === "fail") {
+      failLine(file, v.detail);
+    } else if (requireManifest && !runDirOf(file, runDirs, dir)) {
+      failLine(file, `${v.detail}, but no ${MANIFEST} covers it`);
+    } else {
+      verified++;
+      lines.push(`OK   ${rel}: ${v.detail}`);
+    }
+  }
+
   lines.push(
-    `${total} envelope(s): ${verified} verified, ${failed} failed; ${skipped} other JSON file(s) skipped`,
+    `${manifestsOk + manifestsFailed} manifest(s): ${manifestsOk} verified, ${manifestsFailed} failed; ` +
+      `${envelopes} envelope(s): ${verified} verified, ${envelopes - verified} failed; ` +
+      `${skipped} other JSON file(s) skipped`,
   );
-  if (total === 0) lines.push(`FAIL no evidence envelopes found under ${dir}`);
-  return { lines, ok: total > 0 && failed === 0, verified, failed };
+  if (envelopes === 0) lines.push(`FAIL no evidence envelopes found under ${dir}`);
+  return { lines, ok: envelopes > 0 && failed === 0, verified, failed };
 }
 
-function usage(): never {
-  console.error("usage: verify-envelopes <dir> [--require-attachments]");
-  process.exit(2);
+const USAGE =
+  "usage: verify-envelopes <dir> [--require-attachments] [--no-manifest] [--public-key <base64>]";
+
+function parseArgs(
+  argv: string[],
+): { dir: string; opts: VerifyOptions } | { error: string } {
+  const opts: VerifyOptions = {};
+  const dirs: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--require-attachments") opts.requireAttachments = true;
+    else if (a === "--no-manifest") opts.requireManifest = false;
+    else if (a === "--public-key") {
+      const v = argv[++i];
+      if (v === undefined) return { error: "--public-key needs a value" };
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(v) || Buffer.from(v, "base64").length !== 32) {
+        return { error: "--public-key must be the base64 of a raw 32-byte Ed25519 key" };
+      }
+      opts.publicKey = v;
+    } else if (a.startsWith("--")) return { error: `unknown flag ${a}` };
+    else dirs.push(a);
+  }
+  if (dirs.length !== 1) return { error: "expected exactly one directory" };
+  return { dir: dirs[0], opts };
 }
 
 export async function main(argv: string[]): Promise<number> {
-  const args = argv.filter((a) => !a.startsWith("--"));
-  const flags = new Set(argv.filter((a) => a.startsWith("--")));
-  for (const f of flags) if (f !== "--require-attachments") usage();
-  if (args.length !== 1) usage();
+  const parsed = parseArgs(argv);
+  if ("error" in parsed) {
+    console.error(`verify-envelopes: ${parsed.error}`);
+    console.error(USAGE);
+    return 2;
+  }
   // `npm run` changes into the package directory; resolve against the
   // caller's directory so `npm --prefix <spa> run verify-envelopes -- ./vault`
   // works.
-  const dir = resolve(process.env.INIT_CWD ?? process.cwd(), args[0]);
+  const dir = resolve(process.env.INIT_CWD ?? process.cwd(), parsed.dir);
   if (!existsSync(dir)) {
     console.error(`FAIL ${dir} does not exist`);
     return 1;
   }
-  const { lines, ok } = await verifyDirectory(dir, {
-    requireAttachments: flags.has("--require-attachments"),
-  });
+  const { lines, ok } = await verifyDirectory(dir, parsed.opts);
   for (const l of lines) console.log(l);
   return ok ? 0 : 1;
 }

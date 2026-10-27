@@ -74,6 +74,7 @@ src/lib/
       sample-envelope-v1.canonical.txt        ← CLI reference canonical bytes (the contract)
       sample-envelope-v1-bignum.json          ← CLI-produced envelope, payload carries int64-max + epoch-nanos
       sample-envelope-v1-bignum.canonical.txt ← CLI reference canonical bytes for the bignum envelope
+      cli-run/                                ← run folder with a manifest.json written by the CLI's Go code
 ```
 
 The `-bignum` fixtures pin the **large-integer contract**: import them with `?raw` (never as a
@@ -143,17 +144,42 @@ and the form do. Run them through the npm scripts (or `npx tsx --tsconfig tsconf
 `tsx` needs that file for the `@/` alias and JSX. Relative paths resolve against the caller's
 directory, so `npm --prefix <spa> run verify-envelopes -- ./vault` works from another checkout.
 
-`verify-envelopes` treats any JSON under an `envelopes/` folder as an envelope (a broken one fails)
-and any other JSON that passes `isEvidenceEnvelope`; everything else (`manifest.json`,
-`summary.json`, `result.json`, state shards) is skipped. It does not verify the run manifest.
+`verify-envelopes <dir> [--require-attachments] [--no-manifest] [--public-key <base64>]` checks
+a vault the way the CLI's `05-vault-layout.md` "Verification" defines it:
+
+- Each run folder's `manifest.json`: the Ed25519 signature over the canonical JSON of the
+  manifest minus `signature` (as `sign.VerifyManifest`), then `file_hashes` against the disk. A
+  listed file that is missing, a file not listed, a hash that differs or an unsafe path fails.
+- Each envelope: any JSON under an `envelopes/` folder (a broken one fails) and any other JSON
+  that passes `isEvidenceEnvelope`. Signature, manual PDF hashes against `attachments/`, and
+  (unless `--no-manifest`) that a manifest covers it.
+- Symlinks fail and are not followed. Other JSON (`summary.json`, `result.json`, state shards)
+  is listed as `SKIP`.
+- `--public-key`: every envelope and manifest must carry exactly that key. The CLI's built-in
+  signer uses a fresh key per file, so this fits only a long-lived (HSM/KMS) signer; a "same key
+  across the run" check would fail every real run. Without it, each manifest line shows its key
+  fingerprint (first 16 hex of SHA-256 of the raw key).
+- Exit 0: every check passed and at least one envelope was found. Exit 1: any `FAIL`, or no
+  envelope. Exit 2: bad arguments.
+
+A pass proves that no file in a run changed, appeared or went missing since the manifest was
+signed, and that each envelope is intact. It does not prove the CLI signed anything: the keys
+travel in the files, so whoever can write the vault can rewrite a run and re-sign it.
+Write-once storage is what stops that (CLI `SECURITY.md`).
+
 `render-evidence-pdf` takes the period from `completed_at` in the machine's local time zone, like
 the form; CI runs in UTC. It rejects input with an unknown field or a wrong type, a `framework`
 that isn't `[a-z0-9_]+` or (without `catalog`) isn't in `public/config.json`, notes for items the
 entry doesn't have, and a `period` that doesn't match the entry's frequency (`2026-05-15`,
 `2026-W20`, `2026-05`, `2026-Q2`, `2026`).
 
-Their tests (`scripts/*.test.ts`) build a CLI-shaped run folder from the `__fixtures__` envelopes
-and tamper with copies.
+Their tests (`scripts/*.test.ts`) build a CLI-shaped run folder from the `__fixtures__` envelopes,
+sign a manifest over it with a fresh `node:crypto` key, and tamper with copies (deleted, added or
+re-signed files, edited `file_hashes`, other keys, symlinks). `__fixtures__/cli-run/` is a run
+folder whose `manifest.json` came from the CLI's own `sign.Manifest` and `json.Marshal`, written
+by a throwaway Go test run with `go test -overlay` in `sigcomply-cli`; it pins the on-disk
+manifest format (HTML characters escaped, U+2028, non-UTC times). The CLI has no golden manifest
+vector yet; when it gets one, replace this fixture with it.
 
 ## E2E (Playwright)
 
