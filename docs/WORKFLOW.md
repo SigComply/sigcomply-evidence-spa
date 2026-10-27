@@ -81,21 +81,24 @@ No git hook runs this gate (see "Commands" in `AGENTS.md`). CI runs it again (`c
 
 | Layer | Where | Run | Add one when |
 |---|---|---|---|
-| Unit | Colocated `*.test.ts` next to the code (`foo.ts` → `foo.test.ts`), mostly `src/lib/` | `npm run test`, one file: `npx vitest run <path>` | Any logic change. Extract logic from React components into pure functions in `src/lib/` so it can be tested. |
-| Crypto contract | `src/lib/verification/{canonical,verify}.test.ts` with CLI-produced fixtures in `src/lib/verification/__fixtures__/` | `npm run test` | Any change to canonicalization, signature verification or the envelope type. Refresh fixtures from the CLI, never by hand. |
-| End-to-end | None automated | Agent-driven browser check (next section) | Any change that can alter what the app renders or does |
+| Unit (Vitest, Node) | Colocated `*.test.ts` next to the code (`foo.ts` → `foo.test.ts`), mostly `src/lib/`; `scripts/*.test.ts` | `npm run test:coverage`, one file: `npx vitest run <path>` | Any logic change. Extract logic from React components into pure functions in `src/lib/` so it can be tested. Coverage floors on `src/lib`, `src/config`, `src/hooks`. |
+| Crypto contract | `src/lib/verification/{canonical,verify}.test.ts` with CLI-produced fixtures in `src/lib/verification/__fixtures__/` | `npm run test` | Any change to canonicalization, signature verification or the envelope type. Never edit the fixtures by hand. |
+| Component (testing-library, jsdom) | `src/pages/*.test.tsx`, `src/hooks/*.test.ts`, first line `// @vitest-environment jsdom` | `npm run test` | A change to page state, validation messages or what a component renders for given data. |
+| E2E (Playwright, Pages-like `dist`) | `e2e/*.spec.ts`, Chromium and WebKit, served by `e2e/pages-server.ts` | `npm run test:e2e` | **Required for every user-visible flow**: a new or changed route, form, download, verdict, config option or catalog behaviour gets a spec in the same commit. |
+| Post-deploy smoke | `e2e/smoke.live.spec.ts`, run by `deploy.yml` after each deploy | `npm run test:e2e:live` | A new page or flow whose absence on the live site would go unnoticed. Keep it small. |
+| Node entry points | `scripts/verify-envelopes.ts`, `scripts/render-evidence-pdf.ts` and their tests | `npm run test` | Any change to them or to the `src/lib/` modules they import; the E2E repos depend on their output and exit codes. |
 
-Tests run in Vitest's Node environment; a component test opts into jsdom per file. Playwright is
-not installed, so there are no browser tests. `docs/TESTING.md` has the fixture rules, the coverage
-floors and the Web Crypto and PDF specifics.
+`docs/TESTING.md` has the fixture rules, the coverage floors, the Playwright conventions and the
+Web Crypto and PDF specifics. The automated layers are the proof that a flow works; the browser
+check below is for what a test can't judge.
 
 ## Verify in the real product
 
-Every change that can alter what the app renders or does is verified by driving the app in a real
-browser. That covers more than components: `src/lib/` code a page calls, catalogs, runtime config,
-routing, styles, PDF generation and verification all reach the screen. Drive it at task-workflow
-step 9, again after every review fix that touches it, and to reproduce a review finding about app
-behaviour.
+Playwright proves the flows work (see Test layers). The cmux browser check is for visual and UX
+judgement a test can't make: layout, copy, spacing, focus order, how a state reads to a person.
+Do it for every change that can alter what the app looks like or how it feels, at task-workflow
+step 9 and again after a review fix that touches it, and to reproduce a review finding about app
+behaviour. It never replaces a missing Playwright spec.
 
 The browser is the cmux in-terminal browser. Run the setup check in
 [CMUX_BROWSER.md](CMUX_BROWSER.md) first; that file also has the rules, the commands and the
@@ -148,9 +151,9 @@ browser's quirks.
    `npm run dev`), `config.json` and `data/catalogs/*.json`.
 5. Tear down: `cmux close-surface --surface $S`, then `kill "$(cat /tmp/spa_dev.$PORT.pid)"`.
 
-Only code whose output no page uses (lint config, test helpers) is covered by the unit suite
-alone; say so in the report. A refactor of code a page uses still gets driven, and so does a
-change to the build or to `scripts/fetch-catalogs.ts`.
+Code whose output no page uses (lint config, test helpers) needs no browser check; say so in the
+report. A change to the build or to `scripts/fetch-catalogs.ts` is covered by the full gate
+(`npm run build`, then `npm run test:e2e`, which builds and serves the Pages bundle).
 
 ## Docs routing
 

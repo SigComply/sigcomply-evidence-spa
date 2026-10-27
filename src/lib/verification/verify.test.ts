@@ -157,6 +157,8 @@ describe("verifyEnvelopeSignature", () => {
       const err = await verifyEnvelopeSignature(env).catch((e: unknown) => e);
       expect(err).toBeInstanceOf(WebCryptoUnsupportedError);
       expect((err as Error).message).toMatch(/does not support Ed25519/);
+      // First stable releases with Ed25519 on by default in Web Crypto.
+      expect((err as Error).message).toMatch(/Chrome 137\+, Safari 17\+, or Firefox 129\+/);
       expect((err as Error).message).toMatch(/Unrecognized name/);
     });
   });

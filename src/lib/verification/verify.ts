@@ -141,7 +141,7 @@ export async function verifyEnvelopeSignature(
   } catch (err) {
     throw new WebCryptoUnsupportedError(
       "This browser does not support Ed25519 in Web Crypto. " +
-        "Use Chrome 113+, Safari 17+, or Firefox 130+. " +
+        "Use Chrome 137+, Safari 17+, or Firefox 129+. " +
         `(${(err as Error).message})`,
     );
   }
