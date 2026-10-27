@@ -150,7 +150,13 @@ describe("renderFromInput", () => {
   it("refuses a checklist with a required item unticked", async () => {
     await expect(
       renderFromInput(
-        { framework: "soc2", evidence_id: "incident_response_tested", completed_by: "x", checked: ["plan_tested"] },
+        {
+          framework: "soc2",
+          evidence_id: "incident_response_tested",
+          completed_by: "x",
+          checked: ["plan_tested"],
+          catalog: pinnedSoc2,
+        },
         dir,
       ),
     ).rejects.toThrow(/Required item\(s\) not checked: roles_verified, communication_tested/);
