@@ -96,7 +96,8 @@ automation your harness provides; this machine's browser setup is in `AGENTS.loc
    - **Verify** (`/verify`): load `src/lib/verification/__fixtures__/sample-envelope-v1.json`.
      The verdict must show pass with no button press. Change one character inside `records` and
      confirm the verdict flips to fail. For manual-flow changes, use
-     `sample-envelope-v1-manual.json`.
+     `sample-envelope-v1-manual.json`; for fan-out changes, `sample-envelope-v1-fanout.json` and
+     its two `sample-envelope-v1-fanout.<vendor>.pdf` files.
 3. Confirm route changes from the rendered page, not the address bar.
 4. For a change near data handling, check the browser's network log: the only requests are the
    app's own static assets, `config.json` and `data/catalogs/*.json`.

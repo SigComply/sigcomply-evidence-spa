@@ -11,9 +11,9 @@
 export const EVIDENCE_PDF_FILENAME = "evidence.pdf";
 
 // normalizePrefix collapses trailing slashes to exactly one so the segment
-// joins cleanly onto the evidence_id, mirroring the Go side which concatenates
-// a trailing-slash prefix directly (`{prefix}{evidence_id}/...`). An empty
-// prefix yields "" (evidence_id becomes the first segment).
+// joins cleanly onto the evidence_id, mirroring manual.FolderPrefix on the Go
+// side, which applies the same normalization. An empty prefix yields ""
+// (evidence_id becomes the first segment).
 function normalizePrefix(prefix: string): string {
   const trimmed = prefix.replace(/\/+$/, "");
   return trimmed === "" ? "" : `${trimmed}/`;

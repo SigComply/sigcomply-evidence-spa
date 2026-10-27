@@ -20,6 +20,7 @@ import {
   getManualDocumentPayload,
   type EvidenceEnvelope,
   type ManualDocumentPayload,
+  type ManualInstancePayload,
 } from "@/types/envelope";
 import {
   sha256Hex,
@@ -27,6 +28,14 @@ import {
   WebCryptoUnsupportedError,
   type VerifyResult,
 } from "@/lib/verification/verify";
+import {
+  expectedPdfHashes,
+  matchPdfHash,
+  memberLabel,
+  memberVerdict,
+  type ExpectedPdfHash,
+  type MemberVerdict,
+} from "@/lib/verification/manual";
 
 type SigStatus =
   | { state: "idle" }
@@ -38,8 +47,13 @@ type SigStatus =
 type PdfStatus =
   | { state: "idle" }
   | { state: "hashing"; filename: string }
-  | { state: "match"; filename: string; hash: string }
-  | { state: "mismatch"; filename: string; hash: string; expected: string }
+  | { state: "match"; filename: string; hash: string; matched: ExpectedPdfHash }
+  | {
+      state: "mismatch";
+      filename: string;
+      hash: string;
+      expected: ExpectedPdfHash[];
+    }
   | { state: "error"; message: string };
 
 function truncate(s: string, n = 20): string {
@@ -86,6 +100,12 @@ export function Verify() {
     () => (envelope ? getManualDocumentPayload(envelope) : null),
     [envelope],
   );
+
+  const pdfHashes: ExpectedPdfHash[] = useMemo(
+    () => (manualDoc ? expectedPdfHashes(manualDoc) : []),
+    [manualDoc],
+  );
+  const members = manualDoc?.instances;
 
   // Summary stats for the loaded envelope: how many records and which
   // distinct record types are present.
@@ -226,7 +246,7 @@ export function Verify() {
 
   const handlePdfFile = useCallback(
     async (file: File) => {
-      if (!manualDoc?.file_hash) return;
+      if (!manualDoc || pdfHashes.length === 0) return;
       // Guard against an obviously-wrong file so a hash mismatch doesn't read
       // as "the evidence was tampered with" when the user simply dropped the
       // wrong file. The manifest hashes the merged evidence.pdf.
@@ -240,30 +260,28 @@ export function Verify() {
         });
         return;
       }
-      // The CLI writes file_hash as "sha256:<hex>"; sha256Hex returns bare
-      // hex. Strip the algorithm prefix so the comparison lines up.
-      const expected = manualDoc.file_hash
-        .replace(/^sha256:/i, "")
-        .toLowerCase();
       setPdfStatus({ state: "hashing", filename: file.name });
       try {
         const buf = await file.arrayBuffer();
         const hash = await sha256Hex(buf);
-        if (hash === expected) {
-          setPdfStatus({ state: "match", filename: file.name, hash });
+        // A fan-out record carries one hash per member, so the dropped PDF
+        // may belong to any of them; report which one it matched.
+        const matched = matchPdfHash(manualDoc, hash);
+        if (matched) {
+          setPdfStatus({ state: "match", filename: file.name, hash, matched });
         } else {
           setPdfStatus({
             state: "mismatch",
             filename: file.name,
             hash,
-            expected,
+            expected: pdfHashes,
           });
         }
       } catch (err) {
         setPdfStatus({ state: "error", message: (err as Error).message });
       }
     },
-    [manualDoc],
+    [manualDoc, pdfHashes],
   );
 
   const onEnvelopeDrop = useCallback(
@@ -467,17 +485,43 @@ export function Verify() {
               </div>
             )}
 
+            {/* Fan-out members — the CLI's signed per-member verdicts */}
+            {members && members.length > 0 && (
+              <MembersPanel
+                members={members}
+                total={manualDoc?.instances_total ?? members.length}
+                satisfied={manualDoc?.instances_satisfied ?? 0}
+                matchedId={
+                  pdfStatus.state === "match"
+                    ? pdfStatus.matched.memberId
+                    : undefined
+                }
+              />
+            )}
+
             {/* PDF hash check — manual flow only */}
-            {manualDoc?.file_hash && (
+            {pdfHashes.length > 0 && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium">Sibling PDF</p>
+                    <p className="text-sm font-medium">Evidence PDF</p>
                     <p className="text-xs text-muted-foreground">
-                      Hash the matching{" "}
-                      <code className="font-mono">evidence.pdf</code> and
-                      compare to the manifest&apos;s{" "}
-                      <code className="font-mono">file_hash</code>.
+                      {members ? (
+                        <>
+                          Hash a member&apos;s PDF and compare it to the{" "}
+                          <code className="font-mono">file_hash</code> the
+                          record holds for each member.
+                        </>
+                      ) : (
+                        <>
+                          Hash the matching PDF and compare it to the
+                          record&apos;s{" "}
+                          <code className="font-mono">file_hash</code>.
+                        </>
+                      )}{" "}
+                      The hash is of the merged PDF the CLI stores in the run
+                      folder under <code className="font-mono">attachments/</code>;
+                      a single uploaded PDF also matches.
                     </p>
                   </div>
                   {pdfStatus.state === "match" && (
@@ -516,7 +560,7 @@ export function Verify() {
                         </span>
                       ) : (
                         <>
-                          <span>Drop evidence.pdf here, or</span>
+                          <span>Drop the PDF here, or</span>
                           <Button
                             type="button"
                             variant="outline"
@@ -544,8 +588,12 @@ export function Verify() {
 
                 {pdfStatus.state === "match" && (
                   <p className="break-all text-xs text-muted-foreground">
-                    <span className="font-mono">{pdfStatus.filename}</span> ·
-                    SHA-256{" "}
+                    <span className="font-mono">{pdfStatus.filename}</span>{" "}
+                    matches{" "}
+                    <span className="font-medium text-foreground">
+                      {pdfStatus.matched.label}
+                    </span>{" "}
+                    · SHA-256{" "}
                     <span className="font-mono">{pdfStatus.hash}</span>
                   </p>
                 )}
@@ -555,10 +603,21 @@ export function Verify() {
                       <span className="text-muted-foreground">Got: </span>
                       <span className="font-mono">{pdfStatus.hash}</span>
                     </p>
-                    <p>
-                      <span className="text-muted-foreground">Expected: </span>
-                      <span className="font-mono">{pdfStatus.expected}</span>
+                    <p className="text-muted-foreground">
+                      {pdfStatus.expected.length === 1
+                        ? "Expected:"
+                        : "Expected one of:"}
                     </p>
+                    {pdfStatus.expected.map((e) => (
+                      <p key={`${e.label}-${e.hash}`}>
+                        {pdfStatus.expected.length > 1 && (
+                          <span className="text-muted-foreground">
+                            {e.label}:{" "}
+                          </span>
+                        )}
+                        <span className="font-mono">{e.hash}</span>
+                      </p>
+                    ))}
                   </div>
                 )}
                 {pdfStatus.state === "error" && (
@@ -644,6 +703,84 @@ export function Verify() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const VERDICT_BADGE: Record<
+  MemberVerdict,
+  { text: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  satisfied: { text: "satisfied", variant: "default" },
+  exempt: { text: "exempt", variant: "secondary" },
+  missing: { text: "no evidence", variant: "destructive" },
+  failed: { text: "failed", variant: "destructive" },
+};
+
+function MembersPanel({
+  members,
+  total,
+  satisfied,
+  matchedId,
+}: {
+  members: ManualInstancePayload[];
+  total: number;
+  satisfied: number;
+  matchedId?: string;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+      <div>
+        <p className="text-sm font-medium">
+          {satisfied} of {total} members satisfied
+        </p>
+        <p className="text-xs text-muted-foreground">
+          One folder per member. These verdicts are what the CLI recorded and
+          signed; this page checks the signature, not the folders.
+        </p>
+      </div>
+      <ul className="divide-y rounded-md border bg-background">
+        {members.map((m) => {
+          const v = VERDICT_BADGE[memberVerdict(m)];
+          return (
+            <li key={m.id} className="space-y-1 px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">{memberLabel(m)}</span>
+                <span className="flex items-center gap-1.5">
+                  {m.id === matchedId && (
+                    <Badge variant="outline" className="gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      PDF matches
+                    </Badge>
+                  )}
+                  {m.tier && (
+                    <Badge variant="outline" className="font-mono">
+                      {m.tier}
+                    </Badge>
+                  )}
+                  <Badge variant={v.variant}>{v.text}</Badge>
+                </span>
+              </div>
+              {m.exemption_reason && (
+                <p className="text-muted-foreground">
+                  Exempt: {m.exemption_reason}
+                  {m.approved_by ? ` (approved by ${m.approved_by})` : ""}
+                </p>
+              )}
+              {m.validation_failures?.map((f) => (
+                <p key={f} className="text-destructive">
+                  {f}
+                </p>
+              ))}
+              {m.file_hash && (
+                <p className="break-all font-mono text-muted-foreground">
+                  {m.file_hash}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

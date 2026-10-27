@@ -43,11 +43,12 @@ for the current period is empty, it prints the folder to upload to.
 
 - A valid signature shows the records match the public key inside the envelope. Anyone can
   sign an envelope with their own key, so a valid signature alone doesn't prove who signed it.
-- When a folder holds several files, the CLI merges them into one PDF and hashes that. It doesn't
-  store the merged PDF. A PDF you drop in matches the envelope's `file_hash` only when the
-  evidence folder held exactly one PDF. Folders with several files or with images never match.
-- For vendor evidence collected into one folder per vendor, the envelope has no single PDF hash, so
-  `/verify` checks the signature only.
+- When a folder holds several files, the CLI merges them into one PDF, hashes it, and stores it in
+  the run folder as `policies/<policy_id>/attachments/<evidence_id>.pdf`. Drop that stored PDF
+  (or, for a folder that held one PDF, the original upload) to match the envelope's `file_hash`.
+- For vendor evidence collected into one folder per vendor, the page lists each vendor's result
+  as the CLI recorded it, and a PDF you drop in is compared with every vendor's hash. The page
+  shows these results; it doesn't re-check the vendor folders.
 
 [SECURITY.md](SECURITY.md#what-verify-proves-and-does-not) has the full list.
 

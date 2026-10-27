@@ -84,7 +84,8 @@ Two independent client-side tools in one Vite bundle. The CLI never calls this a
    scanned documents) are filtered out; the user uploads their own file. Never add a form type for
    evidence that already exists as a file.
 2. Verifier (`/verify`): checks a CLI-signed `EvidenceEnvelope` against the Ed25519 public key
-   embedded in it, and optionally re-hashes a PDF against the manual record's `file_hash`. No auth.
+   embedded in it, and optionally re-hashes a PDF against the manual record's `file_hash` (or any
+   fan-out member's). No auth.
 
 Code map: routes in `src/App.tsx`; pages in `src/pages/`; pure logic in `src/lib/` (`period.ts`,
 `storage-path.ts`, `pdf/`, `verification/`); shared types in `src/types/`; runtime config in
@@ -102,7 +103,7 @@ Code map: routes in `src/App.tsx`; pages in `src/pages/`; pure logic in `src/lib
 | File name | `evidence.pdf` is a suggestion only | The CLI reads every supported file in the folder |
 | Period key | `src/lib/period.ts`: `2026`, `2026-Q1`, `2026-03`, `2026-W14`, `2026-04-18`, from the entry's frequency | `planner.CadencePeriod` (`internal/planner/period.go`) |
 | Envelope | `src/types/envelope.ts` (`format_version`, `produced_at`, `records`, `signature`) | `internal/core/envelope.go` |
-| Manual record payload | `ManualDocumentPayload` in `src/types/envelope.ts` | `manualManifest` in `internal/sources/manual/manual.go` |
+| Manual record payload | `ManualDocumentPayload` and `ManualInstancePayload` in `src/types/envelope.ts` | `manualManifest` and `instanceManifest` in `internal/sources/manual/manual.go` |
 | Canonical JSON | `src/lib/verification/canonical.ts` | `internal/sign/canonical.go`; byte-equal |
 | Signature | Ed25519 via Web Crypto, base64 32-byte key and 64-byte signature | `internal/sign` |
 
@@ -126,11 +127,13 @@ Rules:
 ## Verifier limits (keep the UI copy and SECURITY.md honest)
 
 - A valid signature proves the records match the key embedded in the envelope, not who signed.
-- The CLI does not store the merged PDF. `file_hash` is the hash of the merged PDF, which equals
-  the uploaded file only when the folder held exactly one PDF.
-- Fan-out envelopes (one folder per vendor) carry per-instance hashes under `instances`, no
-  top-level `file_hash`. `ManualDocumentPayload` has no `instances` field, so `/verify` checks only
-  the signature for them.
+- `file_hash` is the hash of the merged PDF, which the CLI stores in the run folder as
+  `policies/<policy_id>/attachments/<evidence_id>.pdf` (fan-out:
+  `<evidence_id>.<member_id>.pdf`). It equals the uploaded file only when the folder held one PDF.
+- Fan-out envelopes (one folder per vendor) carry per-member verdicts and hashes under `instances`
+  (`ManualInstancePayload`), no top-level `file_hash`. `/verify` shows the signed verdicts and
+  matches a dropped PDF against any member's `file_hash` (`src/lib/verification/manual.ts`). It
+  displays the verdicts; it never re-derives them.
 - Whole-run integrity (the signed `manifest.json`) is not verified.
 
 ## Runtime config

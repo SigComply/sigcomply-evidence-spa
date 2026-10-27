@@ -138,6 +138,44 @@ export interface ManualDocumentPayload {
   /** Folder URI the CLI scanned, e.g. "s3://bucket/manual/<id>/<period>/". */
   expected_uri?: string;
   source_files?: ManualSourceFile[];
+  /**
+   * Present only on a fan-out entry (one folder per vendor). Then it is the
+   * authoritative breakdown, there is no top-level `file_hash`, and the
+   * scalar fields above are the conjunction over the required members.
+   */
+  instances?: ManualInstancePayload[];
+  instances_total?: number;
+  instances_satisfied?: number;
+}
+
+/**
+ * One fan-out member's verdict inside a manual record. Mirrors the Go
+ * `instanceManifest` struct in internal/sources/manual/manual.go.
+ */
+export interface ManualInstancePayload {
+  /** Folder slug: the member's folder is `{evidence_id}.{id}`. */
+  id: string;
+  name?: string;
+  tier?: string;
+  /** False for an approved exemption: no upload is owed. */
+  required: boolean;
+  file_present: boolean;
+  /** SHA-256 of this member's merged PDF, e.g. "sha256:<hex>". */
+  file_hash?: string;
+  file_size?: number;
+  /** The CLI writes the zero time ("0001-01-01T00:00:00Z") when unset. */
+  uploaded_at?: string;
+  in_temporal_window: boolean;
+  file_valid: boolean;
+  validation_failures?: string[];
+  expected_uri?: string;
+  source_files?: ManualSourceFile[];
+  /** The CLI's single verdict for this member. */
+  satisfied: boolean;
+  exemption_reason?: string;
+  approved_by?: string;
+  /** Declared YYYY-MM-DD end of the vendor's own assurance report. */
+  assurance_period_end?: string;
 }
 
 /**

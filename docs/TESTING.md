@@ -41,9 +41,12 @@ src/lib/
   verification/
     canonical.ts          canonical.test.ts
     verify.ts             verify.test.ts
+    manual.ts             manual.test.ts    ← manual-record hashes and fan-out member verdicts
     __fixtures__/
       sample-envelope-v1.json                 ← CLI-produced envelope (automated flow)
       sample-envelope-v1-manual.json          ← CLI-produced envelope (manual flow)
+      sample-envelope-v1-fanout.json          ← CLI-produced fan-out envelope (4 vendors under `instances`)
+      sample-envelope-v1-fanout.<vendor>.pdf  ← the PDFs uploaded to two of those vendors' folders
       sample-envelope-v1.canonical.txt        ← CLI reference canonical bytes (the contract)
       sample-envelope-v1-bignum.json          ← CLI-produced envelope, payload carries int64-max + epoch-nanos
       sample-envelope-v1-bignum.canonical.txt ← CLI reference canonical bytes for the bignum envelope
@@ -58,7 +61,7 @@ keeps the original source text.
 
 ## Coverage and the gap
 
-The suite covers the **`/verify` crypto path** — `src/lib/verification/{canonical,verify}.ts` — plus
+The suite covers the **`/verify` crypto path** — `src/lib/verification/{canonical,verify,manual}.ts` — plus
 the pure-function helpers `src/lib/period.ts` (period keys/ranges, incl. ISO week-year and W53
 boundaries), `src/lib/storage-path.ts` (upload-path building) and the default storage prefix in
 `src/config/runtime.ts` and `public/config.json`. Still **untested**:
@@ -66,8 +69,6 @@ boundaries), `src/lib/storage-path.ts` (upload-path building) and the default st
 - the entire **form → PDF** app (`useEvidenceForm`, `renderEvidencePdf`, the PDF components),
 - PDF metadata strings (`src/lib/pdf/metadata.ts`),
 - all React components, hooks, and pages (verified manually in a browser instead),
-- `/verify` against a fan-out manual envelope (per-vendor `instances`, no top-level `file_hash`);
-  no fixture exists.
 
 This is a known gap, not a decision that these don't need tests. **The expectation going forward: new
 or changed logic ships with tests in the same commit** (see [WORKFLOW.md → Test layers](WORKFLOW.md#test-layers)).

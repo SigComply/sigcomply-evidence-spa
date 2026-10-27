@@ -39,11 +39,14 @@ Out of scope:
 - A valid result proves the envelope's records match the Ed25519 public key embedded in the same
   envelope. Anyone can sign an envelope with their own key, so it does not prove who signed them.
 - The PDF check compares the SHA-256 of the PDF you supply with the envelope's `file_hash`. The
-  CLI computes `file_hash` over the PDF it merges from every file in the evidence folder, and it
-  does not store that merged PDF. The check can pass only when the folder held exactly one PDF,
-  which the CLI uses unchanged. For a folder with several files or with images, no file you can
-  supply matches.
-- Fan-out envelopes (one folder per vendor) carry their hashes per vendor and no top-level
-  `file_hash`. `/verify` checks their signature only.
+  CLI computes `file_hash` over the PDF it merges from every file in the evidence folder and
+  stores that merged PDF in the run folder under `policies/<policy_id>/attachments/`. Supply that
+  file. A folder that held exactly one PDF also matches the original upload, which the CLI uses
+  unchanged.
+- Fan-out envelopes (one folder per vendor) carry a result and a `file_hash` per vendor under
+  `instances`, and no top-level `file_hash`. `/verify` lists each vendor's result as the CLI
+  signed it and compares a PDF you supply with every vendor's `file_hash`, naming the vendor it
+  matches. The per-vendor limits are the same as above. The results are the CLI's; `/verify`
+  doesn't re-check the folders.
 - `/verify` checks one envelope at a time. It does not verify the per-run signed `manifest.json`,
   so it can't tell you whether a run's files are complete.
