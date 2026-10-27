@@ -33,9 +33,10 @@ environment.
   scheduled workflows after 60 days without activity in the repo (re-enable it in the Actions
   tab, or push).
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
-  OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` and
-  `secret-scan` jobs are hard gates; the rest are advisory. It has no `paths-ignore`, so docs-only
-  pushes run it too.
+  OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` job is a hard
+  gate. In the `secret-scan` job only TruffleHog (`--only-verified`) fails the job, on a verified
+  secret; `gitleaks` findings print a warning and the step exits 0. The rest are advisory. It has no
+  `paths-ignore`, so docs-only pushes run it too.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
   `CONTRIBUTING.md`. A push or pull request that changes `.vale.ini`, `.vale/**` or the workflow
   itself lints all three. Otherwise it lints only the ones that changed.
