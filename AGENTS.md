@@ -56,7 +56,7 @@ doc.
 
 | Purpose | Command | Notes |
 |---|---|---|
-| Install | `npm ci` | Node 24 (`.nvmrc`). `npm install` needs npm >= 11 (see Gotchas). |
+| Install | `npm ci` | Node 24 (`.nvmrc`); `.npmrc` sets `engine-strict`, so npm refuses an older Node. `npm install` needs npm >= 11 (see Gotchas). |
 | Dev server | `npm run dev` | http://localhost:5173, uses the committed catalogs; no CLI needed. |
 | Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |

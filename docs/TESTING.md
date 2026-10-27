@@ -14,7 +14,8 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   coverage goes up; never lower one to get green.
 - **Component tests:** `jsdom`, `@testing-library/react` and `@testing-library/user-event`.
 - **E2E:** `@playwright/test`, Chromium and WebKit projects (`playwright.config.ts`).
-- **Node:** 24 (`.nvmrc`, `engines`). Vitest 5 does not support Node 23.
+- **Node:** 24 (`.nvmrc`, `engines`; `.npmrc` `engine-strict=true` makes `npm ci` fail on an
+  older Node). Vitest 5 does not support Node 23.
 
 ## Commands
 
