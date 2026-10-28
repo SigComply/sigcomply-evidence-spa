@@ -240,12 +240,16 @@ catalog is a real 404. Set `E2E_DIST=dist` to test an existing Pages build inste
 after `npm run build`). Port 4791 (`E2E_PORT`); the server is never reused, so a port held by
 another session fails fast instead of testing someone else's build.
 
-- Specs: `e2e/form.spec.ts` (form → `evidence.pdf` download, keywords, PDF body and checkbox
-  marks, upload path, Edit & re-download, the "uploaded" note on the list, config overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
-  no Web Crypto, and the CLI golden manual and fan-out envelopes with their PDFs), `e2e/routing.spec.ts` (deep links, in-app 404, picker, missing catalog, missing
-  `config.json`, `config.json` loaded from the base path), `e2e/dashboard.spec.ts` (search, filter chips, Clear all, the row copy button
-  and `show_upload_path`, Esc on the picker; it serves its own catalog because the pinned ones
-  are too uniform to filter).
+- Specs:
+  - `e2e/form.spec.ts`: form → `evidence.pdf` download, keywords, PDF body and checkbox marks,
+    upload path, Edit & re-download, the "uploaded" note on the list, config overrides.
+  - `e2e/verify.spec.ts`: valid, tampered, bignum, fan-out PDF match, wrong file, no Web Crypto,
+    and the CLI golden manual and fan-out envelopes with their PDFs.
+  - `e2e/routing.spec.ts`: deep links, in-app 404, picker, missing catalog, missing
+    `config.json`, `config.json` loaded from the base path.
+  - `e2e/dashboard.spec.ts`: search, filter chips, Clear all, the row copy button and
+    `show_upload_path`, Esc on the picker. It serves its own catalog because the pinned ones are
+    too uniform to filter.
 - `e2e/fixtures.ts` exports `test` with an automatic check that no request leaves the app's
   origin. Import `test` from there, never from `@playwright/test`.
 - Time: `page.clock.setFixedTime(...)` with `timezoneId: "UTC"` (set in the config) pins the

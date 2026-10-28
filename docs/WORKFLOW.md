@@ -50,8 +50,9 @@ Deploy facts that matter when you change the build:
 - Tests that name catalog entries use the pinned copies in `e2e/fixtures/catalogs/`, never
   `public/data/catalogs/`, which `npm run build` overwrites in deploy. Playwright specs serve them
   with `pinCatalogs` (`e2e/fixtures.ts`); `catalog-validate.test.ts` and
-  `render-evidence-pdf.test.ts` read them. A new CLI catalog can't fail those tests. The other
-  specs use the built catalogs. `fetch-catalogs.test.ts` checks that the fresh ones pass the
+  `render-evidence-pdf.test.ts` read them. A new CLI catalog can't fail those tests.
+  `e2e/dashboard.spec.ts` serves its own small catalog for the filter tests; the other specs use
+  the built catalogs. `fetch-catalogs.test.ts` checks that the fresh ones pass the
   validator unchanged, and `src/lib/pdf/shipped-catalogs.test.ts` renders a PDF for every fresh
   entry, so a CLI entry the form can't turn into a correct PDF fails the deploy.
 - No job in `deploy.yml` can push, so the regenerated catalogs are never committed. The committed
