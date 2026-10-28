@@ -123,16 +123,18 @@ test("a single-folder record shows what the CLI recorded, and an empty folder re
   await expect(page.getByText("Signature valid")).toBeVisible();
   const checks = page.getByRole("listitem");
   await expect(checks.filter({ hasText: "File in the folder" }).getByText("yes")).toBeVisible();
-  await expect(checks.filter({ hasText: "Valid PDF" }).getByText("yes")).toBeVisible();
+  await expect(checks.filter({ hasText: "Passed the CLI's file checks" }).getByText("yes")).toBeVisible();
 
   await page.getByRole("button", { name: "Verify another" }).click();
   await loadEnvelope(page, "empty.json", Buffer.from(signEnvelope([emptyFolderRecord()])));
   await expect(page.getByText("Signature valid")).toBeVisible();
   await expect(page.getByText("What the CLI recorded", { exact: true })).toBeVisible();
   await expect(checks.filter({ hasText: "File in the folder" }).getByText("no", { exact: true })).toBeVisible();
+  // With no file the CLI never judged the window or the file.
   await expect(
-    checks.filter({ hasText: "Uploaded within the period or its grace window" }).getByText("no", { exact: true }),
+    checks.filter({ hasText: "Uploaded within the period or its grace window" }).getByText("not checked"),
   ).toBeVisible();
+  await expect(checks.filter({ hasText: "Passed the CLI's file checks" }).getByText("not checked")).toBeVisible();
 });
 
 test("a tampered file_hash with its matching PDF never shows a match", async ({ page }) => {
@@ -142,7 +144,8 @@ test("a tampered file_hash with its matching PDF never shows a match", async ({ 
     .replace(/"file_hash":"sha256:[0-9a-f]+"/, `"file_hash":"sha256:${sha256(pdf)}"`);
   await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
   await expect(page.getByText("Signature invalid")).toBeVisible();
-  await expect(page.getByText(/The PDF check is off/)).toBeVisible();
+  await expect(page.getByText(/Hidden: the signature isn't valid/)).toBeVisible();
+  await expect(page.getByText("What the CLI recorded", { exact: true })).toHaveCount(0);
   await expect(page.locator('input[type=file][accept="application/pdf,.pdf"]')).toHaveCount(0);
   await expect(page.getByText("match", { exact: true })).toHaveCount(0);
 });

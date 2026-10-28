@@ -52,13 +52,14 @@ earlier file from the folder.
   signature doesn't prove who signed it. Trust in the files comes from write-once storage of the
   evidence vault.
 - For a manual evidence folder, the page shows the CLI's recorded result: whether a file was in
-  the folder, whether it was uploaded within the period or its grace window, and whether it was a
-  valid PDF. It shows these results; it doesn't re-check the folder.
+  the folder, whether it was uploaded within the period or its grace window, and whether it passed
+  the CLI's file checks. It shows these results only when the signature is valid, and doesn't
+  re-check the folder.
 - When a folder holds several files, the CLI merges them into one PDF, hashes it, and stores it in
   the run folder as `policies/<policy_id>/attachments/<evidence_id>.pdf`. Drop that stored PDF
   (or, for a folder that held one PDF, the original upload) to match the envelope's `file_hash`.
-  The PDF check runs only after the signature checks out, because only then does anything vouch
-  for the hash.
+  The PDF check also runs only after the signature checks out, because only then does anything
+  vouch for the hash.
 - For vendor evidence collected into one folder per vendor, the page lists each vendor's result
   as the CLI recorded it, and a PDF you drop in is compared with every vendor's hash. The page
   shows these results; it doesn't re-check the vendor folders.

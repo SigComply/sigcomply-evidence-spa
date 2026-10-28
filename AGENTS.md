@@ -162,7 +162,8 @@ Rules:
 - A valid signature proves the records match the key embedded in the envelope, not who signed.
   The CLI makes a new key per file, so never tell users to check the key against a trusted one.
 - A single-folder manual record shows its signed verdict fields (`recordedChecks` in
-  `src/lib/verification/manual.ts`); the PDF check is offered only once the signature is valid.
+  `src/lib/verification/manual.ts`; a check the CLI never ran reads "not checked"). The recorded
+  verdicts, fan-out members included, and the PDF check appear only once the signature is valid.
 - `parseEnvelopeText` refuses a `signed_document` payload whose known fields have the wrong
   type (`manualPayloadProblem` in `src/types/envelope.ts`), so the page never renders one.
 - `file_hash` is the hash of the merged PDF, which the CLI stores in the run folder as

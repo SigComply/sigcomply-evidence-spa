@@ -464,8 +464,21 @@ export function Verify() {
               </div>
             )}
 
+            {/* The CLI's signed verdicts and the PDF check mean something
+                only once the signature checks out. */}
+            {manualDoc && sigStatus.state !== "valid" && (
+              <div className="rounded-lg border bg-muted/20 p-4 text-xs text-muted-foreground">
+                <p className="text-sm font-medium text-foreground">
+                  Recorded results and PDF check
+                </p>
+                {sigStatus.state === "invalid" || sigStatus.state === "error"
+                  ? "Hidden: the signature isn't valid, so nothing vouches for the results or hashes in this file."
+                  : "Shown once the signature is verified."}
+              </div>
+            )}
+
             {/* Fan-out members — the CLI's signed per-member verdicts */}
-            {members && members.length > 0 && (
+            {sigStatus.state === "valid" && members && members.length > 0 && (
               <MembersPanel
                 members={members}
                 total={manualDoc?.instances_total ?? members.length}
@@ -479,20 +492,13 @@ export function Verify() {
             )}
 
             {/* Single-folder record — the CLI's signed verdict fields */}
-            {manualDoc && !(members && members.length > 0) && (
-              <RecordedPanel record={manualDoc} />
-            )}
+            {sigStatus.state === "valid" &&
+              manualDoc &&
+              !(members && members.length > 0) && (
+                <RecordedPanel record={manualDoc} />
+              )}
 
             {/* PDF hash check: only against hashes a valid signature vouches for */}
-            {pdfHashes.length > 0 &&
-              (sigStatus.state === "invalid" || sigStatus.state === "error") && (
-                <div className="rounded-lg border bg-muted/20 p-4 text-xs text-muted-foreground">
-                  <p className="text-sm font-medium text-foreground">Evidence PDF</p>
-                  The PDF check is off: the signature isn&apos;t valid, so nothing
-                  vouches for the hashes in this file, and a match would prove
-                  nothing.
-                </div>
-              )}
             {pdfHashes.length > 0 && sigStatus.state === "valid" && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -713,7 +719,7 @@ const VERDICT_BADGE: Record<
 const CHECK_BADGE = {
   yes: { text: "yes", variant: "default" },
   no: { text: "no", variant: "destructive" },
-  unknown: { text: "not recorded", variant: "outline" },
+  unknown: { text: "not checked", variant: "outline" },
 } as const;
 
 function RecordedPanel({ record }: { record: ManualDocumentPayload }) {

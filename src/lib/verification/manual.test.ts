@@ -144,14 +144,36 @@ describe("matchPdfHash", () => {
 });
 
 describe("recordedChecks", () => {
-  it("lists the CLI's three verdict fields as signed, missing ones as undefined", () => {
+  const labels = [
+    "File in the folder",
+    "Uploaded within the period or its grace window",
+    "Passed the CLI's file checks",
+  ];
+
+  it("shows the signed verdicts of a folder whose files were merged", () => {
     expect(
-      recordedChecks({ file_present: false, in_temporal_window: false, file_valid: false }),
+      recordedChecks({ file_present: true, file_hash: "sha256:ab", in_temporal_window: false, file_valid: false }),
     ).toEqual([
-      { label: "File in the folder", ok: false },
-      { label: "Uploaded within the period or its grace window", ok: false },
-      { label: "Valid PDF", ok: false },
+      { label: labels[0], ok: true },
+      { label: labels[1], ok: false },
+      { label: labels[2], ok: false },
     ]);
-    expect(recordedChecks({ file_present: true }).map((c) => c.ok)).toEqual([true, undefined, undefined]);
+  });
+
+  it("reads an empty folder as no file, the other checks not run", () => {
+    expect(
+      recordedChecks({ file_present: false, in_temporal_window: false, file_valid: false }).map((c) => c.ok),
+    ).toEqual([false, undefined, undefined]);
+  });
+
+  it("doesn't call the window failed when no file could be merged (only unsupported files)", () => {
+    expect(
+      recordedChecks({
+        file_present: true,
+        in_temporal_window: false,
+        file_valid: false,
+        validation_failures: ["unsupported file type: notes.docx"],
+      }).map((c) => c.ok),
+    ).toEqual([true, undefined, false]);
   });
 });

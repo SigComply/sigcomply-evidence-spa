@@ -136,7 +136,7 @@ describe("Verify page", () => {
     await loadEnvelope(container, "golden/manual.json");
     await screen.findByText("Signature valid");
     expect(screen.getByText("What the CLI recorded")).toBeTruthy();
-    for (const label of ["File in the folder", "Uploaded within the period or its grace window", "Valid PDF"]) {
+    for (const label of ["File in the folder", "Uploaded within the period or its grace window", "Passed the CLI's file checks"]) {
       expect(screen.getByText(label).nextSibling?.textContent).toBe("yes");
     }
     expect(screen.getByText("access-review.pdf")).toBeTruthy();
@@ -147,10 +147,23 @@ describe("Verify page", () => {
     await loadEnvelope(container, "empty.json", signEnvelope([emptyFolderRecord()]));
     await screen.findByText("Signature valid");
     expect(screen.getByText("File in the folder").nextSibling?.textContent).toBe("no");
-    expect(screen.getByText("Valid PDF").nextSibling?.textContent).toBe("no");
+    expect(screen.getByText("Passed the CLI's file checks").nextSibling?.textContent).toBe("not checked");
+    expect(
+      screen.getByText("Uploaded within the period or its grace window").nextSibling?.textContent,
+    ).toBe("not checked");
   });
 
-  it("offers no PDF match when the signature is invalid", async () => {
+  it("hides fan-out member verdicts when the signature is invalid", async () => {
+    const tampered = text("sample-envelope-v1-fanout.json").replace(/"satisfied":false/, '"satisfied":true');
+    expect(tampered).not.toBe(text("sample-envelope-v1-fanout.json"));
+    const { container } = renderVerify();
+    await loadEnvelope(container, "tampered.json", tampered);
+    await screen.findByText("Signature invalid");
+    expect(screen.queryByText(/members satisfied/)).toBeNull();
+    expect(screen.getByText(/Hidden: the signature isn't valid/)).toBeTruthy();
+  });
+
+  it("offers no PDF match or recorded results when the signature is invalid", async () => {
     const other = fixture("sample-envelope-v1-fanout.globex_crm.pdf");
     const hash = createHash("sha256").update(other).digest("hex");
     const tampered = text("golden/manual.json").replace(
@@ -160,7 +173,10 @@ describe("Verify page", () => {
     const { container } = renderVerify();
     await loadEnvelope(container, "tampered.json", tampered);
     await screen.findByText("Signature invalid");
-    expect(screen.getByText(/The PDF check is off/)).toBeTruthy();
+    expect(screen.getByText(/Hidden: the signature isn't valid/)).toBeTruthy();
+    // Neither the recorded verdicts nor the PDF check are offered.
+    expect(screen.queryByText("What the CLI recorded")).toBeNull();
+    expect(screen.queryByText("File in the folder")).toBeNull();
     expect(container.querySelector('input[type=file][accept="application/pdf,.pdf"]')).toBeNull();
     expect(screen.queryByText("match")).toBeNull();
   });

@@ -29,19 +29,34 @@ export function memberVerdict(m: ManualInstancePayload): MemberVerdict {
 /** One verdict field of a single-folder record, as the CLI signed it. */
 export interface RecordedCheck {
   label: string;
-  /** undefined when the record doesn't carry the field. */
+  /** undefined when the CLI didn't check it, or the record lacks the field. */
   ok: boolean | undefined;
 }
 
 /**
  * The verdict fields a single-folder manual record carries, in the order the
- * CLI checks them. `/verify` shows them; it never re-derives them.
+ * CLI checks them. `/verify` shows them; it never re-derives them. The CLI
+ * signs `false` for a check it never ran: with no file it checks nothing,
+ * and when no file could become a PDF (only unsupported types, or every
+ * conversion failed) it has no `file_hash` and never judges the upload
+ * window. Those read as "not checked", not "no".
  */
 export function recordedChecks(p: ManualDocumentPayload): RecordedCheck[] {
+  const present = p.file_present;
+  const merged = present === true && Boolean(p.file_hash);
   return [
-    { label: "File in the folder", ok: p.file_present },
-    { label: "Uploaded within the period or its grace window", ok: p.in_temporal_window },
-    { label: "Valid PDF", ok: p.file_valid },
+    { label: "File in the folder", ok: present },
+    {
+      label: "Uploaded within the period or its grace window",
+      ok: merged ? p.in_temporal_window : undefined,
+    },
+    {
+      // file_valid is also false for a byte-identical copy of the prior
+      // period, an unsupported type or a failed conversion, not only for a
+      // broken PDF; the failures listed below say which.
+      label: "Passed the CLI's file checks",
+      ok: present === true ? p.file_valid : undefined,
+    },
   ];
 }
 

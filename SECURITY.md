@@ -45,10 +45,12 @@ Out of scope:
   against; write-once storage of the vault is what keeps a run from being rewritten and
   re-signed.
 - For a single-folder manual record, `/verify` shows the result fields the CLI signed: file
-  present, uploaded within the period or its grace window, valid PDF, any validation failures and
-  the files in the folder. It displays them; it doesn't re-check the folder.
-- The PDF check is offered only when the signature is valid, since an unverified `file_hash`
-  vouches for nothing. It compares the SHA-256 of the PDF you supply with the envelope's
+  present, uploaded within the period or its grace window, passed the CLI's file checks, any
+  validation failures and the files in the folder. A check the CLI never ran (no file, or no file
+  it could turn into a PDF) shows as "not checked". It displays them; it doesn't re-check the
+  folder.
+- The recorded results (single-folder and per vendor) and the PDF check appear only when the
+  signature is valid, since an unverified record vouches for nothing. It compares the SHA-256 of the PDF you supply with the envelope's
   `file_hash`. The CLI computes `file_hash` over the PDF it merges from every file in the evidence
   folder and stores that merged PDF in the run folder under `policies/<policy_id>/attachments/`.
   Supply that file. A folder that held exactly one PDF also matches the original upload, which the CLI uses
