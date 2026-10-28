@@ -20,14 +20,29 @@ describe("readPdfInfoString", () => {
     expect(readPdfInfoString(pdf, "Keywords")).toBe("k=v; x=y");
   });
 
+  it("decodes UTF-16BE behind a byte order mark, literal or hex", () => {
+    // "Vendor’s – Zoë" in UTF-16BE. In a literal, bytes such as 0x0A and
+    // 0x29 arrive escaped (the last case).
+    const utf16 = "\u00fe\u00ff\0V\0e\0n\0d\0o\0r\u0020\u0019\0s\0 \u0020\u0013\0 \0Z\0o\0\u00eb";
+    const literal = utf16.replace(/[()\\]/g, "\\$&");
+    expect(readPdfInfoString(`<< /Title (${literal}) >>`, "Title")).toBe("Vendor’s – Zoë");
+    const hex = [...utf16].map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+    expect(readPdfInfoString(`<< /Title <${hex.toUpperCase()}> >>`, "Title")).toBe("Vendor’s – Zoë");
+    expect(readPdfInfoString("<< /Title (\\376\\377\\000\\n\\000\\)) >>", "Title")).toBe("\n)");
+  });
+
+  it("resolves the literal escapes", () => {
+    expect(readPdfInfoString("<< /T (a\\tb\\\nc\\101) >>", "T")).toBe("a\tbcA");
+  });
+
   it("returns null when the key or the object is missing", () => {
     expect(readPdfInfoString("<< /Title (t) >>", "Keywords")).toBeNull();
     expect(readPdfInfoString("<< /Keywords 9 0 R >>", "Keywords")).toBeNull();
   });
 
-  it("decodes bytes as latin1", () => {
-    expect(pdfBytesToText(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xe9]))).toBe(
-      "%PDFé",
+  it("decodes one char per byte", () => {
+    expect(pdfBytesToText(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0xe9, 0x80]))).toBe(
+      "%PDFé\u0080",
     );
   });
 });

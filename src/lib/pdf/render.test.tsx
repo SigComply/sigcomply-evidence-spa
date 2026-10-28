@@ -67,6 +67,21 @@ describe("renderEvidencePdf", () => {
   });
 });
 
+describe("Info strings outside ASCII", () => {
+  // @react-pdf writes these as UTF-16BE with a byte order mark; catalog
+  // names and signers can carry ’, – or accents.
+  it("reads back a title and keywords with typographic characters", async () => {
+    const input: PdfInput = {
+      ...declaration,
+      entry_name: "Vendor’s Review – Annual (draft)",
+      completed_by: "Zoë Ångström",
+    };
+    const text = await pdfText(input);
+    expect(readPdfInfoString(text, "Title")).toBe(input.entry_name);
+    expect(readPdfInfoString(text, "Keywords")).toBe(metadataKeywords(input));
+  });
+});
+
 describe("PDF body", () => {
   it("states the declaration, the acceptance and who signed it", async () => {
     const runs = await pdfRuns(declaration);
