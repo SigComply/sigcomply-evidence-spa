@@ -21,6 +21,8 @@ export interface EvidenceFormState {
 export interface EvidenceFieldErrors {
   completedBy?: string;
   attestation?: string;
+  /** Per checklist item id: its note has characters the PDF can't draw. */
+  notes?: Record<string, string>;
 }
 
 function charsMessage(what: string, chars: string[]): string {
@@ -102,11 +104,19 @@ export function evidenceFieldErrors(
   else if (nameChars.length > 0) errors.completedBy = charsMessage("This name", nameChars);
   if (entry.type === "declaration" && !state.accepted) {
     errors.attestation = "You must accept the declaration to continue";
-  } else if (
-    entry.type === "checklist" &&
-    missingRequired(entry, state.items).length > 0
-  ) {
-    errors.attestation = "Tick every required item (marked *)";
+  } else if (entry.type === "checklist") {
+    const missing = missingRequired(entry, state.items);
+    if (missing.length > 0) {
+      errors.attestation = `Tick every required item (marked *): ${missing.map((t) => `“${t}”`).join(", ")}`;
+    }
+  }
+  if (entry.type === "checklist") {
+    for (const item of state.items) {
+      const chars = unsupportedPdfChars(item.notes);
+      if (chars.length > 0) {
+        (errors.notes ??= {})[item.id] = charsMessage("This note", chars);
+      }
+    }
   }
   return errors;
 }

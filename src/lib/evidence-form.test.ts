@@ -143,7 +143,18 @@ describe("evidenceFieldErrors", () => {
         accepted: false,
         items: initialItems(checklist),
       }),
-    ).toEqual({ attestation: "Tick every required item (marked *)" });
+    ).toEqual({ attestation: "Tick every required item (marked *): “Revoke access”, “Collect laptop”" });
+  });
+
+  it("flags each checklist note the PDF font can't draw, by item", () => {
+    const items = initialItems(checklist).map((i) => ({
+      ...i,
+      checked: true,
+      notes: i.id === "exit" ? "ok 🙂" : "",
+    }));
+    expect(evidenceFieldErrors(checklist, { completedBy: "Jane", accepted: false, items })).toEqual({
+      notes: { exit: "This note has characters the PDF font can’t show: 🙂" },
+    });
   });
 });
 

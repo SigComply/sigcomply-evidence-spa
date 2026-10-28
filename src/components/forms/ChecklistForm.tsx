@@ -10,13 +10,15 @@ interface ChecklistFormProps {
   entry: CatalogEntry;
   items: ChecklistItemState[];
   setItem: (id: string, patch: Partial<ChecklistItemState>) => void;
+  /** Per item id, shown under that item's note once the user has submitted. */
+  noteErrors?: Record<string, string>;
 }
 
 // ChecklistForm renders a multi-item user attestation. Conceptually it is a
 // multi-point declaration — the user attests that each listed step has been
 // performed. Required items are marked with a red asterisk; the rendered PDF
 // flags them the same way (see ChecklistPdf).
-export function ChecklistForm({ entry, items, setItem }: ChecklistFormProps) {
+export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFormProps) {
   const catalogItems = entry.items ?? [];
 
   if (catalogItems.length === 0) {
@@ -50,6 +52,8 @@ export function ChecklistForm({ entry, items, setItem }: ChecklistFormProps) {
             notes: "",
           };
 
+          const noteError = noteErrors?.[item.id];
+          const noteErrorId = `item-${item.id}-notes-error`;
           return (
             <div
               key={item.id}
@@ -80,7 +84,14 @@ export function ChecklistForm({ entry, items, setItem }: ChecklistFormProps) {
                 onChange={(e) => setItem(item.id, { notes: e.target.value })}
                 placeholder="Optional notes…"
                 className="text-xs"
+                aria-invalid={Boolean(noteError)}
+                aria-describedby={noteError ? noteErrorId : undefined}
               />
+              {noteError && (
+                <p id={noteErrorId} role="alert" className="text-xs text-destructive">
+                  {noteError}
+                </p>
+              )}
             </div>
           );
         })}

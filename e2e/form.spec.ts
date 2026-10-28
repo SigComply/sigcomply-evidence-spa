@@ -132,6 +132,20 @@ test("a name outside Latin-1 reaches the PDF intact, one the font lacks is refus
   expect(body).toContain(squashText(`Signed by ${name} on 2026-05-15T12:00:00.000Z`));
 });
 
+test("a note the PDF can't draw is flagged beside it, once", async ({ page }) => {
+  await page.goto("evidence/soc2/incident_response_tested");
+  await page.getByLabel("Completed by").fill("Sam");
+  await tickRequiredIncidentItems(page);
+  const note = page.getByRole("textbox", { name: /^Optional notes for: Lessons learned/ });
+  await note.fill("ok 🙂");
+  await page.getByRole("button", { name: "Download evidence.pdf" }).click();
+  await expect(note).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator('[role="alert"].text-destructive')).toHaveText([
+    "This note has characters the PDF font can’t show: 🙂",
+  ]);
+  await expect(page.getByRole("heading", { name: "evidence.pdf downloaded" })).toHaveCount(0);
+});
+
 test("a name can't add keys to the PDF keywords", async ({ page }) => {
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await page.getByLabel("Completed by").fill("Mallory; period=2025");
@@ -145,8 +159,10 @@ test("checklist form needs every required item", async ({ page }) => {
   await page.goto("evidence/soc2/incident_response_tested");
   await page.getByLabel("Completed by").fill("Sam");
   await page.getByRole("button", { name: "Download evidence.pdf" }).click();
-  await expect(page.getByText("Tick every required item (marked *)")).toBeVisible();
-  await expect(page.getByRole("alert").filter({ hasText: /^Required item\(s\) not checked: “Incident response plan was tested/ })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: /^Tick every required item \(marked \*\): “Incident response plan was tested/ }),
+  ).toBeVisible();
+  await expect(page.locator('[role="alert"].text-destructive')).toHaveCount(1);
   await expect(page.getByText(/plan_tested|roles_verified/)).toHaveCount(0);
 
   await tickRequiredIncidentItems(page);

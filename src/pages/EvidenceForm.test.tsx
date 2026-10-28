@@ -49,6 +49,12 @@ const catalog: Catalog = {
   ],
 };
 
+// The form's error messages; the info callouts (shadcn Alert) also carry
+// role="alert".
+function errorAlerts() {
+  return screen.getAllByRole("alert").filter((el) => el.classList.contains("text-destructive"));
+}
+
 async function renderForm(
   evidenceId: string,
   config: unknown = { frameworks: ["soc2"] },
@@ -91,7 +97,9 @@ describe("EvidenceForm", () => {
     await user.click(submit);
     expect(await screen.findByText("Enter who completed this")).toBeTruthy();
     expect(screen.getByText("You must accept the declaration to continue")).toBeTruthy();
-    expect(screen.getByText("Completed by is required")).toBeTruthy();
+    // Each problem is announced once, beside its field, not again below.
+    expect(screen.queryByText("Completed by is required")).toBeNull();
+    expect(errorAlerts()).toHaveLength(2);
     expect(renderEvidencePdf).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText("Completed by"), "Jane Doe");
@@ -123,7 +131,7 @@ describe("EvidenceForm", () => {
 
     const submit = screen.getByRole("button", { name: /download evidence\.pdf/i });
     await user.click(submit);
-    const alert = await screen.findByText("Required item(s) not checked: “Revoke access”");
+    const alert = await screen.findByText("Tick every required item (marked *): “Revoke access”");
     expect(alert.getAttribute("role")).toBe("alert");
 
     await user.click(screen.getByRole("checkbox", { name: /revoke access/i }));
@@ -198,5 +206,21 @@ describe("EvidenceForm", () => {
     expect(back.length).toBe(1);
     expect(back[0].querySelector("button")).toBeNull();
     expect(screen.getByRole("link", { name: /verify a signed envelope/i }).querySelector("button")).toBeNull();
+  });
+
+  it("shows a note the PDF can't draw beside that note, linked to its input", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("offboarding");
+    await user.click(screen.getByRole("checkbox", { name: /revoke access/i }));
+    await user.type(screen.getByLabelText("Optional notes for: Exit interview"), "done 🙂");
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    const note = screen.getByLabelText("Optional notes for: Exit interview");
+    expect(note.getAttribute("aria-invalid")).toBe("true");
+    const error = document.getElementById(note.getAttribute("aria-describedby")!)!;
+    expect(error.textContent).toBe("This note has characters the PDF font can’t show: 🙂");
+    expect(errorAlerts()).toHaveLength(1);
+    expect(renderEvidencePdf).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Optional notes for: Revoke access").getAttribute("aria-invalid")).toBe("false");
   });
 });
