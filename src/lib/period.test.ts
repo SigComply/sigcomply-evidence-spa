@@ -86,23 +86,23 @@ describe.each(ZONES)("in TZ=%s", (zone) => {
   describe("formatPeriodRange", () => {
     it("renders a single day for a daily period", () => {
       expect(formatPeriodRange(currentPeriod("daily", utc("2026-03-15T23:30:00Z")))).toBe(
-        "Mar 15, 2026",
+        "Mar 15, 2026 (UTC)",
       );
     });
 
     it("renders a same-year range without repeating the start year", () => {
       expect(formatPeriodRange(currentPeriod("monthly", utc("2026-03-15T00:00:00Z")))).toBe(
-        "Mar 1 – Mar 31, 2026",
+        "Mar 1 – Mar 31, 2026 (UTC)",
       );
       expect(formatPeriodRange(currentPeriod("yearly", utc("2026-06-01T00:00:00Z")))).toBe(
-        "Jan 1 – Dec 31, 2026",
+        "Jan 1 – Dec 31, 2026 (UTC)",
       );
     });
 
     it("renders both years for a range spanning the year boundary", () => {
       // The ISO week containing 2026-01-01 runs Mon 2025-12-29 → Sun 2026-01-04.
       expect(formatPeriodRange(currentPeriod("weekly", utc("2026-01-01T00:00:00Z")))).toBe(
-        "Dec 29, 2025 – Jan 4, 2026",
+        "Dec 29, 2025 – Jan 4, 2026 (UTC)",
       );
     });
   });

@@ -15,7 +15,7 @@ import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "@/lib/storage-path";
 import { copyText } from "@/lib/clipboard";
 import { getDeviceRecord, setUploadedAck } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
-import { uploadWindowText } from "@/lib/evidence-form";
+import { UPLOAD_WINDOW_TEXT } from "@/lib/evidence-form";
 import {
   ArrowLeft,
   Download,
@@ -392,11 +392,11 @@ function EvidenceFormContent({
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
             <span className="font-mono font-medium">{form.period.key}</span>
             <span className="text-muted-foreground">
-              {formatPeriodRange(form.period)} (UTC)
+              {formatPeriodRange(form.period)}
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
-            {uploadWindowText(entry)}
+            {UPLOAD_WINDOW_TEXT}
           </span>
         </div>
       </Section>
@@ -607,7 +607,7 @@ function UploadHandoff({
             sigcomply check --scheduled
           </code>{" "}
           (daily by default). That run finds the file, hashes it and counts it
-          for period <span className="font-mono">{period.key}</span>. {uploadWindowText(entry)}{" "}
+          for period <span className="font-mono">{period.key}</span>. {UPLOAD_WINDOW_TEXT}{" "}
           Nothing is sent from this page.
         </HandoffStep>
       </ol>

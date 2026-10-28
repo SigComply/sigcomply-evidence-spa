@@ -20,11 +20,16 @@ function utcDay(d: Date): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-// formatPeriodRange renders a Period as a human window in UTC. `end` is
+// formatPeriodRange renders a Period as a human window in UTC, labelled so,
+// since the browser's own date may differ near a boundary. `end` is
 // exclusive (it is the next period's start), so the displayed last day is
-// end − 1ms. Examples: "Apr 18, 2026" (daily), "Apr 1 – Jun 30, 2026"
-// (quarterly), "Dec 29, 2025 – Jan 4, 2026" (a week spanning the year).
+// end − 1ms. Examples: "Apr 18, 2026 (UTC)" (daily), "Apr 1 – Jun 30, 2026
+// (UTC)" (quarterly), "Dec 29, 2025 – Jan 4, 2026 (UTC)" (a week).
 export function formatPeriodRange(p: Period): string {
+  return `${formatUtcRange(p)} (UTC)`;
+}
+
+function formatUtcRange(p: Period): string {
   const lastDay = new Date(p.end.getTime() - 1);
   const startYear = p.start.getUTCFullYear();
   const endYear = lastDay.getUTCFullYear();

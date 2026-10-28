@@ -130,6 +130,22 @@ describe("Dashboard", () => {
     expect(screen.queryByRole("button", { name: "Medium" })).toBeNull();
   });
 
+  it("labels every period range UTC and promises no grace upload", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 15, 12)));
+    try {
+      await renderDashboard(["soc2"], {
+        "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
+      });
+      await screen.findByText("SOC 2 acknowledgment");
+      // The period card and the row both show the yearly window.
+      expect(screen.getAllByText("Jan 1 – Dec 31, 2026 (UTC)")).toHaveLength(2);
+      expect(screen.queryByText(/grace/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("names each row's copy button after its entry and links the guide", async () => {
     await renderDashboard(["soc2"], {
       "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),

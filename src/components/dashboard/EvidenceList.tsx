@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { TSCBadge, OptionalBadge } from "./StatusBadge";
 import { severityRailClass } from "@/lib/severity";
-import { formatGrace } from "@/lib/evidence-form";
 
 function formatCategory(raw: string): string {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -171,17 +170,6 @@ function EvidenceRow({
               {META_DOT}
               <span>{formatPeriodRange(period)}</span>
             </span>
-            {entry.grace_period && (
-              <>
-                {META_DOT}
-                <span
-                  className="pointer-events-auto"
-                  title={`Upload during the period, or up to ${formatGrace(entry.grace_period)} after it ends.`}
-                >
-                  +{formatGrace(entry.grace_period)} grace
-                </span>
-              </>
-            )}
             {META_DOT}
             <span className="capitalize">{entry.severity}</span>
           </div>

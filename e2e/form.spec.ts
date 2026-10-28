@@ -97,9 +97,9 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
 test("the form and the upload screen say what the CLI does", async ({ page }) => {
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await expect(
-    page.getByText("Upload during this period, or up to 30 days after it ends (the grace period)."),
+    page.getByText("Upload during this period: once it ends, scheduled runs read the next period’s folder."),
   ).toBeVisible();
-  await expect(page.getByText(/retrospective|just ended/)).toHaveCount(0);
+  await expect(page.getByText(/retrospective|just ended|grace/)).toHaveCount(0);
 
   await page.getByLabel("Completed by").fill("Sam");
   await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();

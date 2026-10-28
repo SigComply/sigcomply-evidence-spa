@@ -137,7 +137,10 @@ test("the shipped catalogs show no lone Uncategorized heading or dead chips, and
   await expect(page.getByText(/uncategorized/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Required only" })).toHaveCount(0);
   await expect(page.getByRole("combobox")).toHaveText(/SOC 2 Type II/);
-  await expect(page.getByText(/retrospective/)).toHaveCount(0);
+  await expect(page.getByText(/retrospective|grace/)).toHaveCount(0);
+  // Period card and row ranges are labelled UTC.
+  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)").first()).toBeVisible();
+  await expect(page.getByText(/^Jan 1 – Dec 31, 2026$/)).toHaveCount(0);
 });
 
 test("switching framework clears the search", async ({ page }) => {

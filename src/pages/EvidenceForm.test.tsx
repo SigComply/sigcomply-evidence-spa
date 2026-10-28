@@ -174,10 +174,10 @@ describe("EvidenceForm", () => {
   it("states the CLI's upload window instead of a retrospective claim", async () => {
     await renderForm("policy_ack");
     expect(
-      screen.getByText("Upload during this period, or up to 30 days after it ends (the grace period)."),
+      screen.getByText("Upload during this period: once it ends, scheduled runs read the next period’s folder."),
     ).toBeTruthy();
     expect(screen.getByText("Apr 1 – Jun 30, 2026 (UTC)")).toBeTruthy();
-    expect(screen.queryByText(/retrospective|just ended/)).toBeNull();
+    expect(screen.queryByText(/retrospective|just ended|grace/)).toBeNull();
   });
 
   it("explains the handoff: merged folder, scheduled run, calendar caveat, plain links", async () => {

@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPdfInput,
   evidenceFieldErrors,
-  formatGrace,
-  uploadWindowText,
+  UPLOAD_WINDOW_TEXT,
   initialItems,
   validateEvidence,
 } from "./evidence-form";
@@ -247,17 +246,10 @@ describe("buildPdfInput", () => {
 });
 
 describe("upload window", () => {
-  it("spells out day grace periods and keeps other forms", () => {
-    expect(formatGrace("30d")).toBe("30 days");
-    expect(formatGrace("1d")).toBe("1 day");
-    expect(formatGrace("72h")).toBe("72h");
-  });
-
-  it("states the window the CLI checks: the period plus its grace", () => {
-    expect(uploadWindowText({ grace_period: "30d" })).toBe(
-      "Upload during this period, or up to 30 days after it ends (the grace period).",
+  it("asks for an upload during the period and promises no grace upload", () => {
+    expect(UPLOAD_WINDOW_TEXT).toBe(
+      "Upload during this period: once it ends, scheduled runs read the next period’s folder.",
     );
-    expect(uploadWindowText({ grace_period: "" })).toBe("Upload during this period.");
-    expect(uploadWindowText({ grace_period: "0d" })).toBe("Upload during this period.");
+    expect(UPLOAD_WINDOW_TEXT).not.toMatch(/grace|after it ends/);
   });
 });
