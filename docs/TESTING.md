@@ -179,9 +179,11 @@ checks the `%PDF` header and the Info `Keywords` string with `readPdfInfoString`
 the body with `readPdfTextRuns` (one string per text object, in drawing order) and checks what an
 auditor reads: the declaration text, `Accepted: YES`/`NO`, `Signed by <name> on <time>`, and for
 each checklist item its box (`X` or blank, the run before the item text) and the required ` *`
-(the run after it). `e2e/form.spec.ts` does the same on the downloaded file. `readPdfTextRuns`
-only understands the standard fonts the templates use; an embedded font would make these tests
-fail, not pass. Don't byte-diff PDFs or assert layout: the CLI only hashes the file. Test the inputs
+(the run after it). `e2e/form.spec.ts` does the same on the downloaded file. The templates
+embed DejaVu Sans, so the text is two-byte glyph codes; `readPdfTextRuns` maps them back through
+each font's ToUnicode CMap (a code it can't map reads as U+FFFD). The renderer starts a new run where
+the script changes, so `"SOC2 · CC1.1"` is three runs. The "outside Latin-1" cases in
+`render.test.tsx` and `form.spec.ts` prove a Łukasz stays a Łukasz. Don't byte-diff PDFs or assert layout: the CLI only hashes the file. Test the inputs
 (`buildPdfInput`, `metadataKeywords`) for everything else.
 
 ## Node entry points for the E2E repos

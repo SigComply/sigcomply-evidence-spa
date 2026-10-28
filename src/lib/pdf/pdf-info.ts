@@ -81,7 +81,8 @@ export function pdfBytesToText(bytes: ArrayBuffer | Uint8Array): string {
 
 const STREAM = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
 const TEXT_OBJECT = /\bBT\b([\s\S]*?)\bET\b/g;
-const HEX_STRING = /<([0-9A-Fa-f\s]*)>/g;
+// A font selection (`/F2 11 Tf`) or a hex string, in drawing order.
+const TEXT_TOKEN = /\/([^\s/<>[\]()]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f\s]*)>/g;
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.replace(/\s+/g, "");
@@ -92,18 +93,87 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
+/** UTF-16BE hex (code units may be space-separated) → text. */
+function utf16Hex(hex: string): string {
+  const clean = hex.replace(/\s+/g, "");
+  let out = "";
+  for (let i = 0; i + 4 <= clean.length; i += 4) {
+    out += String.fromCharCode(parseInt(clean.slice(i, i + 4), 16));
+  }
+  return out;
+}
+
+/** Inflates the stream of object `num`, or null when it has none. */
+function objectStream(buf: Uint8Array, text: string, num: string): string | null {
+  const m = new RegExp(String.raw`(?:^|\s)${num}\s+0\s+obj\b[\s\S]*?stream\r?\n`).exec(text);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  const end = /\r?\nendstream/.exec(text.slice(start));
+  if (!end) return null;
+  try {
+    return pdfBytesToText(inflateSync(buf.subarray(start, start + end.index)));
+  } catch {
+    return null;
+  }
+}
+
+/** A ToUnicode CMap's bfchar and bfrange entries as code → text. */
+function parseToUnicode(cmap: string): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const m of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f\s]+)>/g)) {
+      map.set(parseInt(m[1], 16), utf16Hex(m[2]));
+    }
+  }
+  for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    const entry = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(?:\[([^\]]*)\]|<([0-9A-Fa-f\s]+)>)/g;
+    for (const m of block[1].matchAll(entry)) {
+      const first = parseInt(m[1], 16);
+      const last = parseInt(m[2], 16);
+      if (m[3] !== undefined) {
+        [...m[3].matchAll(/<([0-9A-Fa-f\s]+)>/g)].forEach((d, i) => {
+          if (first + i <= last) map.set(first + i, utf16Hex(d[1]));
+        });
+      } else {
+        const base = utf16Hex(m[4]);
+        const lastUnit = base.charCodeAt(base.length - 1);
+        for (let c = first; c <= last; c++) {
+          map.set(c, base.slice(0, -1) + String.fromCharCode(lastUnit + c - first));
+        }
+      }
+    }
+  }
+  return map;
+}
+
+/** Font resource name (`F2`) → its ToUnicode map, for embedded fonts. */
+function fontMaps(buf: Uint8Array, text: string): Map<string, Map<number, string>> {
+  const maps = new Map<string, Map<number, string>>();
+  for (const dict of text.matchAll(/\/Font\s*<<([\s\S]*?)>>/g)) {
+    for (const ref of dict[1].matchAll(/\/([^\s/<>[\]()]+)\s+(\d+)\s+0\s+R/g)) {
+      const font = new RegExp(String.raw`(?:^|\s)${ref[2]}\s+0\s+obj\s*<<([\s\S]*?)>>`).exec(text);
+      const toUnicode = font && /\/ToUnicode\s+(\d+)\s+0\s+R/.exec(font[1]);
+      const cmap = toUnicode && objectStream(buf, text, toUnicode[1]);
+      if (cmap) maps.set(ref[1], parseToUnicode(cmap));
+    }
+  }
+  return maps;
+}
+
 /**
  * The text of each text object (BT … ET) in the PDF's content streams, in
  * drawing order. One run is one styled piece of a line: a checklist box and
- * its item text are separate runs. Test helper, not a PDF parser: it reads
- * what @react-pdf writes for the standard 14 fonts (FlateDecode streams, hex
- * strings in TJ arrays, WinAnsi codes). An embedded font would encode glyph
- * IDs instead, and the tests using this would fail loudly.
+ * its item text are separate runs, and the renderer also splits a line where
+ * the script changes (a "·" between words). Test helper, not a PDF parser:
+ * it reads what @react-pdf writes (FlateDecode streams, hex strings in TJ
+ * arrays). An embedded font's two-byte glyph codes are mapped through the
+ * font's ToUnicode CMap; a standard font's bytes are read as WinAnsi.
  */
 export function readPdfTextRuns(bytes: ArrayBuffer | Uint8Array): string[] {
   const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const text = pdfBytesToText(buf);
-  const decoder = new TextDecoder("windows-1252");
+  const maps = fontMaps(buf, text);
+  const winAnsi = new TextDecoder("windows-1252");
   const runs: string[] = [];
   for (const m of text.matchAll(STREAM)) {
     const start = m.index + m[0].indexOf("\n") + 1;
@@ -115,11 +185,24 @@ export function readPdfTextRuns(bytes: ArrayBuffer | Uint8Array): string[] {
     } catch {
       continue; // not a Flate stream (an image or an uncompressed object)
     }
+    let map: Map<number, string> | undefined;
     for (const bt of content.matchAll(TEXT_OBJECT)) {
-      const pieces = [...bt[1].matchAll(HEX_STRING)].map((h) =>
-        decoder.decode(hexToBytes(h[1])),
-      );
-      runs.push(pieces.join(""));
+      let run = "";
+      for (const tok of bt[1].matchAll(TEXT_TOKEN)) {
+        if (tok[1] !== undefined) {
+          map = maps.get(tok[1]);
+          continue;
+        }
+        if (!map) {
+          run += winAnsi.decode(hexToBytes(tok[2]));
+          continue;
+        }
+        const hex = tok[2].replace(/\s+/g, "");
+        for (let i = 0; i + 4 <= hex.length; i += 4) {
+          run += map.get(parseInt(hex.slice(i, i + 4), 16)) ?? "�";
+        }
+      }
+      runs.push(run);
     }
   }
   return runs;

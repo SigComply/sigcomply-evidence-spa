@@ -51,6 +51,12 @@ describe("renderFromInput", () => {
     }
   });
 
+  it("refuses a name the PDF font can't draw, like the form", async () => {
+    await expect(
+      renderFromInput({ ...declaration, completed_by: "张伟" }, dir),
+    ).rejects.toThrow("Completed by has characters the PDF font can’t show: 张 伟");
+  });
+
   it("renders the checklist example", async () => {
     const input = JSON.parse(
       readFileSync(join(examples, "render-evidence-pdf.checklist.json"), "utf-8"),

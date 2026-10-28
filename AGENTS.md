@@ -186,6 +186,10 @@ replace `config.json` without a rebuild; the public site ships the committed fil
   them through `src/lib/local-prefs.ts` or `device-memory.ts`, which survive storage that throws.
 - Imports use `@/...`. Plain `fetch`; no data-fetching library.
 - Lazy-load `@react-pdf/renderer` inside the submit handler (`useEvidenceForm`).
+- PDFs use only the embedded DejaVu Sans faces in `src/lib/pdf/fonts/` (registered in `fonts.ts`,
+  loaded from the app's own origin on the first render). Never use the standard fonts: their
+  WinAnsi encoding corrupts any name outside Latin-1. The form refuses text the faces can't draw
+  (`font-support.ts`); after changing the fonts, run `npx tsx scripts/gen-font-coverage.ts`.
 - Crypto stays in `crypto.subtle`. No JS Ed25519 library, no polyfill.
 - `FrameworkPickerDialog` opens only when `frameworks.length > 1` and nothing is stored, stays
   dismissible, and never gates `/verify`.

@@ -75,6 +75,37 @@ describe("validateEvidence", () => {
     ).toBeNull();
   });
 
+  it("refuses a name with characters the PDF font can't draw", () => {
+    expect(
+      validateEvidence(declaration, { completedBy: "Wei 张伟", accepted: true, items: [] }),
+    ).toBe("Completed by has characters the PDF font can’t show: 张 伟");
+  });
+
+  it("accepts Latin Extended, Vietnamese, Greek and Cyrillic names", () => {
+    for (const completedBy of ["Łukasz Dvořák", "Nguyễn Văn An", "Ελληνικά", "Иван", "Zoë"]) {
+      expect(
+        validateEvidence(declaration, { completedBy, accepted: true, items: [] }),
+      ).toBeNull();
+    }
+  });
+
+  it("accepts a combining accent the font has as one precomposed letter", () => {
+    expect(
+      validateEvidence(declaration, { completedBy: "Zoe\u0308", accepted: true, items: [] }),
+    ).toBeNull();
+  });
+
+  it("names the checklist item whose note the PDF font can't draw", () => {
+    const items = initialItems(checklist).map((i) => ({
+      ...i,
+      checked: true,
+      notes: i.id === "laptop" ? "returned 🙂" : "",
+    }));
+    expect(
+      validateEvidence(checklist, { completedBy: "Jane", accepted: false, items }),
+    ).toBe("The note on “Collect laptop” has characters the PDF font can’t show: 🙂");
+  });
+
   it("refuses an entry type the SPA does not render", () => {
     expect(
       validateEvidence(upload, { completedBy: "Jane", accepted: true, items: [] }),
@@ -96,6 +127,12 @@ describe("evidenceFieldErrors", () => {
       completedBy: "Enter who completed this",
       attestation: "You must accept the declaration to continue",
     });
+  });
+
+  it("flags a name the PDF font can't draw", () => {
+    expect(
+      evidenceFieldErrors(declaration, { completedBy: "李", accepted: true, items: [] }),
+    ).toEqual({ completedBy: "This name has characters the PDF font can’t show: 李" });
   });
 
   it("flags a checklist with a required item unticked", () => {
@@ -176,6 +213,22 @@ describe("buildPdfInput", () => {
       // An item no longer in the catalog keeps its id as text.
       { id: "unknown", text: "unknown", required: false, checked: true, notes: undefined },
     ]);
+  });
+
+  it("normalises the name and notes to NFC", () => {
+    const input = buildPdfInput({
+      entry: checklist,
+      framework: "soc2",
+      periodKey: "2026",
+      completedAt,
+      state: {
+        completedBy: "Zoe\u0308",
+        accepted: false,
+        items: [{ id: "revoke", checked: true, notes: "Ange\u0301lique" }],
+      },
+    });
+    expect(input.completed_by).toBe("Zo\u00eb");
+    expect(input.items?.[0].notes).toBe("Ang\u00e9lique");
   });
 
   it("throws for an entry type it cannot render", () => {

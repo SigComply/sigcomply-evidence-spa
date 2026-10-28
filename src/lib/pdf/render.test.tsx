@@ -113,3 +113,28 @@ describe("PDF body", () => {
     expect(text).not.toContain("Accepted:");
   });
 });
+
+describe("PDF body outside Latin-1", () => {
+  // The embedded font draws what the standard Helvetica (WinAnsi) turned
+  // into other letters: "Łukasz" came out as "Aukasz".
+  it("draws a signer name and notes in Latin Extended, Vietnamese and Greek", async () => {
+    const name = "Łukasz Dvořák (Nguyễn Văn An) Ελληνικά";
+    const runs = await pdfRuns({
+      ...checklist,
+      completed_by: name,
+      items: [{ id: "revoke", text: "Revoke access", required: true, checked: true, notes: "→ ✓ Привет" }],
+    });
+    const text = runs.join("");
+    expect(text).toContain(`Completed by${name}`);
+    expect(text).toContain(`Signed by ${name} on`);
+    expect(text).toContain("Notes: → ✓ Привет");
+    expect(text).not.toContain("\uFFFD");
+  });
+
+  it("embeds the DejaVu Sans faces instead of a standard font", async () => {
+    const text = await pdfText(declaration);
+    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+DejaVuSans\b/);
+    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+DejaVuSans-Bold\b/);
+    expect(text).not.toContain("/Helvetica");
+  });
+});

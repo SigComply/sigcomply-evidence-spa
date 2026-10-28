@@ -1,4 +1,5 @@
 import { StyleSheet } from "@react-pdf/renderer";
+import { PDF_FONT_FAMILY } from "./fonts";
 
 // Shared StyleSheet for every evidence.pdf the SPA generates. Keep this small
 // and consistent across declaration/checklist documents — auditors should
@@ -9,13 +10,13 @@ export const styles = StyleSheet.create({
     paddingBottom: 48,
     paddingHorizontal: 40,
     fontSize: 11,
-    fontFamily: "Helvetica",
+    fontFamily: PDF_FONT_FAMILY,
     lineHeight: 1.4,
     color: "#111",
   },
   title: {
     fontSize: 18,
-    fontFamily: "Helvetica-Bold",
+    fontWeight: "bold",
     marginBottom: 4,
   },
   subtitle: {
@@ -42,11 +43,11 @@ export const styles = StyleSheet.create({
   metadataValue: {
     flex: 1,
     fontSize: 10,
-    fontFamily: "Helvetica-Bold",
+    fontWeight: "bold",
   },
   sectionHeading: {
     fontSize: 13,
-    fontFamily: "Helvetica-Bold",
+    fontWeight: "bold",
     marginTop: 12,
     marginBottom: 8,
   },
@@ -60,7 +61,7 @@ export const styles = StyleSheet.create({
   },
   acceptedLine: {
     fontSize: 12,
-    fontFamily: "Helvetica-Bold",
+    fontWeight: "bold",
     marginBottom: 12,
   },
   signatureLine: {
@@ -105,7 +106,7 @@ export const styles = StyleSheet.create({
   },
   itemRequiredMarker: {
     color: "#a00",
-    fontFamily: "Helvetica-Bold",
+    fontWeight: "bold",
   },
   itemNotes: {
     marginTop: 2,

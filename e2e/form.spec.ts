@@ -94,6 +94,21 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
   ).toBeVisible();
 });
 
+test("a name outside Latin-1 reaches the PDF intact, one the font lacks is refused", async ({ page }) => {
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+
+  await page.getByLabel("Completed by").fill("Wei 张伟");
+  await page.getByRole("button", { name: "Download evidence.pdf" }).click();
+  await expect(page.getByText("This name has characters the PDF font can’t show: 张 伟")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "evidence.pdf downloaded" })).toHaveCount(0);
+
+  const name = "Łukasz Dvořák (Nguyễn Văn An)";
+  await page.getByLabel("Completed by").fill(name);
+  const body = joinTextRuns(await pdfRunsFrom(await submit(page)));
+  expect(body).toContain(squashText(`Signed by ${name} on 2026-05-15T12:00:00.000Z`));
+});
+
 test("checklist form needs every required item", async ({ page }) => {
   await page.goto("evidence/soc2/incident_response_tested");
   await page.getByLabel("Completed by").fill("Sam");
