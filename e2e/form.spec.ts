@@ -1,7 +1,7 @@
 import type { Download, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { expect, pinCatalogs, test } from "./fixtures";
-import { pdfBytesToText, readPdfInfoString } from "../src/lib/pdf/pdf-info";
+import { pdfBytesToText, readPdfInfoString, readPdfTextRuns } from "../src/lib/pdf/pdf-info";
 
 // 15 May 2026 12:00 UTC: yearly entries fall in period 2026.
 const NOW = new Date("2026-05-15T12:00:00Z");
@@ -15,6 +15,26 @@ test.beforeEach(async ({ page }) => {
 
 async function pdfFrom(download: Download): Promise<string> {
   return pdfBytesToText(readFileSync((await download.path())!));
+}
+
+async function pdfRunsFrom(download: Download): Promise<string[]> {
+  return readPdfTextRuns(readFileSync((await download.path())!));
+}
+
+// The body text with line breaks undone: @react-pdf wraps and hyphenates
+// long text across runs, so compare without whitespace or a break hyphen.
+function bodyText(runs: string[]): string {
+  return runs.map((r) => r.replace(/-$/, "")).join("").replace(/\s+/g, "");
+}
+function squash(s: string): string {
+  return s.replace(/\s+/g, "");
+}
+
+// The run drawn just before an item's text is its checkbox: "X" or blank.
+function boxBefore(runs: string[], itemText: string): string {
+  const i = runs.indexOf(itemText);
+  expect(i, `"${itemText}" in the PDF`).toBeGreaterThan(0);
+  return runs[i - 1];
 }
 
 // The copyable upload path (the breadcrumb below it repeats the same text).
@@ -43,6 +63,15 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
   const download = await submit(page);
 
   expect(download.suggestedFilename()).toBe("evidence.pdf");
+  const body = bodyText(await pdfRunsFrom(download));
+  for (const line of [
+    "Code Of Conduct Acknowledgment",
+    "I confirm that all personnel have acknowledged the organization's code of conduct during this period, either on hire or as part of the annual re-acknowledgment.",
+    "Accepted: YES",
+    "Signed by Jane Doe on 2026-05-15T12:00:00.000Z",
+  ]) {
+    expect(body).toContain(squash(line));
+  }
   const pdf = await pdfFrom(download);
   expect(pdf.startsWith("%PDF-")).toBe(true);
   expect(readPdfInfoString(pdf, "Keywords")).toBe(
@@ -64,11 +93,22 @@ test("checklist form needs every required item", async ({ page }) => {
     page.getByText(/^Required item\(s\) not checked: plan_tested, roles_verified, communication_tested$/),
   ).toBeVisible();
 
-  for (const box of await page.getByRole("checkbox").all()) {
-    const label = await box.getAttribute("id");
-    if (label !== "item-lessons_documented") await box.click();
+  // Tick the three required items; leave the optional one unticked.
+  for (const item of [
+    "Incident response plan was tested",
+    "All incident response roles",
+    "Communication channels and escalation paths",
+  ]) {
+    await page.getByRole("checkbox", { name: new RegExp(`^${item}`) }).click();
   }
+  await expect(page.getByRole("checkbox", { name: /^Lessons learned/ })).not.toBeChecked();
   const download = await submit(page);
+  // The optional item stayed unticked, so its box is blank; the rest are marked.
+  const runs = await pdfRunsFrom(download);
+  expect(boxBefore(runs, "Lessons learned were documented and the plan updated accordingly")).toBe(" ");
+  expect(boxBefore(runs, "Incident response plan was tested via tabletop exercise or simulation")).toBe("X");
+  expect(boxBefore(runs, "Communication channels and escalation paths were tested")).toBe("X");
+  expect(bodyText(runs)).toContain(squash("Signed by Sam on 2026-05-15T12:00:00.000Z"));
   const keywords = readPdfInfoString(await pdfFrom(download), "Keywords");
   expect(keywords).toMatch(/^evidence_id=incident_response_tested; .*period=2026; type=checklist; completed_by=Sam; /);
   await expect(

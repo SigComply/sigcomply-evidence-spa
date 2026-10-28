@@ -1,3 +1,5 @@
+import { inflateSync } from "node:zlib";
+
 // Reads one literal string from a PDF's Info dictionary. Test helper for the
 // unit, script and Playwright tests, which assert the `keywords` contract on
 // real rendered bytes. @react-pdf writes Info values uncompressed, either
@@ -27,4 +29,50 @@ export function readPdfInfoString(
 /** Decodes PDF bytes one byte per char, so offsets and ASCII survive. */
 export function pdfBytesToText(bytes: ArrayBuffer | Uint8Array): string {
   return new TextDecoder("latin1").decode(bytes);
+}
+
+const STREAM = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+const TEXT_OBJECT = /\bBT\b([\s\S]*?)\bET\b/g;
+const HEX_STRING = /<([0-9A-Fa-f\s]*)>/g;
+
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.replace(/\s+/g, "");
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+/**
+ * The text of each text object (BT … ET) in the PDF's content streams, in
+ * drawing order. One run is one styled piece of a line: a checklist box and
+ * its item text are separate runs. Test helper, not a PDF parser: it reads
+ * what @react-pdf writes for the standard 14 fonts (FlateDecode streams, hex
+ * strings in TJ arrays, WinAnsi codes). An embedded font would encode glyph
+ * IDs instead, and the tests using this would fail loudly.
+ */
+export function readPdfTextRuns(bytes: ArrayBuffer | Uint8Array): string[] {
+  const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const text = pdfBytesToText(buf);
+  const decoder = new TextDecoder("windows-1252");
+  const runs: string[] = [];
+  for (const m of text.matchAll(STREAM)) {
+    const start = m.index + m[0].indexOf("\n") + 1;
+    let content: string;
+    try {
+      content = pdfBytesToText(
+        inflateSync(buf.subarray(start, start + m[1].length)),
+      );
+    } catch {
+      continue; // not a Flate stream (an image or an uncompressed object)
+    }
+    for (const bt of content.matchAll(TEXT_OBJECT)) {
+      const pieces = [...bt[1].matchAll(HEX_STRING)].map((h) =>
+        decoder.decode(hexToBytes(h[1])),
+      );
+      runs.push(pieces.join(""));
+    }
+  }
+  return runs;
 }

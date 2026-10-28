@@ -66,8 +66,8 @@ src/lib/
   __fixtures__/golden/                            ← CLI goldens: periods.json, <framework>_golden.json
   pdf/
     metadata.ts           metadata.test.ts        ← the keywords contract string
-    render.tsx            render.test.tsx         ← real PDF in Node: %PDF header, Info keywords
-    pdf-info.ts           pdf-info.test.ts        ← reads Info strings for the tests
+    render.tsx            render.test.tsx         ← real PDF in Node: Info keywords, body text, checkbox marks
+    pdf-info.ts           pdf-info.test.ts        ← reads Info strings and body text runs for the tests
   verification/
     canonical.ts          canonical.test.ts
     verify.ts             verify.test.ts    ← plus bad base64, key/signature length, no Ed25519
@@ -167,9 +167,14 @@ Node version the tests run under without any polyfill — do **not** add
 ## Testing PDF generation
 
 `@react-pdf/renderer` runs in Node, so `render.test.tsx` renders real PDFs (about 50 ms each) and
-checks the `%PDF` header and the Info `Keywords` string with `readPdfInfoString`. Don't byte-diff
-PDFs: the CLI only hashes the file, so the `keywords` string is the contract worth pinning, not the
-layout. Test the inputs (`buildPdfInput`, `metadataKeywords`) for everything else.
+checks the `%PDF` header and the Info `Keywords` string with `readPdfInfoString`. It also reads
+the body with `readPdfTextRuns` (one string per text object, in drawing order) and checks what an
+auditor reads: the declaration text, `Accepted: YES`/`NO`, `Signed by <name> on <time>`, and for
+each checklist item its box (`X` or blank, the run before the item text) and the required ` *`
+(the run after it). `e2e/form.spec.ts` does the same on the downloaded file. `readPdfTextRuns`
+only understands the standard fonts the templates use; an embedded font would make these tests
+fail, not pass. Don't byte-diff PDFs or assert layout: the CLI only hashes the file. Test the inputs
+(`buildPdfInput`, `metadataKeywords`) for everything else.
 
 ## Node entry points for the E2E repos
 
@@ -227,8 +232,8 @@ catalog is a real 404. Set `E2E_DIST=dist` to test an existing Pages build inste
 after `npm run build`). Port 4791 (`E2E_PORT`); the server is never reused, so a port held by
 another session fails fast instead of testing someone else's build.
 
-- Specs: `e2e/form.spec.ts` (form → `evidence.pdf` download, keywords, upload path, config
-  overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
+- Specs: `e2e/form.spec.ts` (form → `evidence.pdf` download, keywords, PDF body and checkbox
+  marks, upload path, config overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
   no Web Crypto), `e2e/routing.spec.ts` (deep links, in-app 404, picker, missing catalog, missing
   `config.json`).
 - `e2e/fixtures.ts` exports `test` with an automatic check that no request leaves the app's
