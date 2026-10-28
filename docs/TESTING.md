@@ -121,6 +121,11 @@ Refresh, in the same task as the CLI change:
 changed, missing or extra file, 2 when `CLI_REPO` is not a CLI checkout. CI has no CLI checkout and
 doesn't run it; run it locally whenever a contract changes on either side.
 
+`e2e/verify.spec.ts` also loads the golden manual and fan-out envelopes and their PDFs. It reads
+its expectations (evidence ID, period, member counts and verdicts, the PDF hash) from the fixtures,
+so a refresh needs no edit there unless a vector changes shape: it expects one manual record with
+a PDF, and a fan-out with a missing member, an exempt one and at least two with PDFs.
+
 ## Pinned catalogs
 
 `e2e/fixtures/catalogs/*.json` are copies of `public/data/catalogs/` that only a person changes.

@@ -1,4 +1,11 @@
 import type { Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { memberLabel } from "../src/lib/verification/manual";
+import type {
+  EvidenceEnvelope,
+  ManualDocumentPayload,
+  ManualInstancePayload,
+} from "../src/types/envelope";
 import { expect, fixture, loadEnvelope, loadPdf, test } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
@@ -42,9 +49,6 @@ test("the wrong PDF is a mismatch, and a non-PDF is refused", async ({ page }) =
   await expect(page.getByText("mismatch", { exact: true })).toBeVisible();
 });
 
-// The CLI's golden envelopes (src/lib/verification/__fixtures__/golden/,
-// made by the CLI's TestSPAGoldenEnvelopes): the auditor's flow on the
-// exact bytes the current CLI signs.
 // The identity badges (evidence ID, flow, period) are the first monospace
 // badges on the page; member tier badges follow further down.
 async function expectIdentity(page: Page, parts: string[]) {
@@ -54,32 +58,62 @@ async function expectIdentity(page: Page, parts: string[]) {
   }
 }
 
+function sha256(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function goldenPayload(name: string): ManualDocumentPayload {
+  const env = JSON.parse(fixture(`golden/${name}`).toString("utf-8")) as EvidenceEnvelope;
+  return env.records[0].payload as ManualDocumentPayload;
+}
+
+// The CLI's golden envelopes (src/lib/verification/__fixtures__/golden/,
+// made by the CLI's TestSPAGoldenEnvelopes): the auditor's flow on the exact
+// bytes the current CLI signs. Expectations come from the fixtures, so a
+// refresh with `npm run check:goldens -- --copy` needs no edit here unless the
+// vectors change shape (one manual record; a fan-out with a missing and an
+// exempt member).
 test.describe("CLI golden envelopes", () => {
   test("a single-folder manual record matches its merged PDF", async ({ page }) => {
+    const record = goldenPayload("manual.json");
+    const pdf = fixture(`golden/manual.${record.evidence_id}.pdf`);
     await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
     await expect(page.getByText("Signature valid")).toBeVisible();
-    await expectIdentity(page, ["access_review_quarterly", "manual", "2026-Q1"]);
-    await loadPdf(page, "evidence.pdf", fixture("golden/manual.access_review_quarterly.pdf"));
+    await expectIdentity(page, [record.evidence_id!, "manual", record.period_id!]);
+    await loadPdf(page, "evidence.pdf", pdf);
     await expect(page.getByText("match", { exact: true })).toBeVisible();
-    await expect(page.getByText(/^evidence\.pdf matches access_review_quarterly · SHA-256 1c964fe9/)).toBeVisible();
+    await expect(
+      page.getByText(`evidence.pdf matches ${record.evidence_id} · SHA-256 ${sha256(pdf)}`),
+    ).toBeVisible();
   });
 
   test("a fan-out record shows the members and which one a PDF matches", async ({ page }) => {
+    const record = goldenPayload("fanout.json");
+    const members = record.instances!;
     await loadEnvelope(page, "fanout.json", fixture("golden/fanout.json"));
     await expect(page.getByText("Signature valid")).toBeVisible();
     // The record itself has file_present false (the files are per member);
     // it is still a manual record.
-    await expectIdentity(page, ["vendor_assurance", "manual", "2026"]);
-    await expect(page.getByText("3 of 4 members satisfied")).toBeVisible();
-    const member = (label: string) =>
-      page.getByRole("listitem").filter({ hasText: label });
-    await expect(member("Initech Mail (initech_mail)").getByText("no evidence")).toBeVisible();
-    await expect(member("Zeta Newsletter (zeta_news)").getByText("exempt", { exact: true })).toBeVisible();
+    expect(record.file_present).toBe(false);
+    await expectIdentity(page, [record.evidence_id!, "manual", record.period_id!]);
+    await expect(
+      page.getByText(`${record.instances_satisfied} of ${record.instances_total} members satisfied`),
+    ).toBeVisible();
+    const row = (m: ManualInstancePayload) =>
+      page.getByRole("listitem").filter({ hasText: memberLabel(m) });
+    const missing = members.find((m) => m.required && !m.satisfied && !m.file_present)!;
+    const exempt = members.find((m) => !m.required)!;
+    await expect(row(missing).getByText("no evidence")).toBeVisible();
+    await expect(row(exempt).getByText("exempt", { exact: true })).toBeVisible();
 
-    await loadPdf(page, "iso-cert.pdf", fixture("golden/fanout.vendor_assurance.globex_crm.pdf"));
-    await expect(member("Globex CRM (globex_crm)").getByText("PDF matches")).toBeVisible();
+    // A member other than the first, so a match can't come from position.
+    const target = members.filter((m) => m.file_hash)[1];
+    const pdf = fixture(`golden/fanout.${record.evidence_id}.${target.id}.pdf`);
+    expect(`sha256:${sha256(pdf)}`).toBe(target.file_hash);
+    await loadPdf(page, "member.pdf", pdf);
+    await expect(row(target).getByText("PDF matches")).toBeVisible();
     await expect(page.getByText("PDF matches", { exact: true })).toHaveCount(1);
-    await expect(page.getByText(/^iso-cert\.pdf matches Globex CRM \(globex_crm\)/)).toBeVisible();
+    await expect(page.getByText(`member.pdf matches ${memberLabel(target)}`)).toBeVisible();
   });
 });
 
