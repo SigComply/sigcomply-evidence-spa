@@ -16,8 +16,8 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://127.0.0.1:${port}/sigcomply-evidence-spa/`,
-    // Period keys come from the browser's local clock; pin the zone so a
-    // fixed instant always lands in the same period.
+    // Periods are UTC in any zone; pin it so anything the browser formats in
+    // local time reads the same on every machine.
     timezoneId: "UTC",
     trace: "retain-on-failure",
   },

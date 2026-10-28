@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { currentPeriod } from "./period";
 import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "./storage-path";
 import type { Frequency } from "@/types/catalog";
@@ -21,27 +21,14 @@ interface PeriodRow {
 
 const rows = golden.periods as PeriodRow[];
 
-// The CLI computes periods in UTC; currentPeriod uses the browser's local
-// clock (AGENTS.md "Gotchas"). Each golden instant is handed to the SPA as
-// the same wall-clock time in the local zone, which is what a browser in UTC
-// sees, so the table checks the period arithmetic in any test time zone.
-function utcWallClockAsLocal(iso: string): Date {
-  const d = new Date(iso);
-  return new Date(
-    d.getUTCFullYear(),
-    d.getUTCMonth(),
-    d.getUTCDate(),
-    d.getUTCHours(),
-    d.getUTCMinutes(),
-    d.getUTCSeconds(),
-    d.getUTCMilliseconds(),
-  );
-}
+// Both sides compute periods in UTC, so each golden instant is handed over as
+// the same instant. The table runs under zones either side of UTC to prove the
+// browser's zone never changes the answer.
+const ZONES = ["UTC", "Australia/Sydney", "America/Los_Angeles"];
 
-// "2026-01-31T23:59:59.999999999Z" → the local Date with that wall clock,
-// truncated to milliseconds.
-function wallClock(iso: string): Date {
-  return utcWallClockAsLocal(iso.replace(/(\.\d{3})\d*Z$/, "$1Z"));
+// Go writes nanoseconds; Date keeps milliseconds.
+function instant(iso: string): Date {
+  return new Date(iso.replace(/(\.\d{3})\d*Z$/, "$1Z"));
 }
 
 function folderOf(prefix: string, evidenceId: string, periodId: string): string {
@@ -56,20 +43,32 @@ describe("CLI golden periods", () => {
     );
   });
 
-  describe.each(rows)("$instant $cadence", (row) => {
-    const p = currentPeriod(row.frequency, utcWallClockAsLocal(row.instant));
-
-    it("gives the CLI's period_id", () => {
-      expect(p.key).toBe(row.period_id);
+  describe.each(ZONES)("in TZ=%s", (zone) => {
+    let saved: string | undefined;
+    beforeAll(() => {
+      saved = process.env.TZ;
+      process.env.TZ = zone;
+    });
+    afterAll(() => {
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
     });
 
-    it("gives the CLI's window (CLI end inclusive, SPA end exclusive)", () => {
-      expect(p.start).toEqual(wallClock(row.period_start));
-      expect(new Date(p.end.getTime() - 1)).toEqual(wallClock(row.period_end));
-    });
+    describe.each(rows)("$instant $cadence", (row) => {
+      it("gives the CLI's period_id", () => {
+        expect(currentPeriod(row.frequency, instant(row.instant)).key).toBe(row.period_id);
+      });
 
-    it("gives the CLI's upload folder", () => {
-      expect(folderOf(golden.prefix, golden.evidence_id, p.key)).toBe(row.folder);
+      it("gives the CLI's window (CLI end inclusive, SPA end exclusive)", () => {
+        const p = currentPeriod(row.frequency, instant(row.instant));
+        expect(p.start).toEqual(instant(row.period_start));
+        expect(new Date(p.end.getTime() - 1)).toEqual(instant(row.period_end));
+      });
+
+      it("gives the CLI's upload folder", () => {
+        const p = currentPeriod(row.frequency, instant(row.instant));
+        expect(folderOf(golden.prefix, golden.evidence_id, p.key)).toBe(row.folder);
+      });
     });
   });
 });

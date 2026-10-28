@@ -17,7 +17,7 @@
 //   completed_at   ISO 8601; default now
 //   period         period key in the entry's frequency format (2026-05-15,
 //                  2026-W20, 2026-05, 2026-Q2, 2026); default the entry's
-//                  current period at completed_at
+//                  period at completed_at, in UTC like the CLI
 //   catalog        path to a catalog JSON; default public/data/catalogs/<framework>.json
 //   prefix         storage prefix for the printed upload path; default "manual/"
 //

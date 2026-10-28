@@ -371,7 +371,7 @@ function EvidenceFormContent({
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
             <span className="font-mono font-medium">{form.period.key}</span>
             <span className="text-muted-foreground">
-              {formatPeriodRange(form.period)}
+              {formatPeriodRange(form.period)} (UTC)
             </span>
           </div>
           {entry.grace_period && (

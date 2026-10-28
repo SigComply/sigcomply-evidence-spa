@@ -105,9 +105,9 @@ byte-for-byte copies. The README in each `golden/` folder names the CLI source.
 | `periods.json`: UTC instants × cadences → period ID, window, folder; prefix table | `src/lib/__fixtures__/golden/` | `period-golden.test.ts`: `currentPeriod` and `computeUploadPath` give the same period ID, window and folder for every row, and the same folder for every prefix |
 | `soc2_golden.json`, `iso27001_golden.json`: `sigcomply evidence catalog -o json` | `src/lib/__fixtures__/golden/` | `fetch-catalogs.test.ts`: no validator errors or warnings, and `prepareCatalog` keeps every renderable entry |
 
-The CLI works in UTC; `currentPeriod` uses the local clock. `period-golden.test.ts` hands each
-instant to the SPA as the same wall-clock time in the local zone (what a browser in UTC sees), so
-it passes in any `TZ`. The window check compares the CLI's inclusive `period_end` with the SPA's
+Both sides compute periods in UTC. `period-golden.test.ts` hands each instant over unchanged and
+runs the table under `TZ` values either side of UTC (`process.env.TZ`, which Node applies at once),
+so a local-time getter fails it. `period.test.ts` does the same. The window check compares the CLI's inclusive `period_end` with the SPA's
 exclusive `end` minus 1 ms.
 
 Refresh, in the same task as the CLI change:
@@ -216,8 +216,7 @@ signed, and that each envelope is intact. It does not prove the CLI signed anyth
 travel in the files, so whoever can write the vault can rewrite a run and re-sign it.
 Write-once storage is what stops that (CLI `SECURITY.md`).
 
-`render-evidence-pdf` takes the period from `completed_at` in the machine's local time zone, like
-the form; CI runs in UTC. It rejects input with an unknown field or a wrong type, a `framework`
+`render-evidence-pdf` takes the period from `completed_at` in UTC, like the form and the CLI. It rejects input with an unknown field or a wrong type, a `framework`
 that isn't `[a-z0-9_]+` or (without `catalog`) isn't in `public/config.json`, notes for items the
 entry doesn't have, and a `period` that doesn't match the entry's frequency (`2026-05-15`,
 `2026-W20`, `2026-05`, `2026-Q2`, `2026`).
@@ -252,8 +251,8 @@ another session fails fast instead of testing someone else's build.
     too uniform to filter.
 - `e2e/fixtures.ts` exports `test` with an automatic check that no request leaves the app's
   origin. Import `test` from there, never from `@playwright/test`.
-- Time: `page.clock.setFixedTime(...)` with `timezoneId: "UTC"` (set in the config) pins the
-  period. No sleeps: wait on locators, `waitForEvent("download")` or `waitForResponse`.
+- Time: `page.clock.setFixedTime(...)` pins the period. The config sets `timezoneId: "UTC"`; a
+  spec that proves the period ignores the browser's zone overrides it with `test.use`. No sleeps: wait on locators, `waitForEvent("download")` or `waitForResponse`.
 - Config overrides: `page.route("**/config.json", ...)`.
 - `e2e/smoke.live.spec.ts` runs only under `playwright.live.config.ts`, against the live site.
 - Failures keep a trace in `test-results/`: `npx playwright show-trace <zip>`.

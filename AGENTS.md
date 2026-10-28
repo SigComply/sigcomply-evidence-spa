@@ -193,8 +193,11 @@ replace `config.json` without a rebuild; the public site ships the committed fil
 
 ## Gotchas
 
-- `currentPeriod()` uses the browser's local clock; the CLI uses UTC and the HEAD commit time. Near
-  a period boundary a daily or weekly entry can land in a different folder.
+- `currentPeriod()` computes periods in UTC from the browser's clock, like the CLI's
+  `CadencePeriod`, and `formatPeriodRange` prints the window in UTC. Never use local-time getters
+  (`getFullYear`, `getDate`, date-fns `format`) for periods: a browser east or west of UTC would
+  show another folder near every boundary. The CLI may still take the period from a run clock or
+  the HEAD commit time that differs from the moment the form was filled.
 - `useCatalog` resets `catalog` to `null` on framework switch; handle the loading state.
 - `npm install` crashes on npm 10 (`Cannot read properties of null (reading 'edgesOut')`) because
   `typescript` is an npm alias. `npm ci` works on npm 10. Use `npx npm@11 install` to re-resolve.

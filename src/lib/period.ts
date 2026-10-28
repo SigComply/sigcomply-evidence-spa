@@ -1,4 +1,3 @@
-import { format, getISOWeek, getISOWeekYear } from "date-fns";
 import type { Frequency } from "@/types/catalog";
 
 export interface Period {
@@ -7,86 +6,91 @@ export interface Period {
   end: Date;
 }
 
-// formatPeriodRange renders a Period as a human window. `end` is exclusive
-// (it is the next period's start), so the displayed last day is end − 1ms.
-// Examples: "Apr 18, 2026" (daily), "Apr 1 – Jun 30, 2026" (quarterly),
-// "Dec 29, 2025 – Jan 4, 2026" (a week spanning the year boundary).
+// Every period here is computed in UTC, like the CLI's planner.CadencePeriod
+// (sigcomply-cli internal/planner/period.go). A browser east or west of UTC
+// would otherwise show a different folder than the one the CLI reads in the
+// hours around each period boundary.
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function utcDay(d: Date): string {
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+// formatPeriodRange renders a Period as a human window in UTC. `end` is
+// exclusive (it is the next period's start), so the displayed last day is
+// end − 1ms. Examples: "Apr 18, 2026" (daily), "Apr 1 – Jun 30, 2026"
+// (quarterly), "Dec 29, 2025 – Jan 4, 2026" (a week spanning the year).
 export function formatPeriodRange(p: Period): string {
   const lastDay = new Date(p.end.getTime() - 1);
+  const startYear = p.start.getUTCFullYear();
+  const endYear = lastDay.getUTCFullYear();
 
-  const sameDay =
-    p.start.getFullYear() === lastDay.getFullYear() &&
-    p.start.getMonth() === lastDay.getMonth() &&
-    p.start.getDate() === lastDay.getDate();
-  if (sameDay) return format(p.start, "MMM d, yyyy");
-
-  const sameYear = p.start.getFullYear() === lastDay.getFullYear();
-  if (sameYear) {
-    return `${format(p.start, "MMM d")} – ${format(lastDay, "MMM d, yyyy")}`;
+  if (utcDateKey(p.start) === utcDateKey(lastDay)) {
+    return `${utcDay(p.start)}, ${startYear}`;
   }
-  return `${format(p.start, "MMM d, yyyy")} – ${format(lastDay, "MMM d, yyyy")}`;
+  if (startYear === endYear) {
+    return `${utcDay(p.start)} – ${utcDay(lastDay)}, ${endYear}`;
+  }
+  return `${utcDay(p.start)}, ${startYear} – ${utcDay(lastDay)}, ${endYear}`;
 }
 
 export function currentPeriod(freq: Frequency, now: Date = new Date()): Period {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const d = now.getUTCDate();
   switch (freq) {
     case "daily": {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      return {
-        key: formatDate(start),
-        start,
-        end,
-      };
+      const start = new Date(Date.UTC(y, m, d));
+      return { key: utcDateKey(start), start, end: new Date(Date.UTC(y, m, d + 1)) };
     }
     case "weekly": {
-      const weekday = now.getDay() === 0 ? 7 : now.getDay();
-      const start = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - (weekday - 1)
-      );
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
-      const week = getISOWeek(start);
-      const year = getISOWeekYear(start);
-      return {
-        key: `${year}-W${String(week).padStart(2, "0")}`,
-        start,
-        end,
-      };
+      // Monday-anchored, labelled with the ISO-8601 week of that Monday.
+      const sinceMonday = (now.getUTCDay() + 6) % 7;
+      const start = new Date(Date.UTC(y, m, d - sinceMonday));
+      const end = new Date(Date.UTC(y, m, d - sinceMonday + 7));
+      return { key: isoWeekKey(start), start, end };
     }
-    case "monthly": {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    case "monthly":
       return {
-        key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-        start,
-        end,
+        key: `${y}-${pad2(m + 1)}`,
+        start: new Date(Date.UTC(y, m, 1)),
+        end: new Date(Date.UTC(y, m + 1, 1)),
       };
-    }
     case "quarterly": {
-      const q = Math.floor(now.getMonth() / 3);
-      const start = new Date(now.getFullYear(), q * 3, 1);
-      const end = new Date(now.getFullYear(), q * 3 + 3, 1);
+      const q = Math.floor(m / 3);
       return {
-        key: `${now.getFullYear()}-Q${q + 1}`,
-        start,
-        end,
+        key: `${y}-Q${q + 1}`,
+        start: new Date(Date.UTC(y, q * 3, 1)),
+        end: new Date(Date.UTC(y, q * 3 + 3, 1)),
       };
     }
-    case "yearly": {
-      const start = new Date(now.getFullYear(), 0, 1);
-      const end = new Date(now.getFullYear() + 1, 0, 1);
+    case "yearly":
       return {
-        key: `${now.getFullYear()}`,
-        start,
-        end,
+        key: `${y}`,
+        start: new Date(Date.UTC(y, 0, 1)),
+        end: new Date(Date.UTC(y + 1, 0, 1)),
       };
-    }
   }
 }
 
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// isoWeekKey labels a UTC Monday with its ISO week: the week belongs to the
+// year that holds its Thursday.
+function isoWeekKey(monday: Date): string {
+  const thursday = new Date(monday.getTime() + 3 * 86_400_000);
+  const year = thursday.getUTCFullYear();
+  const jan1 = Date.UTC(year, 0, 1);
+  const week = Math.floor((thursday.getTime() - jan1) / (7 * 86_400_000)) + 1;
+  return `${year}-W${pad2(week)}`;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function utcDateKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }

@@ -37,6 +37,20 @@ describe("renderFromInput", () => {
     );
   });
 
+  it("takes the period from completed_at in UTC, whatever the machine's zone", async () => {
+    const saved = process.env.TZ;
+    process.env.TZ = "Australia/Sydney";
+    try {
+      // Already 2027 in Sydney, still 2026 in UTC and for the CLI.
+      const r = await renderFromInput({ ...declaration, completed_at: "2026-12-31T22:00:00Z" }, dir);
+      expect(r.period).toBe("2026");
+      expect(r.uploadPath).toBe("manual/code_of_conduct_acknowledgment/2026/evidence.pdf");
+    } finally {
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
+    }
+  });
+
   it("renders the checklist example", async () => {
     const input = JSON.parse(
       readFileSync(join(examples, "render-evidence-pdf.checklist.json"), "utf-8"),

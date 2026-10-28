@@ -200,3 +200,28 @@ test("show_upload_path false shows only the fixed layout", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("secret/", { exact: false })).toHaveCount(0);
 });
+
+// The CLI computes periods in UTC, so the folder must not follow the
+// browser's own zone near a boundary.
+for (const { zone, now, period } of [
+  // Already Jan 1 2027 in Sydney; still 2026 in UTC.
+  { zone: "Australia/Sydney", now: "2026-12-31T22:00:00Z", period: "2026" },
+  // Still Dec 31 2026 in Los Angeles; already 2027 in UTC.
+  { zone: "America/Los_Angeles", now: "2027-01-01T01:00:00Z", period: "2027" },
+]) {
+  test.describe(`in ${zone}`, () => {
+    test.use({ timezoneId: zone });
+
+    test(`the period and folder follow UTC (${period})`, async ({ page }) => {
+      await page.clock.setFixedTime(new Date(now));
+      await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+      await expect(page.getByText(`Jan 1 – Dec 31, ${period} (UTC)`)).toBeVisible();
+      await page.getByLabel("Completed by").fill("Sam");
+      await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+      await submit(page);
+      await expect(
+        uploadPath(page, `manual/code_of_conduct_acknowledgment/${period}/evidence.pdf`),
+      ).toBeVisible();
+    });
+  });
+}
