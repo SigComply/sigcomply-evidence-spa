@@ -251,8 +251,10 @@ another session fails fast instead of testing someone else's build.
   - `e2e/dashboard.spec.ts`: search, filter chips, Clear all, the row copy button and
     `show_upload_path`, Esc on the picker. It serves its own catalog because the pinned ones are
     too uniform to filter.
-- `e2e/fixtures.ts` exports `test` with an automatic check that no request leaves the app's
-  origin. Import `test` from there, never from `@playwright/test`.
+- `e2e/fixtures.ts` exports `test` with automatic checks that no request leaves the app's
+  origin and that the built page's Content-Security-Policy blocked nothing (except the PDF
+  renderer's data: fetch of its WebAssembly, which falls back to the same inline bytes). Import
+  `test` from there, never from `@playwright/test`.
 - Time: `page.clock.setFixedTime(...)` pins the period. The config sets `timezoneId: "UTC"`; a
   spec that proves the period ignores the browser's zone overrides it with `test.use`. No sleeps: wait on locators, `waitForEvent("download")` or `waitForResponse`.
 - Config overrides: `page.route("**/config.json", ...)`.

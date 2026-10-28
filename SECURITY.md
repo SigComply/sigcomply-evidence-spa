@@ -25,6 +25,9 @@ In scope:
 - Runtime config and catalog loading (`src/config/`, `src/data/`).
 - Any path by which an envelope, PDF or form value leaves the browser. The app must make no
   network call other than fetching its own static files.
+- The Content-Security-Policy the built `index.html` carries (`CONTENT_SECURITY_POLICY` in
+  `vite.config.ts`). It allows scripts, styles, fonts and fetches from the app's own origin only,
+  so the browser itself blocks a request to anywhere else.
 
 Out of scope:
 

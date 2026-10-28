@@ -43,7 +43,9 @@ doc.
 9. Comments explain why, not what.
 10. Run the full local gate before every commit. CI (`ci.yml`) and the deploy run it again.
 11. Nothing leaves the browser. Never add a backend, an upload, analytics, a third-party script or
-    a network call that sends user data anywhere.
+    a network call that sends user data anywhere. The built `index.html` carries a strict
+    Content-Security-Policy (`CONTENT_SECURITY_POLICY` in `vite.config.ts`, build only because
+    the dev server injects inline scripts); never loosen it to make a feature work.
 12. Change a CLI contract (table below) only together with the matching `sigcomply-cli` change.
 13. Every user-visible flow has a Playwright spec in `e2e/`; a change to one updates or adds its
     spec in the same commit. That is the proof the flow works.

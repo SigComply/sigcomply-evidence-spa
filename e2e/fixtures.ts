@@ -54,8 +54,38 @@ export async function loadPdf(page: Page, name: string, body: Buffer, mimeType =
 }
 
 // Every test also asserts the app's core promise: nothing leaves the
-// browser. Any request to another origin fails the test that caused it.
-export const test = base.extend<{ sameOriginOnly: void }>({
+// browser. Any request to another origin fails the test that caused it, and
+// so does anything the built page's Content-Security-Policy blocks.
+export const test = base.extend<{ sameOriginOnly: void; noCspViolations: void }>({
+  noCspViolations: [
+    async ({ page }, use) => {
+      await page.addInitScript(() => {
+        // e2e/ compiles without the DOM lib; this runs in the page.
+        type Violation = { violatedDirective: string; blockedURI: string };
+        const page = globalThis as unknown as {
+          __csp: string[];
+          document: { addEventListener(type: string, fn: (e: Violation) => void): void };
+        };
+        const seen: string[] = [];
+        page.__csp = seen;
+        page.document.addEventListener("securitypolicyviolation", (e) => {
+          seen.push(`${e.violatedDirective} ${e.blockedURI}`);
+        });
+      });
+      await use();
+      if (page.isClosed()) return;
+      const seen = await page
+        .evaluate(() => (globalThis as unknown as { __csp?: string[] }).__csp ?? [])
+        .catch(() => []);
+      // The PDF renderer's layout engine (yoga) first tries to fetch its
+      // WebAssembly from a data: URL; connect-src 'self' blocks that and it
+      // decodes the same inline bytes instead. A data: URL can't reach
+      // another origin, so this one is expected; anything else fails.
+      const unexpected = seen.filter((v) => !/^connect-src data\b/.test(v));
+      expect(unexpected, "Content-Security-Policy violations").toEqual([]);
+    },
+    { auto: true },
+  ],
   sameOriginOnly: [
     async ({ page, baseURL }, use) => {
       const origin = new URL(baseURL!).origin;

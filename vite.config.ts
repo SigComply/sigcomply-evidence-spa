@@ -1,11 +1,43 @@
 import path from "node:path"
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+// The app's promise that nothing leaves the browser, enforced by the browser
+// itself: every fetch, script, style, font and image must come from the app's
+// own origin. GitHub Pages can't send headers, so it is a meta tag. Built
+// pages only, because the dev server injects inline scripts (React refresh).
+// 'unsafe-inline' styles: components set style attributes. 'wasm-unsafe-eval':
+// the PDF renderer's layout engine (yoga) is WebAssembly.
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join("; ")
+
+function contentSecurityPolicy(): Plugin {
+  return {
+    name: "content-security-policy",
+    apply: "build",
+    transformIndexHtml: () => [
+      {
+        tag: "meta",
+        attrs: { "http-equiv": "Content-Security-Policy", content: CONTENT_SECURITY_POLICY },
+        injectTo: "head-prepend",
+      },
+    ],
+  }
+}
+
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), contentSecurityPolicy()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
