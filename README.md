@@ -41,11 +41,18 @@ for the current period is empty, it prints the folder to upload to.
 
 ### What `/verify` can and can't check
 
-- A valid signature shows the records match the public key inside the envelope. Anyone can
-  sign an envelope with their own key, so a valid signature alone doesn't prove who signed it.
+- A valid signature shows the records match the public key inside the envelope. The CLI makes a
+  new key for every file, and anyone can sign an envelope with their own key, so a valid
+  signature doesn't prove who signed it. Trust in the files comes from write-once storage of the
+  evidence vault.
+- For a manual evidence folder, the page shows the CLI's recorded result: whether a file was in
+  the folder, whether it was uploaded within the period or its grace window, and whether it was a
+  valid PDF. It shows these results; it doesn't re-check the folder.
 - When a folder holds several files, the CLI merges them into one PDF, hashes it, and stores it in
   the run folder as `policies/<policy_id>/attachments/<evidence_id>.pdf`. Drop that stored PDF
   (or, for a folder that held one PDF, the original upload) to match the envelope's `file_hash`.
+  The PDF check runs only after the signature checks out, because only then does anything vouch
+  for the hash.
 - For vendor evidence collected into one folder per vendor, the page lists each vendor's result
   as the CLI recorded it, and a PDF you drop in is compared with every vendor's hash. The page
   shows these results; it doesn't re-check the vendor folders.

@@ -26,6 +26,25 @@ export function memberVerdict(m: ManualInstancePayload): MemberVerdict {
   return "failed";
 }
 
+/** One verdict field of a single-folder record, as the CLI signed it. */
+export interface RecordedCheck {
+  label: string;
+  /** undefined when the record doesn't carry the field. */
+  ok: boolean | undefined;
+}
+
+/**
+ * The verdict fields a single-folder manual record carries, in the order the
+ * CLI checks them. `/verify` shows them; it never re-derives them.
+ */
+export function recordedChecks(p: ManualDocumentPayload): RecordedCheck[] {
+  return [
+    { label: "File in the folder", ok: p.file_present },
+    { label: "Uploaded within the period or its grace window", ok: p.in_temporal_window },
+    { label: "Valid PDF", ok: p.file_valid },
+  ];
+}
+
 // The CLI writes "sha256:<hex>"; sha256Hex returns bare hex.
 function bareHex(h: string): string {
   return h.replace(/^sha256:/i, "").toLowerCase();

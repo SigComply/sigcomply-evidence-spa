@@ -31,6 +31,7 @@ import {
   matchPdfHash,
   memberLabel,
   memberVerdict,
+  recordedChecks,
   type ExpectedPdfHash,
   type MemberVerdict,
 } from "@/lib/verification/manual";
@@ -66,6 +67,26 @@ function previewPayload(p: unknown): string {
   } catch {
     return String(p);
   }
+}
+
+// LazyDetails renders its body only while open: a large envelope's records
+// pretty-printed into the DOM took gigabytes of memory even when collapsed.
+function LazyDetails({
+  summary,
+  children,
+}: {
+  summary: string;
+  children: () => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+        {summary}
+      </summary>
+      {open && children()}
+    </details>
+  );
 }
 
 export function Verify() {
@@ -303,8 +324,8 @@ export function Verify() {
       {!envelope ? (
         <div className="space-y-3">
           <div
-            role="button"
-            aria-label="Drop or choose the signed envelope JSON file"
+            role="region"
+            aria-label="Drop the signed envelope JSON file here"
             onDrop={onEnvelopeDrop}
             onDragOver={(e) => e.preventDefault()}
             onDragEnter={() => setEnvDragActive(true)}
@@ -321,9 +342,9 @@ export function Verify() {
                 Drop the signed envelope JSON
               </span>
               <span className="block text-xs">
-                e.g.{" "}
-                <code className="font-mono">
-                  envelopes/user_record__aws.iam.json
+                from the run folder in the vault, e.g.{" "}
+                <code className="font-mono break-all">
+                  policies/&lt;policy_id&gt;/envelopes/directory_user__aws.iam.json
                 </code>
               </span>
             </div>
@@ -334,7 +355,7 @@ export function Verify() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="mr-2 h-4 w-4" />
-              Choose file
+              Choose envelope file
             </Button>
             <input
               ref={fileInputRef}
@@ -457,8 +478,22 @@ export function Verify() {
               />
             )}
 
-            {/* PDF hash check — manual flow only */}
-            {pdfHashes.length > 0 && (
+            {/* Single-folder record — the CLI's signed verdict fields */}
+            {manualDoc && !(members && members.length > 0) && (
+              <RecordedPanel record={manualDoc} />
+            )}
+
+            {/* PDF hash check: only against hashes a valid signature vouches for */}
+            {pdfHashes.length > 0 &&
+              (sigStatus.state === "invalid" || sigStatus.state === "error") && (
+                <div className="rounded-lg border bg-muted/20 p-4 text-xs text-muted-foreground">
+                  <p className="text-sm font-medium text-foreground">Evidence PDF</p>
+                  The PDF check is off: the signature isn&apos;t valid, so nothing
+                  vouches for the hashes in this file, and a match would prove
+                  nothing.
+                </div>
+              )}
+            {pdfHashes.length > 0 && sigStatus.state === "valid" && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -499,8 +534,8 @@ export function Verify() {
                 {pdfStatus.state !== "match" &&
                   pdfStatus.state !== "mismatch" && (
                     <div
-                      role="button"
-                      aria-label="Drop or choose the matching evidence PDF"
+                      role="region"
+                      aria-label="Drop the matching evidence PDF here"
                       onDrop={onPdfDrop}
                       onDragOver={(e) => e.preventDefault()}
                       onDragEnter={() => setPdfDragActive(true)}
@@ -590,10 +625,9 @@ export function Verify() {
 
             {/* Details — plumbing behind disclosure */}
             <div className="space-y-2 border-t pt-4 text-sm">
-              <details>
-                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                  Envelope details
-                </summary>
+              <LazyDetails summary="Envelope details">
+                {() => (
+                <>
                 <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
                   <span className="text-muted-foreground">Format</span>
                   <span className="font-mono">{envelope.format_version}</span>
@@ -644,18 +678,19 @@ export function Verify() {
                 <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">
                   {previewPayload(envelope.records)}
                 </pre>
-              </details>
+                </>
+                )}
+              </LazyDetails>
 
               {(sigStatus.state === "valid" ||
                 sigStatus.state === "invalid") && (
-                <details>
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                    Canonical bytes verified
-                  </summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted p-3 font-mono text-xs">
-                    {sigStatus.result.signedBytes}
-                  </pre>
-                </details>
+                <LazyDetails summary="Canonical bytes verified">
+                  {() => (
+                    <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted p-3 font-mono text-xs">
+                      {sigStatus.result.signedBytes}
+                    </pre>
+                  )}
+                </LazyDetails>
               )}
             </div>
           </div>
@@ -674,6 +709,62 @@ const VERDICT_BADGE: Record<
   missing: { text: "no evidence", variant: "destructive" },
   failed: { text: "failed", variant: "destructive" },
 };
+
+const CHECK_BADGE = {
+  yes: { text: "yes", variant: "default" },
+  no: { text: "no", variant: "destructive" },
+  unknown: { text: "not recorded", variant: "outline" },
+} as const;
+
+function RecordedPanel({ record }: { record: ManualDocumentPayload }) {
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+      <div>
+        <p className="text-sm font-medium">What the CLI recorded</p>
+        <p className="text-xs text-muted-foreground">
+          These results are what the CLI recorded and signed for the folder;
+          this page checks the signature, not the folder.
+        </p>
+      </div>
+      <ul className="divide-y rounded-md border bg-background">
+        {recordedChecks(record).map((c) => {
+          const b = CHECK_BADGE[c.ok === undefined ? "unknown" : c.ok ? "yes" : "no"];
+          return (
+            <li
+              key={c.label}
+              className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+            >
+              <span>{c.label}</span>
+              <Badge variant={b.variant}>{b.text}</Badge>
+            </li>
+          );
+        })}
+      </ul>
+      {record.validation_failures?.map((f) => (
+        <p key={f} className="text-xs text-destructive">
+          {f}
+        </p>
+      ))}
+      {record.source_files && record.source_files.length > 0 && (
+        <div className="text-xs">
+          <p className="text-muted-foreground">Files in the folder:</p>
+          <ul className="mt-1 space-y-0.5">
+            {record.source_files.map((f) => (
+              <li key={`${f.filename}-${f.sha256}`} className="break-all">
+                <span className="font-mono">{f.filename}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {f.type}
+                  {f.uploaded_at ? ` · uploaded ${f.uploaded_at}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MembersPanel({
   members,
@@ -760,8 +851,10 @@ function VerdictBanner({ status }: { status: SigStatus }) {
         <div>
           <p className="text-lg font-bold">Signature valid</p>
           <p className="text-sm opacity-80">
-            The records are intact and match the public key in this file. To
-            prove who signed it, confirm that key against one you trust.
+            The records are intact and match the public key in this file. The
+            CLI makes a new key for every file, so this can&apos;t show who
+            signed it: trust in the files comes from write-once storage of the
+            evidence vault.
           </p>
         </div>
       </div>

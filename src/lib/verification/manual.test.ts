@@ -3,6 +3,7 @@ import {
   expectedPdfHashes,
   matchPdfHash,
   memberVerdict,
+  recordedChecks,
 } from "./manual";
 import { sha256Hex, verifyEnvelopeSignature } from "./verify";
 import {
@@ -139,5 +140,18 @@ describe("matchPdfHash", () => {
       "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
     );
     expect(m).not.toBeNull();
+  });
+});
+
+describe("recordedChecks", () => {
+  it("lists the CLI's three verdict fields as signed, missing ones as undefined", () => {
+    expect(
+      recordedChecks({ file_present: false, in_temporal_window: false, file_valid: false }),
+    ).toEqual([
+      { label: "File in the folder", ok: false },
+      { label: "Uploaded within the period or its grace window", ok: false },
+      { label: "Valid PDF", ok: false },
+    ]);
+    expect(recordedChecks({ file_present: true }).map((c) => c.ok)).toEqual([true, undefined, undefined]);
   });
 });

@@ -3,6 +3,8 @@ import { describeJsonError, parseEnvelopeText } from "./parse-envelope";
 import { ENVELOPE_FORMAT_VERSION } from "@/types/envelope";
 import sampleRaw from "./__fixtures__/sample-envelope-v1.json?raw";
 import bignumRaw from "./__fixtures__/sample-envelope-v1-bignum.json?raw";
+import manualRaw from "./__fixtures__/golden/manual.json?raw";
+import fanoutRaw from "./__fixtures__/golden/fanout.json?raw";
 
 describe("parseEnvelopeText", () => {
   it("treats blank input as empty, not as an error", () => {
@@ -65,6 +67,47 @@ describe("parseEnvelopeText", () => {
     expect(r.message).toBe(
       `Unsupported envelope format_version "envelope.v2". This verifier handles "${ENVELOPE_FORMAT_VERSION}".`,
     );
+  });
+});
+
+describe("signed_document payload shape", () => {
+  function withPayload(raw: string, edit: (p: Record<string, unknown>) => void): string {
+    const env = JSON.parse(raw) as { records: { payload: Record<string, unknown> }[] };
+    edit(env.records[0].payload);
+    return JSON.stringify(env);
+  }
+
+  it("accepts the CLI's golden manual and fan-out records", () => {
+    expect(parseEnvelopeText(manualRaw).kind).toBe("ok");
+    expect(parseEnvelopeText(fanoutRaw).kind).toBe("ok");
+  });
+
+  // Each of these once crashed /verify into "Something went wrong".
+  it.each([
+    ["file_hash is a number", manualRaw, (p: Record<string, unknown>) => { p.file_hash = 123; }, "file_hash should be a string."],
+    ["evidence_id is an object", manualRaw, (p: Record<string, unknown>) => { p.evidence_id = { a: 1 }; }, "evidence_id should be a string."],
+    ["file_present is a string", manualRaw, (p: Record<string, unknown>) => { p.file_present = "yes"; }, "file_present should be a boolean."],
+    ["validation_failures holds a number", manualRaw, (p: Record<string, unknown>) => { p.validation_failures = [1]; }, "validation_failures should be a list of strings."],
+    ["a source file lacks string fields", manualRaw, (p: Record<string, unknown>) => { p.source_files = [{ filename: 1 }]; }, "source_files should be a list of files."],
+    ["instances is an object", fanoutRaw, (p: Record<string, unknown>) => { p.instances = {}; }, "instances should be a list."],
+    ["instances holds null", fanoutRaw, (p: Record<string, unknown>) => { p.instances = [null]; }, "instances[0] should be an object."],
+    ["a member has no id", fanoutRaw, (p: Record<string, unknown>) => { p.instances = [{ required: true }]; }, "instances[0].id should be a string."],
+    ["a member's file_hash is a number", fanoutRaw, (p: Record<string, unknown>) => { (p.instances as Record<string, unknown>[])[0].file_hash = 5; }, "instances[0].file_hash should be a string."],
+  ] as const)("refuses a record where %s", (_name, raw, edit, problem) => {
+    const r = parseEnvelopeText(withPayload(raw, edit));
+    expect(r.kind).toBe("invalid");
+    if (r.kind !== "invalid") return;
+    expect(r.message).toBe(
+      `This file has a manual evidence record the CLI couldn't have written. signed_document payload: ${problem}`,
+    );
+  });
+
+  it("ignores fields it doesn't know and nulls", () => {
+    const r = parseEnvelopeText(withPayload(manualRaw, (p) => {
+      p.future_field = { any: "thing" };
+      p.validation_failures = null;
+    }));
+    expect(r.kind).toBe("ok");
   });
 });
 

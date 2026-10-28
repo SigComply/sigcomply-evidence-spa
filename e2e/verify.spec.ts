@@ -7,6 +7,7 @@ import type {
   ManualInstancePayload,
 } from "../src/types/envelope";
 import { expect, fixture, loadEnvelope, loadPdf, test } from "./fixtures";
+import { emptyFolderRecord, signEnvelope } from "../src/test/sign-envelope";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("verify");
@@ -115,6 +116,58 @@ test.describe("CLI golden envelopes", () => {
     await expect(page.getByText("PDF matches", { exact: true })).toHaveCount(1);
     await expect(page.getByText(`member.pdf matches ${memberLabel(target)}`)).toBeVisible();
   });
+});
+
+test("a single-folder record shows what the CLI recorded, and an empty folder reads as no file", async ({ page }) => {
+  await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
+  await expect(page.getByText("Signature valid")).toBeVisible();
+  const checks = page.getByRole("listitem");
+  await expect(checks.filter({ hasText: "File in the folder" }).getByText("yes")).toBeVisible();
+  await expect(checks.filter({ hasText: "Valid PDF" }).getByText("yes")).toBeVisible();
+
+  await page.getByRole("button", { name: "Verify another" }).click();
+  await loadEnvelope(page, "empty.json", Buffer.from(signEnvelope([emptyFolderRecord()])));
+  await expect(page.getByText("Signature valid")).toBeVisible();
+  await expect(page.getByText("What the CLI recorded", { exact: true })).toBeVisible();
+  await expect(checks.filter({ hasText: "File in the folder" }).getByText("no", { exact: true })).toBeVisible();
+  await expect(
+    checks.filter({ hasText: "Uploaded within the period or its grace window" }).getByText("no", { exact: true }),
+  ).toBeVisible();
+});
+
+test("a tampered file_hash with its matching PDF never shows a match", async ({ page }) => {
+  const pdf = fixture("sample-envelope-v1-fanout.globex_crm.pdf");
+  const tampered = fixture("golden/manual.json")
+    .toString("utf-8")
+    .replace(/"file_hash":"sha256:[0-9a-f]+"/, `"file_hash":"sha256:${sha256(pdf)}"`);
+  await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
+  await expect(page.getByText("Signature invalid")).toBeVisible();
+  await expect(page.getByText(/The PDF check is off/)).toBeVisible();
+  await expect(page.locator('input[type=file][accept="application/pdf,.pdf"]')).toHaveCount(0);
+  await expect(page.getByText("match", { exact: true })).toHaveCount(0);
+});
+
+test("the valid verdict doesn't send auditors looking for a trusted key", async ({ page }) => {
+  await loadEnvelope(page, "sample-envelope-v1.json");
+  await expect(page.getByText(/The CLI makes a new key for every file/)).toBeVisible();
+  await expect(page.getByText(/one you trust/)).toHaveCount(0);
+});
+
+test("a manual record with a wrongly typed field is refused, not a crash", async ({ page }) => {
+  const bad = fixture("golden/fanout.json").toString("utf-8").replace(/"instances":\[/, '"instances":[null,');
+  await loadEnvelope(page, "bad.json", Buffer.from(bad));
+  await expect(page.getByText("Could not parse envelope")).toBeVisible();
+  await expect(page.getByText(/instances\[0\] should be an object/)).toBeVisible();
+  await expect(page.getByText("Something went wrong")).toHaveCount(0);
+});
+
+test("the drop zones are labelled regions with distinct buttons", async ({ page }) => {
+  await expect(page.getByRole("region", { name: "Drop the signed envelope JSON file here" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose envelope file" })).toBeVisible();
+  await expect(page.getByText("policies/<policy_id>/envelopes/directory_user__aws.iam.json")).toBeVisible();
+  await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
+  await expect(page.getByRole("region", { name: "Drop the matching evidence PDF here" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose PDF" })).toBeVisible();
 });
 
 test("a malformed paste explains itself", async ({ page }) => {

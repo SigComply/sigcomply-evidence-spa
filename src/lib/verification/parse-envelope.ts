@@ -1,6 +1,7 @@
 import {
   ENVELOPE_FORMAT_VERSION,
   isEvidenceEnvelope,
+  manualPayloadProblem,
   type EvidenceEnvelope,
 } from "@/types/envelope";
 
@@ -74,6 +75,18 @@ export function parseEnvelopeText(text: string): ParseEnvelopeResult {
       message: `Unsupported envelope format_version "${parsed.format_version}". This verifier handles "${ENVELOPE_FORMAT_VERSION}".`,
       pretty,
     };
+  }
+
+  for (const r of parsed.records) {
+    if (r.type !== "signed_document") continue;
+    const problem = manualPayloadProblem(r.payload);
+    if (problem) {
+      return {
+        kind: "invalid",
+        message: `This file has a manual evidence record the CLI couldn't have written. ${problem}`,
+        pretty,
+      };
+    }
   }
 
   return { kind: "ok", envelope: parsed, sourceText: text, pretty };

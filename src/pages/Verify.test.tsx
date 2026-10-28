@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Verify } from "./Verify";
+import { emptyFolderRecord, signEnvelope } from "@/test/sign-envelope";
+import { createHash } from "node:crypto";
 
 const fixtures = join(import.meta.dirname, "..", "lib", "verification", "__fixtures__");
 const fixture = (name: string) => readFileSync(join(fixtures, name));
@@ -119,5 +121,74 @@ describe("Verify page", () => {
     await user.click(screen.getByRole("button", { name: /verify another/i }));
     expect(screen.queryByText("Signature valid")).toBeNull();
     expect(screen.getByText("Drop the signed envelope JSON")).toBeTruthy();
+  });
+
+  it("says the key is per file, not a key to check against a trusted one", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "sample-envelope-v1.json");
+    await screen.findByText("Signature valid");
+    expect(screen.getByText(/makes a new key for every file/)).toBeTruthy();
+    expect(screen.queryByText(/one you trust/)).toBeNull();
+  });
+
+  it("shows the CLI's recorded verdict for a single-folder record with files", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    expect(screen.getByText("What the CLI recorded")).toBeTruthy();
+    for (const label of ["File in the folder", "Uploaded within the period or its grace window", "Valid PDF"]) {
+      expect(screen.getByText(label).nextSibling?.textContent).toBe("yes");
+    }
+    expect(screen.getByText("access-review.pdf")).toBeTruthy();
+  });
+
+  it("shows an empty folder as no file, not just a valid signature", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "empty.json", signEnvelope([emptyFolderRecord()]));
+    await screen.findByText("Signature valid");
+    expect(screen.getByText("File in the folder").nextSibling?.textContent).toBe("no");
+    expect(screen.getByText("Valid PDF").nextSibling?.textContent).toBe("no");
+  });
+
+  it("offers no PDF match when the signature is invalid", async () => {
+    const other = fixture("sample-envelope-v1-fanout.globex_crm.pdf");
+    const hash = createHash("sha256").update(other).digest("hex");
+    const tampered = text("golden/manual.json").replace(
+      /"file_hash":"sha256:[0-9a-f]+"/,
+      `"file_hash":"sha256:${hash}"`,
+    );
+    const { container } = renderVerify();
+    await loadEnvelope(container, "tampered.json", tampered);
+    await screen.findByText("Signature invalid");
+    expect(screen.getByText(/The PDF check is off/)).toBeTruthy();
+    expect(container.querySelector('input[type=file][accept="application/pdf,.pdf"]')).toBeNull();
+    expect(screen.queryByText("match")).toBeNull();
+  });
+
+  it("refuses a manual record with a wrongly typed field instead of crashing", async () => {
+    const bad = text("golden/manual.json").replace(/"file_hash":"[^"]+"/, '"file_hash":123');
+    const { container } = renderVerify();
+    await loadEnvelope(container, "bad.json", bad);
+    expect(await screen.findByText("Could not parse envelope")).toBeTruthy();
+    expect(screen.getByText(/file_hash should be a string/)).toBeTruthy();
+  });
+
+  it("renders the records JSON only once Envelope details is opened", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "sample-envelope-v1.json");
+    await screen.findByText("Signature valid");
+    expect(container.querySelector("pre")).toBeNull();
+    await user.click(screen.getByText("Envelope details"));
+    const details = screen.getByText("Envelope details").closest("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(await screen.findByText(/"source_id": "aws.iam"/)).toBeTruthy();
+  });
+
+  it("names the envelope button and labels the drop zone as a region", () => {
+    renderVerify();
+    expect(screen.getByRole("button", { name: "Choose envelope file" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Drop the signed envelope JSON file here" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Drop/ })).toBeNull();
   });
 });

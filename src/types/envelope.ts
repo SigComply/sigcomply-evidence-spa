@@ -178,6 +178,100 @@ export interface ManualInstancePayload {
   assurance_period_end?: string;
 }
 
+type FieldKind = "string" | "boolean" | "number" | "strings" | "sourceFiles";
+
+const SOURCE_FILE_FIELDS: Record<string, FieldKind> = {
+  filename: "string",
+  type: "string",
+  sha256: "string",
+  uploaded_at: "string",
+  converted: "boolean",
+};
+
+const INSTANCE_FIELDS: Record<string, FieldKind> = {
+  id: "string",
+  name: "string",
+  tier: "string",
+  required: "boolean",
+  file_present: "boolean",
+  file_hash: "string",
+  file_size: "number",
+  uploaded_at: "string",
+  in_temporal_window: "boolean",
+  file_valid: "boolean",
+  validation_failures: "strings",
+  expected_uri: "string",
+  source_files: "sourceFiles",
+  satisfied: "boolean",
+  exemption_reason: "string",
+  approved_by: "string",
+  assurance_period_end: "string",
+};
+
+const DOCUMENT_FIELDS: Record<string, FieldKind> = {
+  evidence_id: "string",
+  period_id: "string",
+  file_present: "boolean",
+  file_hash: "string",
+  file_size: "number",
+  uploaded_at: "string",
+  in_temporal_window: "boolean",
+  file_valid: "boolean",
+  validation_failures: "strings",
+  expected_uri: "string",
+  source_files: "sourceFiles",
+  instances_total: "number",
+  instances_satisfied: "number",
+};
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function fieldProblem(
+  obj: Record<string, unknown>,
+  fields: Record<string, FieldKind>,
+  where: string,
+): string | null {
+  for (const [key, kind] of Object.entries(fields)) {
+    const v = obj[key];
+    if (v === undefined || v === null) continue;
+    const ok =
+      kind === "strings"
+        ? Array.isArray(v) && v.every((x) => typeof x === "string")
+        : kind === "sourceFiles"
+          ? Array.isArray(v) &&
+            v.every((f) => isObject(f) && !fieldProblem(f, SOURCE_FILE_FIELDS, ""))
+          : typeof v === kind;
+    if (!ok) {
+      const want =
+        kind === "strings" ? "a list of strings" : kind === "sourceFiles" ? "a list of files" : `a ${kind}`;
+      return `${where}${key} should be ${want}.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Why a `signed_document` payload doesn't have the shape the CLI writes
+ * (`manualManifest`), or null when it does. Unknown fields are allowed;
+ * a known field of the wrong type is not, because the page would render it.
+ */
+export function manualPayloadProblem(payload: Record<string, unknown>): string | null {
+  const top = fieldProblem(payload, DOCUMENT_FIELDS, "signed_document payload: ");
+  if (top) return top;
+  const instances = payload.instances;
+  if (instances === undefined || instances === null) return null;
+  if (!Array.isArray(instances)) return "signed_document payload: instances should be a list.";
+  for (const [i, m] of instances.entries()) {
+    if (!isObject(m)) return `signed_document payload: instances[${i}] should be an object.`;
+    const problem = fieldProblem(m, INSTANCE_FIELDS, `signed_document payload: instances[${i}].`);
+    if (problem) return problem;
+    if (typeof m.id !== "string") return `signed_document payload: instances[${i}].id should be a string.`;
+  }
+  return null;
+}
+
 /**
  * Returns the manual-flow payload (if any) carried by a `signed_document`
  * record in the envelope. Manual-flow envelopes carry exactly one such
