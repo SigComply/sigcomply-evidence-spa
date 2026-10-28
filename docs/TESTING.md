@@ -236,7 +236,7 @@ after `npm run build`). Port 4791 (`E2E_PORT`); the server is never reused, so a
 another session fails fast instead of testing someone else's build.
 
 - Specs: `e2e/form.spec.ts` (form → `evidence.pdf` download, keywords, PDF body and checkbox
-  marks, upload path, config overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
+  marks, upload path, Edit & re-download, the "uploaded" note on the list, config overrides), `e2e/verify.spec.ts` (valid, tampered, bignum, fan-out PDF match, wrong file,
   no Web Crypto, and the CLI golden manual and fan-out envelopes with their PDFs), `e2e/routing.spec.ts` (deep links, in-app 404, picker, missing catalog, missing
   `config.json`), `e2e/dashboard.spec.ts` (search, filter chips, Clear all, the row copy button
   and `show_upload_path`, Esc on the picker; it serves its own catalog because the pinned ones

@@ -39,6 +39,19 @@ function uploadPath(page: Page, path: string) {
   return page.locator("code").filter({ hasText: new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) });
 }
 
+// incident_response_tested: three required items and an optional one.
+const REQUIRED_INCIDENT_ITEMS = [
+  /^Incident response plan was tested/,
+  /^All incident response roles/,
+  /^Communication channels and escalation paths/,
+];
+
+async function tickRequiredIncidentItems(page: Page) {
+  for (const name of REQUIRED_INCIDENT_ITEMS) {
+    await page.getByRole("checkbox", { name }).click();
+  }
+}
+
 async function submit(page: Page): Promise<Download> {
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download evidence.pdf" }).click();
@@ -90,14 +103,7 @@ test("checklist form needs every required item", async ({ page }) => {
     page.getByText(/^Required item\(s\) not checked: plan_tested, roles_verified, communication_tested$/),
   ).toBeVisible();
 
-  // Tick the three required items; leave the optional one unticked.
-  for (const item of [
-    "Incident response plan was tested",
-    "All incident response roles",
-    "Communication channels and escalation paths",
-  ]) {
-    await page.getByRole("checkbox", { name: new RegExp(`^${item}`) }).click();
-  }
+  await tickRequiredIncidentItems(page);
   await expect(page.getByRole("checkbox", { name: /^Lessons learned/ })).not.toBeChecked();
   const download = await submit(page);
   // The optional item stayed unticked, so its box is blank; the rest are marked.
@@ -111,6 +117,56 @@ test("checklist form needs every required item", async ({ page }) => {
   await expect(
     uploadPath(page, "manual/incident_response_tested/2026/evidence.pdf"),
   ).toBeVisible();
+});
+
+test("Edit & re-download keeps the answers", async ({ page }) => {
+  await page.goto("evidence/soc2/incident_response_tested");
+  await page.getByLabel("Completed by").fill("Sam");
+  await tickRequiredIncidentItems(page);
+  await submit(page);
+  await expect(page.getByRole("heading", { name: "evidence.pdf downloaded" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit & re-download" }).click();
+  await expect(page.getByLabel("Completed by")).toHaveValue("Sam");
+  for (const name of REQUIRED_INCIDENT_ITEMS) {
+    await expect(page.getByRole("checkbox", { name })).toBeChecked();
+  }
+  await expect(page.getByRole("checkbox", { name: /^Lessons learned/ })).not.toBeChecked();
+
+  const runs = await pdfRunsFrom(await submit(page));
+  expect(boxBefore(runs, "Incident response plan was tested via tabletop exercise or simulation")).toBe("X");
+  expect(joinTextRuns(runs)).toContain(squashText("Signed by Sam on"));
+});
+
+test("marking it uploaded is remembered in this browser and shown on the list", async ({ page }) => {
+  const row = page
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }) });
+  const uploaded = page.getByRole("checkbox", { name: /uploaded this to my bucket/ });
+  async function fillAndSubmit() {
+    await page.getByLabel("Completed by").fill("Jane Doe");
+    await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+    await submit(page);
+  }
+
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await fillAndSubmit();
+  await expect(uploaded).not.toBeChecked();
+  await uploaded.check();
+  await page.getByRole("link", { name: "Back to list" }).click();
+  await expect(row.getByText("marked uploaded here")).toBeVisible();
+
+  await page.reload();
+  await expect(row.getByText("marked uploaded here")).toBeVisible();
+
+  // The next download of the same period starts ticked; unticking is kept too.
+  await page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }).click();
+  await fillAndSubmit();
+  await expect(uploaded).toBeChecked();
+  await uploaded.uncheck();
+  await page.getByRole("link", { name: "Back to list" }).click();
+  await expect(row.getByText("drafted here")).toBeVisible();
+  await expect(row.getByText("marked uploaded here")).toHaveCount(0);
 });
 
 test("a config.json override changes the frameworks and the shown prefix", async ({ page }) => {
