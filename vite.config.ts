@@ -16,6 +16,7 @@ export default defineConfig({
     // `// @vitest-environment jsdom` comment at the top of the file.
     // Playwright specs under e2e/ are not Vitest tests.
     include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
+    globalSetup: ["scripts/vitest-node-check.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
