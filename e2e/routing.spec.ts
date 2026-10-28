@@ -53,3 +53,24 @@ test("a missing config.json falls back to the defaults", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
   await expect(page.getByText("Select Your Framework")).toBeHidden();
 });
+
+// The site lives under a sub-path, so config.json must load from there, not
+// from the origin root, also on a deep link that boots through 404.html.
+// A root /config.json 404s on Pages and silently drops the deployment's
+// config for the defaults.
+test("config.json loads from the base path", async ({ page, baseURL }) => {
+  await pinCatalogs(page);
+  const configs: string[] = [];
+  page.on("request", (req) => {
+    if (req.url().endsWith("config.json")) configs.push(new URL(req.url()).pathname);
+  });
+  const basePath = new URL(baseURL!).pathname;
+  for (const path of ["./", "evidence/soc2/code_of_conduct_acknowledgment"]) {
+    const config = page.waitForResponse((r) => r.url().endsWith("config.json"));
+    await page.goto(path);
+    const res = await config;
+    expect(new URL(res.url()).pathname).toBe(`${basePath}config.json`);
+    expect(res.status()).toBe(200);
+  }
+  expect(configs).toEqual([`${basePath}config.json`, `${basePath}config.json`]);
+});
