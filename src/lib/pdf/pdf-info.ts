@@ -76,3 +76,17 @@ export function readPdfTextRuns(bytes: ArrayBuffer | Uint8Array): string[] {
   }
   return runs;
 }
+
+/**
+ * Text runs joined with line breaks undone, for "the body contains X"
+ * checks: @react-pdf wraps and hyphenates long text across runs, so this
+ * drops a run's trailing hyphen and all whitespace. Pass the expected text
+ * through `squashText` before comparing.
+ */
+export function joinTextRuns(runs: string[]): string {
+  return squashText(runs.map((r) => r.replace(/-$/, "")).join(""));
+}
+
+export function squashText(s: string): string {
+  return s.replace(/\s+/g, "");
+}

@@ -68,6 +68,7 @@ src/lib/
     metadata.ts           metadata.test.ts        ← the keywords contract string
     render.tsx            render.test.tsx         ← real PDF in Node: Info keywords, body text, checkbox marks
     pdf-info.ts           pdf-info.test.ts        ← reads Info strings and body text runs for the tests
+                          shipped-catalogs.test.ts ← every entry in public/data/catalogs renders a full PDF
   verification/
     canonical.ts          canonical.test.ts
     verify.ts             verify.test.ts    ← plus bad base64, key/signature length, no Ed25519
@@ -127,8 +128,10 @@ Tests that name catalog entries use them: Playwright specs through `pinCatalogs`
 (`e2e/fixtures.ts`), `catalog-validate.test.ts` and `render-evidence-pdf.test.ts`. They exist
 because deploy.yml's `npm run build` overwrites `public/data/catalogs/` with the latest CLI's
 catalogs before the tests run; a test that read those would turn the deploy red on any catalog
-change. The deploy-time check of the fresh catalogs is `fetch-catalogs.test.ts` (validator
-fixed point), plus `fetch-catalogs` itself.
+change. The deploy-time checks of the fresh catalogs are `fetch-catalogs.test.ts` (validator
+fixed point), `shipped-catalogs.test.ts` (every entry of every framework in `config.json`, filled
+in completely, renders a PDF whose keywords, title and body text are right), and `fetch-catalogs`
+itself.
 
 To refresh them, for example when a spec needs a new entry: `npm run fetch-catalogs` (CLI on
 `PATH`), then `cp public/data/catalogs/*.json e2e/fixtures/catalogs/`, update the specs that name

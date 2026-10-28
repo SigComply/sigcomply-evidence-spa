@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { deflateSync } from "node:zlib";
-import { pdfBytesToText, readPdfInfoString, readPdfTextRuns } from "./pdf-info";
+import {
+  joinTextRuns,
+  pdfBytesToText,
+  readPdfInfoString,
+  readPdfTextRuns,
+  squashText,
+} from "./pdf-info";
 
 describe("readPdfInfoString", () => {
   it("reads an inline literal with escapes", () => {
@@ -39,5 +45,13 @@ describe("readPdfTextRuns", () => {
     ]);
     // 0x97 is an em dash in WinAnsi; the uncompressed stream is skipped.
     expect(readPdfTextRuns(new Uint8Array(pdf))).toEqual(["Signed by\u2014", "X"]);
+  });
+});
+
+describe("joinTextRuns", () => {
+  it("undoes line breaks and break hyphens", () => {
+    expect(joinTextRuns(["I confirm all acknowl-", "edged it. ", "Accepted: ", "YES"])).toBe(
+      squashText("I confirm all acknowledged it. Accepted: YES"),
+    );
   });
 });
