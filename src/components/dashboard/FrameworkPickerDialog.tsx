@@ -10,7 +10,7 @@ import { Shield } from "lucide-react";
 const frameworkInfo: Record<string, { label: string; description: string }> = {
   soc2: {
     label: "SOC 2 Type II",
-    description: "Service Organization Control 2 — security, availability, confidentiality, processing integrity, and privacy.",
+    description: "Service Organization Control 2 — security, availability and confidentiality, plus a few processing integrity and privacy criteria.",
   },
   iso27001: {
     label: "ISO 27001",

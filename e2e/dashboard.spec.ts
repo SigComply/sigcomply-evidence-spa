@@ -174,6 +174,9 @@ test("Esc dismisses the framework picker and keeps the default", async ({ page }
   await pinCatalogs(page);
   await page.goto("./");
   await expect(page.getByText("Select Your Framework")).toBeVisible();
+  // The catalog models only a few processing-integrity and privacy criteria;
+  // the picker must not present SOC 2 as covering all five categories.
+  await expect(page.getByText(/plus a few processing integrity and privacy criteria/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByText("Select Your Framework")).toBeHidden();
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
