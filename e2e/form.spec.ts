@@ -109,6 +109,15 @@ test("a name outside Latin-1 reaches the PDF intact, one the font lacks is refus
   expect(body).toContain(squashText(`Signed by ${name} on 2026-05-15T12:00:00.000Z`));
 });
 
+test("a name can't add keys to the PDF keywords", async ({ page }) => {
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await page.getByLabel("Completed by").fill("Mallory; period=2025");
+  await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+  const keywords = readPdfInfoString(await pdfFrom(await submit(page)), "Keywords");
+  expect(keywords).toContain("; completed_by=Mallory%3B period%3D2025; ");
+  expect(keywords?.match(/period=/g)).toHaveLength(1);
+});
+
 test("checklist form needs every required item", async ({ page }) => {
   await page.goto("evidence/soc2/incident_response_tested");
   await page.getByLabel("Completed by").fill("Sam");

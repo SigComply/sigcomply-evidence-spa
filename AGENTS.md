@@ -181,6 +181,7 @@ replace `config.json` without a rebuild; the public site ships the committed fil
   folder.
 - New PDF template: a `<Foo>Pdf.tsx` in `src/lib/pdf/`, wired in `renderEvidencePdf`. The PDF Info
   `keywords` string comes from `metadataKeywords()` in `src/lib/pdf/metadata.ts`; keep it stable.
+  Values percent-encode `%`, `;` and `=` (`keywordValue`), so user text can't add a key.
 - New framework: add it to `public/config.json`, then `npm run fetch-catalogs`.
 - `localStorage` keys use the `sigcomply:` prefix and are never compliance status. Read and write
   them through `src/lib/local-prefs.ts` or `device-memory.ts`, which survive storage that throws.
