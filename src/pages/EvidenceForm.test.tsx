@@ -70,7 +70,7 @@ async function renderForm(
 describe("EvidenceForm", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 4, 15, 12, 0, 0)); // 15 May 2026, local
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 15, 12, 0, 0))); // 15 May 2026, UTC
     localStorage.clear();
   });
   afterEach(() => {
@@ -123,9 +123,8 @@ describe("EvidenceForm", () => {
 
     const submit = screen.getByRole("button", { name: /download evidence\.pdf/i });
     await user.click(submit);
-    expect(
-      await screen.findByText("Required item(s) not checked: revoke"),
-    ).toBeTruthy();
+    const alert = await screen.findByText("Required item(s) not checked: “Revoke access”");
+    expect(alert.getAttribute("role")).toBe("alert");
 
     await user.click(screen.getByRole("checkbox", { name: /revoke access/i }));
     await user.type(
@@ -170,5 +169,34 @@ describe("EvidenceForm", () => {
   it("explains an unknown entry", async () => {
     await renderForm("nope");
     expect(screen.getByText("Evidence entry not found")).toBeTruthy();
+  });
+
+  it("states the CLI's upload window instead of a retrospective claim", async () => {
+    await renderForm("policy_ack");
+    expect(
+      screen.getByText("Upload during this period, or up to 30 days after it ends (the grace period)."),
+    ).toBeTruthy();
+    expect(screen.getByText("Apr 1 – Jun 30, 2026 (UTC)")).toBeTruthy();
+    expect(screen.queryByText(/retrospective|just ended/)).toBeNull();
+  });
+
+  it("explains the handoff: merged folder, scheduled run, calendar caveat, plain links", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    await screen.findByText("evidence.pdf downloaded");
+
+    expect(screen.getByText(/the CLI merges every file in the\s+folder into one PDF/)).toBeTruthy();
+    expect(screen.getByText("The CLI picks it up on the next scheduled run")).toBeTruthy();
+    expect(screen.getByText("sigcomply check --scheduled")).toBeTruthy();
+    expect(screen.getByText("sigcomply evidence due --all")).toBeTruthy();
+    expect(screen.queryByText(/evidence bucket|your bucket/i)).toBeNull();
+    // Links styled as buttons, not a button inside a link.
+    const back = screen.getAllByRole("link", { name: "Back to list" });
+    expect(back.length).toBe(1);
+    expect(back[0].querySelector("button")).toBeNull();
+    expect(screen.getByRole("link", { name: /verify a signed envelope/i }).querySelector("button")).toBeNull();
   });
 });

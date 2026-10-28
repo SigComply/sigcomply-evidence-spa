@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "@/lib/storage-path";
 import { copyText } from "@/lib/clipboard";
 import { getDeviceRecord, setUploadedAck } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
+import { uploadWindowText } from "@/lib/evidence-form";
 import {
   ArrowLeft,
   Download,
@@ -218,17 +219,36 @@ function CopyField({
   );
 }
 
+const PATH_LABEL = "Path in your evidence storage";
+
+// CalendarCaveat: the period segment matches the CLI only for its default
+// calendar. The SPA can't see a project's fiscal_year or custom calendar.
+function CalendarCaveat() {
+  return (
+    <>
+      The period segment assumes the CLI’s default calendar. For a{" "}
+      <code className="font-mono">fiscal_year</code> or{" "}
+      <code className="font-mono">custom</code> calendar, run{" "}
+      <code className="rounded bg-muted px-1 py-0.5 font-mono">
+        sigcomply evidence due --all
+      </code>{" "}
+      in your project for the exact folder.
+    </>
+  );
+}
+
 // PathNote explains, honestly, what the displayed path is and isn't: the
-// leading prefix is this deployment's config, the rest is the fixed CLI
-// layout, and nothing about the bucket itself is known here.
+// leading prefix is this deployment's config, the period assumes the default
+// calendar, and nothing about the storage itself is known here.
 function pathNote(prefix: string): React.ReactNode {
   return (
     <>
-      Path <em>inside</em> your evidence bucket. The leading{" "}
+      Relative to the root your <code className="font-mono">manual.pdf</code>{" "}
+      source reads: a bucket, or a local folder such as{" "}
+      <code className="font-mono">./evidence</code>. The leading{" "}
       <code className="rounded bg-muted px-1 py-0.5 font-mono">{prefix}</code>{" "}
-      segment is this deployment’s configured prefix; the rest is the fixed
-      SigComply layout. The bucket, provider and credentials are never known
-      to this page.
+      segment is this deployment’s configured prefix. <CalendarCaveat /> Your
+      storage, provider and credentials are never known to this page.
     </>
   );
 }
@@ -246,15 +266,16 @@ function FixedLayoutOnly({
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">
-        Path inside your evidence bucket
+        {PATH_LABEL}
       </p>
       <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
         {`${entry.id}/${periodKey}/${EVIDENCE_PDF_FILENAME}`}
       </code>
       <p className="mt-1.5 text-xs text-muted-foreground">
         This deployment hides the full path because the prefix is
-        site-specific. This is the fixed layout the CLI looks for; prepend
-        whatever prefix your SigComply storage config uses.
+        site-specific: put the <code className="font-mono">prefix</code> of
+        your <code className="font-mono">manual.pdf</code> source in front.{" "}
+        <CalendarCaveat />
       </p>
     </div>
   );
@@ -288,7 +309,7 @@ function ExternalEvidence({ entry }: { entry: CatalogEntry }) {
         {cfg.show_upload_path ? (
           <CopyField
             value={uploadPath}
-            label="Path inside your evidence bucket"
+            label={PATH_LABEL}
             note={pathNote(cfg.prefix)}
           />
         ) : (
@@ -374,16 +395,9 @@ function EvidenceFormContent({
               {formatPeriodRange(form.period)} (UTC)
             </span>
           </div>
-          {entry.grace_period && (
-            <span className="text-xs text-muted-foreground">
-              {entry.grace_period} grace period
-            </span>
-          )}
-          {entry.temporal_rule === "retrospective" && (
-            <span className="text-xs text-muted-foreground">
-              retrospective — attests to the period just ended
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground">
+            {uploadWindowText(entry)}
+          </span>
         </div>
       </Section>
 
@@ -457,7 +471,9 @@ function EvidenceFormContent({
         description="Renders in your browser and downloads — nothing is uploaded."
       >
         {error && (
-          <p className="mb-3 text-sm text-destructive">{error}</p>
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {error}
+          </p>
         )}
         <Button
           onClick={handleSubmit}
@@ -518,8 +534,8 @@ function UploadHandoff({
               evidence.pdf downloaded
             </h2>
             <p className="text-sm text-muted-foreground">
-              Almost there — upload it to your bucket and the CLI does the
-              rest. It isn’t counted until it’s in your bucket.
+              Almost there — upload it to your evidence storage and the CLI
+              does the rest. It isn’t counted until it’s there.
             </p>
           </div>
         </div>
@@ -531,19 +547,24 @@ function UploadHandoff({
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
             {EVIDENCE_PDF_FILENAME}
           </code>
-          . Rename it if you like — only the upload path below matters to the
-          CLI.
+          . The file name doesn’t matter, but the CLI merges every file in the
+          folder into one PDF. If you upload a corrected copy (your browser may
+          save it as{" "}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+            evidence (1).pdf
+          </code>
+          ), delete the earlier file from the folder.
         </HandoffStep>
 
         <HandoffStep
           n={2}
-          title="Upload it inside your evidence bucket at this path"
+          title="Upload it to this folder in your evidence storage"
         >
           {cfg.show_upload_path ? (
             <div className="mt-2 space-y-3">
               <CopyField
                 value={uploadPath}
-                label="Path inside your evidence bucket"
+                label={PATH_LABEL}
                 note={pathNote(cfg.prefix)}
               />
               <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
@@ -578,13 +599,16 @@ function UploadHandoff({
 
         <HandoffStep
           n={3}
-          title="The CLI picks it up on its next run"
+          title="The CLI picks it up on the next scheduled run"
           last
         >
-          On the next <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">sigcomply check</code>{" "}
-          the file is found at that path, hashed, and counted for period{" "}
-          <span className="font-mono">{period.key}</span>. Nothing is sent
-          from this page.
+          The scheduled CI workflow runs{" "}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+            sigcomply check --scheduled
+          </code>{" "}
+          (daily by default). That run finds the file, hashes it and counts it
+          for period <span className="font-mono">{period.key}</span>. {uploadWindowText(entry)}{" "}
+          Nothing is sent from this page.
         </HandoffStep>
       </ol>
 
@@ -600,12 +624,12 @@ function UploadHandoff({
           />
           <span className="text-sm">
             <span className="font-medium">
-              I’ve uploaded this to my bucket
+              I’ve uploaded this to my evidence storage
             </span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
               Saves a reminder to <strong>this browser only</strong>. It is
               not proof of upload and not compliance status — the SigComply
-              CLI and your bucket remain the source of truth.
+              CLI and your evidence storage remain the source of truth.
             </span>
           </span>
         </label>
@@ -616,16 +640,18 @@ function UploadHandoff({
           <Pencil className="mr-1.5 h-3.5 w-3.5" />
           Edit &amp; re-download
         </Button>
-        <Link to="/">
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            Back to list
-          </Button>
+        <Link
+          to="/"
+          className={buttonVariants({ variant: "ghost", size: "sm", className: "text-muted-foreground" })}
+        >
+          Back to list
         </Link>
-        <Link to="/verify" className="ml-auto">
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-            Verify a signed envelope
-          </Button>
+        <Link
+          to="/verify"
+          className={buttonVariants({ variant: "ghost", size: "sm", className: "ml-auto text-muted-foreground" })}
+        >
+          <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+          Verify a signed envelope
         </Link>
       </div>
     </div>

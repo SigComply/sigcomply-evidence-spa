@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, X, FileText, AlertCircle } from "lucide-react";
+import { GUIDE_LINKS } from "@/lib/guide-links";
 
 const STORAGE_KEY = "sigcomply:framework";
 
@@ -83,10 +84,24 @@ export function Dashboard() {
     [catalog],
   );
 
-  const handleFrameworkChange = useCallback((value: string) => {
-    setFramework(value);
-    writePref(STORAGE_KEY, value);
+  const clearAll = useCallback(() => {
+    setSearch("");
+    setFrequencyFilter(null);
+    setCategoryFilter(null);
+    setSeverityFilter(null);
+    setRequiredOnly(false);
   }, []);
+
+  // A search or chip from one framework rarely means anything in another,
+  // so switching starts with no filters.
+  const handleFrameworkChange = useCallback(
+    (value: string) => {
+      if (value !== framework) clearAll();
+      setFramework(value);
+      writePref(STORAGE_KEY, value);
+    },
+    [clearAll, framework],
+  );
 
   const handlePickerSelect = useCallback(
     (value: string) => {
@@ -168,13 +183,9 @@ export function Dashboard() {
     requiredOnly,
   ]);
 
-  const clearAll = useCallback(() => {
-    setSearch("");
-    setFrequencyFilter(null);
-    setCategoryFilter(null);
-    setSeverityFilter(null);
-    setRequiredOnly(false);
-  }, []);
+  // Offer "Required only" only when it can change the list.
+  const hasOptional = attestations.some((e) => e.optional);
+  const hasRequired = attestations.some((e) => !e.optional);
 
   return (
     <div className="space-y-6">
@@ -198,15 +209,26 @@ export function Dashboard() {
               evidence.pdf
             </code>{" "}
             you upload to your own storage — nothing is sent anywhere. The
-            SigComply CLI picks it up on its next run.
+            SigComply CLI picks it up on its next scheduled run (daily by
+            default).
           </p>
           <p className="mt-2 max-w-2xl text-xs text-muted-foreground">
             Only declaration and checklist entries appear here. Evidence
             sourced elsewhere (training certificates, HR exports, scanned
             documents) is produced outside this app and uploaded to your
-            bucket directly. Auditors checking a signed evidence file want
-            the <span className="font-medium text-foreground">Verify</span>{" "}
-            tab.
+            evidence storage directly;{" "}
+            <a
+              href={GUIDE_LINKS[0].href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              the manual evidence guide
+            </a>{" "}
+            explains how to list those entries and their folders
+            (<code className="font-mono">sigcomply evidence due --all</code>).
+            Auditors checking a signed evidence file want the{" "}
+            <span className="font-medium text-foreground">Verify</span> tab.
           </p>
         </div>
         <FrameworkSelector
@@ -239,7 +261,7 @@ export function Dashboard() {
               />
             </div>
 
-            {severities.map((s) => (
+            {severities.length > 1 && severities.map((s) => (
               <FilterChip
                 key={s}
                 active={severityFilter === s}
@@ -252,12 +274,14 @@ export function Dashboard() {
               </FilterChip>
             ))}
 
-            <FilterChip
-              active={requiredOnly}
-              onToggle={() => setRequiredOnly((v) => !v)}
-            >
-              Required only
-            </FilterChip>
+            {hasOptional && hasRequired && (
+              <FilterChip
+                active={requiredOnly}
+                onToggle={() => setRequiredOnly((v) => !v)}
+              >
+                Required only
+              </FilterChip>
+            )}
           </div>
 
           {categories.length > 0 && (
@@ -350,7 +374,7 @@ export function Dashboard() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Document-style evidence (HR exports, scans, certificates)
-                    is uploaded straight to your storage bucket — it never
+                    is uploaded straight to your evidence storage — it never
                     appears here.
                   </p>
                 </div>

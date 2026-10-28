@@ -36,7 +36,11 @@ export function FrameworkSelector({ value, onChange, frameworks }: FrameworkSele
       }}
     >
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select framework" />
+        <SelectValue placeholder="Select framework">
+          {(fw: string | null) =>
+            fw ? (frameworkLabels[fw] ?? fw) : "Select framework"
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {frameworks.map((fw) => (

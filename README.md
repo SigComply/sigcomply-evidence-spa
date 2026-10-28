@@ -5,7 +5,8 @@ Two browser tools for [SigComply](https://github.com/SigComply/sigcomply-cli) us
 
 - **Evidence forms.** For manual-evidence entries that are a declaration or a checklist, fill a
   form and download the result as `evidence.pdf`. You upload it yourself to the manual-evidence
-  folder in your storage bucket, and the SigComply CLI collects it on its next run.
+  folder in your evidence storage, and the SigComply CLI collects it on its next scheduled run
+  (the CI workflow `sigcomply init-ci` sets up runs daily by default).
 - **Envelope verifier** (`/verify`). An auditor loads a signed evidence file (an `EvidenceEnvelope`
   JSON that the CLI writes to the customer's evidence storage) and checks its Ed25519 signature,
   and optionally the hash of a PDF.
@@ -28,16 +29,21 @@ Step-by-step instructions are in the CLI docs:
 
 ### Check the upload path before you upload
 
-After download, the form shows an upload path inside your manual-evidence bucket, such as
-`manual/code_of_conduct/2026/evidence.pdf`. The hosted site always shows the prefix `manual/`, the
+After download, the form shows an upload path in your evidence storage (the bucket or local folder
+your `manual.pdf` source reads), such as `manual/code_of_conduct_acknowledgment/2026/evidence.pdf`. The hosted site always shows the prefix `manual/`, the
 CLI's default `prefix` for manual evidence (the `manual.pdf` source in `.sigcomply.yaml`). The
 shown path is wrong for your project when:
 
 - your `manual.pdf` source sets a different `prefix`, or
 - your project's period calendar is `fiscal_year` or `custom`.
 
-In those cases, run `sigcomply evidence due` in your project. For each manual entry whose folder
-for the current period is empty, it prints the folder to upload to.
+In those cases, run `sigcomply evidence due --all` in your project. For each manual entry whose
+folder for the current period is empty, it prints the folder to upload to. Without `--all` it
+lists only the entries whose period ends within 30 days, which leaves out a yearly entry for most
+of the year.
+
+The CLI merges every file in the folder into one PDF. If you upload a corrected copy, delete the
+earlier file from the folder.
 
 ### What `/verify` can and can't check
 

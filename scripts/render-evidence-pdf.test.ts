@@ -179,7 +179,7 @@ describe("renderFromInput", () => {
         },
         dir,
       ),
-    ).rejects.toThrow(/Required item\(s\) not checked: roles_verified, communication_tested/);
+    ).rejects.toThrow("Required item(s) not checked: “All incident response roles and responsibilities were verified”, “Communication channels and escalation paths were tested”");
   });
 });
 

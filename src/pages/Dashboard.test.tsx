@@ -108,4 +108,53 @@ describe("Dashboard", () => {
     expect(await screen.findByText("Could not load the soc2 catalog")).toBeTruthy();
     expect(screen.getByText("Failed to load catalog for soc2")).toBeTruthy();
   });
+
+  it("shows the framework label in the dropdown, not its id", async () => {
+    localStorage.setItem("sigcomply:framework", "iso27001");
+    await renderDashboard(["soc2", "iso27001"], {
+      "data/catalogs/iso27001.json": catalog("iso27001", "ISO acknowledgment"),
+    });
+    await screen.findByText("ISO acknowledgment");
+    const trigger = screen.getByRole("combobox");
+    expect(trigger.textContent).toContain("ISO 27001");
+    expect(trigger.textContent).not.toContain("iso27001");
+  });
+
+  it("hides a lone category heading and chips that can't change the list", async () => {
+    await renderDashboard(["soc2"], {
+      "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
+    });
+    await screen.findByText("SOC 2 acknowledgment");
+    expect(screen.queryByText(/uncategorized/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Required only" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Medium" })).toBeNull();
+  });
+
+  it("names each row's copy button after its entry and links the guide", async () => {
+    await renderDashboard(["soc2"], {
+      "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
+    });
+    await screen.findByText("SOC 2 acknowledgment");
+    expect(screen.getByRole("button", { name: "Copy upload path for SOC 2 acknowledgment" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "the manual evidence guide" }).getAttribute("href")).toBe(
+      "https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/manual-evidence.md",
+    );
+    expect(screen.getByText(/next scheduled run \(daily by\s+default\)/)).toBeTruthy();
+  });
+
+  it("clears the search when the framework changes", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:framework", "soc2");
+    await renderDashboard(["soc2", "iso27001"], {
+      "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
+      "data/catalogs/iso27001.json": catalog("iso27001", "ISO acknowledgment"),
+    });
+    await screen.findByText("SOC 2 acknowledgment");
+    const search = screen.getByRole("textbox", { name: /search attestations/i });
+    await user.type(search, "acknowledgment");
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "ISO 27001" }));
+    expect(await screen.findByText("ISO acknowledgment")).toBeTruthy();
+    expect((screen.getByRole("textbox", { name: /search attestations/i }) as HTMLInputElement).value).toBe("");
+  });
 });

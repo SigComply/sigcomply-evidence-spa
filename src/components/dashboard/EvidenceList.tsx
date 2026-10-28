@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { TSCBadge, OptionalBadge } from "./StatusBadge";
 import { severityRailClass } from "@/lib/severity";
+import { formatGrace } from "@/lib/evidence-form";
 
 function formatCategory(raw: string): string {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -38,33 +39,39 @@ export function EvidenceList({ entries, framework }: EvidenceListProps) {
   const grouped = useMemo(() => {
     const groups: Record<string, CatalogEntry[]> = {};
     for (const entry of entries) {
-      const cat = entry.category ?? "uncategorized";
+      const cat = entry.category ?? "";
       (groups[cat] ??= []).push(entry);
     }
     return Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b))
+      // Entries without a category go last, under "Other".
+      .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
       .map(([category, items]) => ({
         category,
-        label: formatCategory(category),
+        label: category ? formatCategory(category) : "Other",
         entries: items.sort((a, b) => a.name.localeCompare(b.name)),
       }));
   }, [entries]);
 
   if (entries.length === 0) return null;
+  // One group needs no heading (today's catalogs carry no categories, which
+  // put every entry under a lone "Uncategorized").
+  const showHeadings = grouped.length > 1;
 
   return (
     <div className="space-y-7">
       {grouped.map((group) => (
         <section key={group.category}>
-          <div className="mb-2.5 flex items-center gap-3">
-            <h3 className="text-sm font-semibold tracking-tight">
-              {group.label}
-            </h3>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              {group.entries.length}
-            </span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
+          {showHeadings && (
+            <div className="mb-2.5 flex items-center gap-3">
+              <h3 className="text-sm font-semibold tracking-tight">
+                {group.label}
+              </h3>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {group.entries.length}
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          )}
           <div className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm">
             {group.entries.map((entry) => (
               <EvidenceRow
@@ -167,13 +174,12 @@ function EvidenceRow({
             {entry.grace_period && (
               <>
                 {META_DOT}
-                <span>{entry.grace_period} grace</span>
-              </>
-            )}
-            {entry.temporal_rule === "retrospective" && (
-              <>
-                {META_DOT}
-                <span>retrospective</span>
+                <span
+                  className="pointer-events-auto"
+                  title={`Upload during the period, or up to ${formatGrace(entry.grace_period)} after it ends.`}
+                >
+                  +{formatGrace(entry.grace_period)} grace
+                </span>
               </>
             )}
             {META_DOT}
@@ -188,8 +194,8 @@ function EvidenceRow({
           <button
             type="button"
             onClick={handleCopy}
-            title={`Copy the path inside your evidence bucket — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config; the rest is the fixed SigComply layout. The bucket, provider and credentials are never known here.`}
-            aria-label="Copy path inside your evidence bucket"
+            title={`Copy the path in your evidence storage — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config. The period assumes the CLI's default calendar; for a fiscal_year or custom calendar, run "sigcomply evidence due --all" for the exact folder.`}
+            aria-label={`Copy upload path for ${entry.name}`}
             className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:opacity-0 sm:group-hover:opacity-100"
           >
             {copied ? (

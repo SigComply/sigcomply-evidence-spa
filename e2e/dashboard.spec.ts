@@ -105,7 +105,7 @@ test("a row's copy button copies the upload path", async ({ page }) => {
   await serveCatalog(page, { show_upload_path: true, prefix: "evidence/manual" });
   await page.goto("./");
   await page.getByRole("textbox", { name: /^Search attestations/ }).fill("alpha");
-  await page.getByRole("button", { name: "Copy path inside your evidence bucket" }).click();
+  await page.getByRole("button", { name: "Copy upload path for Alpha Policy" }).click();
   await expect
     .poll(() => page.evaluate(() => (globalThis as unknown as { copied?: string }).copied))
     .toBe("evidence/manual/alpha/2026/evidence.pdf");
@@ -115,10 +115,56 @@ test("show_upload_path false hides the rows' copy buttons", async ({ page }) => 
   await serveCatalog(page, { show_upload_path: false, prefix: "secret/" });
   await page.goto("./");
   await expect(openLinks(page)).toHaveCount(3);
-  await expect(
-    page.getByRole("button", { name: "Copy path inside your evidence bucket" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Copy upload path for / })).toHaveCount(0);
   await expect(page.getByText("secret/", { exact: false })).toHaveCount(0);
+});
+
+test("one copy button per row, each named after its entry; categories group with headings", async ({ page }) => {
+  await serveCatalog(page);
+  await page.goto("./");
+  for (const name of ["Alpha Policy", "Bravo Drill", "Charlie Review"]) {
+    await expect(page.getByRole("button", { name: `Copy upload path for ${name}` })).toHaveCount(1);
+  }
+  await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
+});
+
+test("the shipped catalogs show no lone Uncategorized heading or dead chips, and the label in the dropdown", async ({ page }) => {
+  await pinCatalogs(page);
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  await page.goto("./");
+  await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
+  await expect(page.getByText(/uncategorized/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Required only" })).toHaveCount(0);
+  await expect(page.getByRole("combobox")).toHaveText(/SOC 2 Type II/);
+  await expect(page.getByText(/retrospective/)).toHaveCount(0);
+});
+
+test("switching framework clears the search", async ({ page }) => {
+  await pinCatalogs(page);
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  await page.goto("./");
+  const search = page.getByRole("textbox", { name: /^Search attestations/ });
+  await search.fill("conduct");
+  await page.getByRole("combobox").click();
+  await page.getByRole("option", { name: "ISO 27001" }).click();
+  await expect(page.getByRole("combobox")).toHaveText(/ISO 27001/);
+  await expect(search).toHaveValue("");
+});
+
+test("the footer links to the CLI guides without loading them", async ({ page }) => {
+  await pinCatalogs(page);
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  await page.goto("./");
+  const guides = page.getByRole("navigation", { name: "Guides" });
+  await expect(guides.getByRole("link", { name: "How to collect manual evidence" })).toHaveAttribute(
+    "href",
+    "https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/manual-evidence.md",
+  );
+  await expect(guides.getByRole("link", { name: "How to verify signed evidence" })).toHaveAttribute(
+    "href",
+    "https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/verify-evidence.md",
+  );
 });
 
 test("Esc dismisses the framework picker and keeps the default", async ({ page }) => {

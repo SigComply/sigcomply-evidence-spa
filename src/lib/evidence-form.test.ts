@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildPdfInput,
   evidenceFieldErrors,
+  formatGrace,
+  uploadWindowText,
   initialItems,
   validateEvidence,
 } from "./evidence-form";
@@ -63,7 +65,7 @@ describe("validateEvidence", () => {
     const items = initialItems(checklist);
     expect(
       validateEvidence(checklist, { completedBy: "Jane", accepted: false, items }),
-    ).toBe("Required item(s) not checked: revoke, laptop");
+    ).toBe("Required item(s) not checked: “Revoke access”, “Collect laptop”");
   });
 
   it("passes a checklist with every required item ticked, optional ones open", () => {
@@ -241,5 +243,21 @@ describe("buildPdfInput", () => {
         state: { completedBy: "Jane", accepted: true, items: [] },
       }),
     ).toThrow(/Unsupported evidence type/);
+  });
+});
+
+describe("upload window", () => {
+  it("spells out day grace periods and keeps other forms", () => {
+    expect(formatGrace("30d")).toBe("30 days");
+    expect(formatGrace("1d")).toBe("1 day");
+    expect(formatGrace("72h")).toBe("72h");
+  });
+
+  it("states the window the CLI checks: the period plus its grace", () => {
+    expect(uploadWindowText({ grace_period: "30d" })).toBe(
+      "Upload during this period, or up to 30 days after it ends (the grace period).",
+    );
+    expect(uploadWindowText({ grace_period: "" })).toBe("Upload during this period.");
+    expect(uploadWindowText({ grace_period: "0d" })).toBe("Upload during this period.");
   });
 });

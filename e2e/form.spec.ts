@@ -94,6 +94,29 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
   ).toBeVisible();
 });
 
+test("the form and the upload screen say what the CLI does", async ({ page }) => {
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await expect(
+    page.getByText("Upload during this period, or up to 30 days after it ends (the grace period)."),
+  ).toBeVisible();
+  await expect(page.getByText(/retrospective|just ended/)).toHaveCount(0);
+
+  await page.getByLabel("Completed by").fill("Sam");
+  await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+  await submit(page);
+  await expect(page.getByText(/the CLI merges every file in the folder into one PDF/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Upload it to this folder in your evidence storage" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The CLI picks it up on the next scheduled run" })).toBeVisible();
+  await expect(page.getByText("sigcomply check --scheduled")).toBeVisible();
+  await expect(page.getByText("sigcomply evidence due --all")).toBeVisible();
+  await expect(page.getByText(/evidence bucket|your bucket/)).toHaveCount(0);
+
+  // Each action is one tab stop: a link styled as a button, never a button in a link.
+  await expect(page.locator("a button")).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to list" }).click();
+  await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
+});
+
 test("a name outside Latin-1 reaches the PDF intact, one the font lacks is refused", async ({ page }) => {
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
@@ -123,9 +146,8 @@ test("checklist form needs every required item", async ({ page }) => {
   await page.getByLabel("Completed by").fill("Sam");
   await page.getByRole("button", { name: "Download evidence.pdf" }).click();
   await expect(page.getByText("Tick every required item (marked *)")).toBeVisible();
-  await expect(
-    page.getByText(/^Required item\(s\) not checked: plan_tested, roles_verified, communication_tested$/),
-  ).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: /^Required item\(s\) not checked: “Incident response plan was tested/ })).toBeVisible();
+  await expect(page.getByText(/plan_tested|roles_verified/)).toHaveCount(0);
 
   await tickRequiredIncidentItems(page);
   await expect(page.getByRole("checkbox", { name: /^Lessons learned/ })).not.toBeChecked();
@@ -166,7 +188,7 @@ test("marking it uploaded is remembered in this browser and shown on the list", 
   const row = page
     .locator("div.group")
     .filter({ has: page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }) });
-  const uploaded = page.getByRole("checkbox", { name: /uploaded this to my bucket/ });
+  const uploaded = page.getByRole("checkbox", { name: /uploaded this to my evidence storage/ });
   async function fillAndSubmit() {
     await page.getByLabel("Completed by").fill("Jane Doe");
     await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();

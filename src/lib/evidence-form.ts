@@ -47,6 +47,24 @@ function unsupportedText(
 
 const UNSUPPORTED = "Unsupported evidence type for SPA rendering";
 
+/** "30d" → "30 days"; any other form is shown as written. */
+export function formatGrace(grace: string): string {
+  const m = /^(\d+)d$/.exec(grace.trim());
+  if (!m) return grace.trim();
+  return m[1] === "1" ? "1 day" : `${m[1]} days`;
+}
+
+/**
+ * The CLI's upload window for an entry: an upload counts from the period's
+ * start to its end plus the grace period (isInTemporalWindow in the CLI's
+ * manual source). The CLI never branches on `temporal_rule`.
+ */
+export function uploadWindowText(entry: Pick<CatalogEntry, "grace_period">): string {
+  const grace = entry.grace_period ? formatGrace(entry.grace_period) : "";
+  if (!grace || /^0 days$/.test(grace)) return "Upload during this period.";
+  return `Upload during this period, or up to ${grace} after it ends (the grace period).`;
+}
+
 export function initialItems(entry: CatalogEntry): ChecklistItemState[] {
   return (entry.items ?? []).map((i) => ({ id: i.id, checked: false, notes: "" }));
 }
@@ -58,7 +76,7 @@ function missingRequired(
   const checked = new Set(items.filter((i) => i.checked).map((i) => i.id));
   return (entry.items ?? [])
     .filter((i) => i.required && !checked.has(i.id))
-    .map((i) => i.id);
+    .map((i) => i.text);
 }
 
 /** The first blocking problem as one message, or null when the form can submit. */
@@ -75,7 +93,7 @@ export function validateEvidence(
   if (entry.type === "checklist") {
     const missing = missingRequired(entry, state.items);
     return missing.length > 0
-      ? `Required item(s) not checked: ${missing.join(", ")}`
+      ? `Required item(s) not checked: ${missing.map((t) => `“${t}”`).join(", ")}`
       : null;
   }
   return UNSUPPORTED;
