@@ -9,7 +9,7 @@
       "frequency": "yearly",
       "temporal_rule": "retrospective",
       "grace_period": "30d",
-      "name": "Return Of Assets",
+      "name": "Return of Assets",
       "description": "Assets are returned when employment or engagement ends.",
       "severity": "medium",
       "declaration_text": "I confirm that all organizational assets issued to personnel and third parties whose employment or engagement ended during this period have been returned or verifiably wiped, and that the return has been recorded."
@@ -118,7 +118,7 @@
       "frequency": "yearly",
       "temporal_rule": "retrospective",
       "grace_period": "30d",
-      "name": "Working In Secure Areas",
+      "name": "Working in Secure Areas",
       "description": "Rules for working in secure areas are defined and followed.",
       "severity": "medium",
       "declaration_text": "I confirm that secure areas within the organization's control are identified and that the rules for working in them are defined and followed during this period, and that where the organization operates no secure areas of its own, the hosting facilities are run by a third-party provider under its own certified controls."
