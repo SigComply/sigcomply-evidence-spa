@@ -1,6 +1,10 @@
 # SigComply Evidence SPA
 
-Two browser tools for [SigComply](https://github.com/SigComply/sigcomply-cli) users, hosted at
+[SigComply](https://github.com/SigComply/sigcomply-cli) runs in your GitHub or GitLab pipeline,
+checks your cloud and SaaS configuration against SOC 2 and ISO 27001, and signs the evidence into
+storage you own.
+
+Two browser tools for SigComply users, hosted at
 **https://sigcomply.github.io/sigcomply-evidence-spa/**:
 
 - **Evidence forms.** For manual-evidence entries that are a declaration or a checklist, fill a

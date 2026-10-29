@@ -3,8 +3,9 @@
 Personal, machine-local instructions live in `AGENTS.local.md` (gitignored; may not exist). Read
 it if it exists; it adds to and overrides this file. @AGENTS.local.md
 
-SigComply is a compliance engine and evidence collector that runs in the customer's CI (the
-`sigcomply-cli` repo). For the product and the other repos, read the workspace `../AGENTS.md` if it
+SigComply runs in the customer's GitHub or GitLab pipeline (the `sigcomply-cli` repo), checks
+cloud and SaaS configuration against SOC 2 and ISO 27001, and signs the evidence into storage the
+customer owns. For the product and the other repos, read the workspace `../AGENTS.md` if it
 exists (it is machine-local; this repo must not depend on it).
 
 ## How work happens here
