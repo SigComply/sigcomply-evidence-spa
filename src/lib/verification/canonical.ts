@@ -7,9 +7,10 @@
 // SetEscapeHTML(false)):
 //   1. UTF-8 (handled by TextEncoder at the call site).
 //   2. No insignificant whitespace.
-//   3. Object keys sorted lexicographically by UTF-16 code unit (which
-//      equals Unicode code-point order for the BMP and matches Go's
-//      `sort.Strings` on UTF-8 strings).
+//   3. Object keys sorted by Unicode code point, which is the order Go's
+//      `sort.Strings` gives on UTF-8 bytes. JS's default sort compares
+//      UTF-16 code units and differs for keys mixing U+E000..U+FFFF with
+//      characters above U+FFFF (`compareCodePoints`).
 //   4. Strings escape per RFC 8259: `\"`, `\\`, `\b`, `\f`, `\n`, `\r`,
 //      `\t` as named mnemonics; other control characters (U+0000 to
 //      U+001F) and the JS line separators U+2028 / U+2029 as `\uXXXX`.
@@ -78,6 +79,22 @@ function encodeNumber(n: number): string {
   return JSON.stringify(n);
 }
 
+// Compares by code point. A surrogate pair is one code point above U+FFFF,
+// so it must sort after U+E000..U+FFFF, where UTF-16 code units put it
+// before them.
+export function compareCodePoints(a: string, b: string): number {
+  const ai = a[Symbol.iterator]();
+  const bi = b[Symbol.iterator]();
+  for (;;) {
+    const x = ai.next();
+    const y = bi.next();
+    if (x.done) return y.done ? 0 : -1;
+    if (y.done) return 1;
+    const d = x.value.codePointAt(0)! - y.value.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+}
+
 function encodeValue(v: unknown): string {
   if (v === null || v === undefined) return "null";
   if (typeof v === "boolean") return v ? "true" : "false";
@@ -102,7 +119,7 @@ function encodeValue(v: unknown): string {
     // `JSON.stringify` omits them, and Go can't produce them at all.
     const keys = Object.keys(obj)
       .filter((k) => obj[k] !== undefined)
-      .sort();
+      .sort(compareCodePoints);
     let out = "{";
     for (let i = 0; i < keys.length; i++) {
       if (i > 0) out += ",";

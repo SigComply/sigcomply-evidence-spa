@@ -27,6 +27,13 @@ describe("canonicalJSON", () => {
     );
   });
 
+  it("sorts keys by code point, like Go's sort over UTF-8 bytes", () => {
+    // UTF-16 code units put the surrogate pair of U+1F600 (0xD83D...)
+    // before U+FF01; UTF-8 bytes (and code points) put it after.
+    const obj = { "😀": 4, "！": 3, é: 2, a: 1 };
+    expect(canonicalJSON(obj)).toBe('{"a":1,"é":2,"！":3,"😀":4}');
+  });
+
   it("preserves array order", () => {
     expect(canonicalJSON([3, 1, 2])).toBe("[3,1,2]");
   });
