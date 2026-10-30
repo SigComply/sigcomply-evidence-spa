@@ -70,7 +70,7 @@ function manualPayload(vector: string): ManualDocumentPayload {
 describe("CLI golden envelopes", () => {
   it("has the vectors the CLI generates, each with its canonical bytes", () => {
     expect(vectors.map((v) => v.name).sort()).toEqual(
-      ["basic", "bignum", "fanout", "manual"],
+      ["basic", "bignum", "fanout", "manual", "unicodekeys"],
     );
     for (const v of vectors) expect(v.canonical, v.name).toBeTypeOf("string");
   });
