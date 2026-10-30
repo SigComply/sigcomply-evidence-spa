@@ -254,3 +254,46 @@ describe("Verify page key fingerprint", () => {
     expect(screen.getByText(want)).toBeTruthy();
   });
 });
+
+// Collects every string leaf of the records' payloads: the parts of the file
+// a bad signature leaves unvouched for.
+function payloadStrings(envelopeText: string): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown): void => {
+    if (typeof v === "string") out.add(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  const env = JSON.parse(envelopeText) as { records: { payload: unknown }[] };
+  env.records.forEach((r) => walk(r.payload));
+  // Short leaves ("pdf", "low", "2026") also occur in ordinary page copy.
+  return [...out].filter((s) => s.length >= 5);
+}
+
+describe("Verify page with an invalid signature", () => {
+  afterEach(cleanup);
+
+  it.each([
+    ["golden/manual.json", /"file_size":1210/, '"file_size":1211'],
+    ["golden/fanout.json", /"file_size":1226/, '"file_size":1227'],
+  ] as const)(
+    "%s: no payload value shows outside the labelled raw block",
+    async (name, from, to) => {
+      const tampered = text(name).replace(from, to);
+      expect(tampered).not.toBe(text(name));
+      const { container } = renderVerify();
+      await loadEnvelope(container, "tampered.json", tampered);
+      await screen.findByText("Signature invalid");
+      for (const d of container.querySelectorAll("details")) {
+        d.open = true;
+        fireEvent(d, new Event("toggle"));
+      }
+      const view = container.cloneNode(true) as HTMLElement;
+      view.querySelectorAll("[data-raw]").forEach((n) => n.remove());
+      const shown = view.textContent ?? "";
+      const leaked = payloadStrings(tampered).filter((s) => shown.includes(s));
+      expect(leaked).toEqual([]);
+      expect(screen.getByText("Unverified file contents")).toBeTruthy();
+    },
+  );
+});

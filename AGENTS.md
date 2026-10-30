@@ -173,6 +173,9 @@ Rules:
 - A single-folder manual record shows its signed verdict fields (`recordedChecks` in
   `src/lib/verification/manual.ts`; a check the CLI never ran reads "not checked"). The recorded
   verdicts, fan-out members included, and the PDF check appear only once the signature is valid.
+  So do the evidence ID and period badges and the folder URI and expected hash in "Envelope
+  details"; until then the raw records block, labelled "Unverified file contents", is the only
+  place payload values appear (`Verify page with an invalid signature` in `Verify.test.tsx`).
 - `parseEnvelopeText` refuses a `signed_document` payload whose known fields have the wrong
   type (`manualPayloadProblem` in `src/types/envelope.ts`), so the page never renders one.
 - `file_hash` is the hash of the merged PDF, which the CLI stores in the run folder as

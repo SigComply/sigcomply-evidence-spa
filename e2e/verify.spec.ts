@@ -148,6 +148,13 @@ test("a tampered file_hash with its matching PDF never shows a match", async ({ 
   await expect(page.getByText("What the CLI recorded", { exact: true })).toHaveCount(0);
   await expect(page.locator('input[type=file][accept="application/pdf,.pdf"]')).toHaveCount(0);
   await expect(page.getByText("match", { exact: true })).toHaveCount(0);
+  // Unvouched-for payload fields stay out of the badges and the details grid.
+  const record = goldenPayload("manual.json");
+  await expectIdentity(page, ["manual"]);
+  await expect(page.getByText(record.evidence_id!)).toHaveCount(0);
+  await page.getByText("Envelope details").click();
+  await expect(page.getByText("Unverified file contents")).toBeVisible();
+  await expect(page.getByText("Folder URI")).toHaveCount(0);
 });
 
 test("the valid verdict doesn't send auditors looking for a trusted key", async ({ page }) => {

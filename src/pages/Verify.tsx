@@ -114,6 +114,10 @@ export function Verify() {
     [manualDoc],
   );
   const members = manualDoc?.instances;
+  // Payload fields are shown only once the signature vouches for them; until
+  // then the raw records block, labelled as unverified, is the only place
+  // they appear.
+  const signedDoc = sigStatus.state === "valid" ? manualDoc : null;
 
   // Summary stats for the loaded envelope: how many records and which
   // distinct record types are present.
@@ -296,11 +300,11 @@ export function Verify() {
   // a generic "automated" tag derived from the record set.
   const identityParts = useMemo(() => {
     const parts: string[] = [];
-    if (manualDoc?.evidence_id) parts.push(manualDoc.evidence_id);
+    if (signedDoc?.evidence_id) parts.push(signedDoc.evidence_id);
     parts.push(manualDoc ? "manual" : "automated");
-    if (manualDoc?.period_id) parts.push(manualDoc.period_id);
+    if (signedDoc?.period_id) parts.push(signedDoc.period_id);
     return parts;
-  }, [manualDoc]);
+  }, [manualDoc, signedDoc]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -406,7 +410,7 @@ export function Verify() {
           <span className="flex items-center gap-2 truncate text-muted-foreground">
             <FileJson className="h-4 w-4 shrink-0" />
             <span className="truncate">
-              {manualDoc?.evidence_id ?? "Envelope loaded"}
+              {signedDoc?.evidence_id ?? "Envelope loaded"}
             </span>
           </span>
           <Button type="button" variant="ghost" size="sm" onClick={reset}>
@@ -656,32 +660,40 @@ export function Verify() {
                     {truncate(envelope.signature.value, 24)}
                   </span>
 
-                  {manualDoc && (
+                  {signedDoc && (
                     <>
-                      {manualDoc.expected_uri && (
+                      {signedDoc.expected_uri && (
                         <>
                           <span className="text-muted-foreground">
                             Folder URI
                           </span>
                           <span className="font-mono break-all">
-                            {manualDoc.expected_uri}
+                            {signedDoc.expected_uri}
                           </span>
                         </>
                       )}
-                      {manualDoc.file_hash && (
+                      {signedDoc.file_hash && (
                         <>
                           <span className="text-muted-foreground">
                             Expected SHA-256
                           </span>
                           <span className="font-mono break-all">
-                            {manualDoc.file_hash}
+                            {signedDoc.file_hash}
                           </span>
                         </>
                       )}
                     </>
                   )}
                 </div>
-                <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">
+                {sigStatus.state !== "valid" && (
+                  <p className="mt-3 text-xs font-medium text-destructive">
+                    Unverified file contents
+                  </p>
+                )}
+                <pre
+                  data-raw
+                  className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs"
+                >
                   {previewPayload(envelope.records)}
                 </pre>
                 </>
@@ -692,7 +704,9 @@ export function Verify() {
                 sigStatus.state === "invalid") && (
                 <LazyDetails summary="Canonical bytes verified">
                   {() => (
-                    <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted p-3 font-mono text-xs">
+                    <pre
+                      data-raw
+                      className="mt-2 max-h-64 overflow-auto rounded bg-muted p-3 font-mono text-xs">
                       {sigStatus.result.signedBytes}
                     </pre>
                   )}
