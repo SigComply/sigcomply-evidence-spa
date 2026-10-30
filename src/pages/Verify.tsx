@@ -103,6 +103,9 @@ export function Verify() {
   const [pdfDragActive, setPdfDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  // Bumped whenever the loaded envelope or PDF check starts over, so a hash
+  // that finishes later can't report against the wrong record.
+  const pdfRun = useRef(0);
 
   const manualDoc: ManualDocumentPayload | null = useMemo(
     () => (envelope ? getManualDocumentPayload(envelope) : null),
@@ -136,6 +139,7 @@ export function Verify() {
   // for keystrokes (reformatting mid-type would jump the caret).
   const handleParse = useCallback(
     (text: string, opts?: { reformat?: boolean }) => {
+      pdfRun.current++;
       setPdfStatus({ state: "idle" });
 
       const result = parseEnvelopeText(text);
@@ -243,10 +247,12 @@ export function Verify() {
         });
         return;
       }
+      const run = ++pdfRun.current;
       setPdfStatus({ state: "hashing", filename: file.name });
       try {
         const buf = await file.arrayBuffer();
         const hash = await sha256Hex(buf);
+        if (run !== pdfRun.current) return;
         // A fan-out record carries one hash per member, so the dropped PDF
         // may belong to any of them; report which one it matched.
         const matched = matchPdfHash(manualDoc, hash);
@@ -261,6 +267,7 @@ export function Verify() {
           });
         }
       } catch (err) {
+        if (run !== pdfRun.current) return;
         setPdfStatus({ state: "error", message: (err as Error).message });
       }
     },
@@ -288,6 +295,7 @@ export function Verify() {
   );
 
   const reset = useCallback(() => {
+    pdfRun.current++;
     setRawJson("");
     setSourceText("");
     setParseError(null);

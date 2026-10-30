@@ -297,3 +297,31 @@ describe("Verify page with an invalid signature", () => {
     },
   );
 });
+
+describe("Verify page PDF check", () => {
+  afterEach(cleanup);
+
+  it("drops a hash that finishes after another envelope was loaded", async () => {
+    const pdf = fixture("golden/manual.access_review_quarterly.pdf");
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = new File([pdf], "evidence.pdf", { type: "application/pdf" });
+    const bytes = await slow.arrayBuffer();
+    slow.arrayBuffer = () => gate.then(() => bytes);
+
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    await user.upload(fileInput(container, "application/pdf,.pdf"), slow);
+    expect(await screen.findByText(/Hashing evidence.pdf/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /verify another/i }));
+    await loadEnvelope(container, "golden/fanout.json");
+    await screen.findByText("Signature valid");
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText("match")).toBeNull();
+    expect(screen.queryByText(/evidence\.pdf matches/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose PDF" })).toBeTruthy();
+  });
+});
