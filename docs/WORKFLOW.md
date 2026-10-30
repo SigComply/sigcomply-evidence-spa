@@ -16,7 +16,9 @@ environment.
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
   daily at 07:00 UTC, and on `workflow_dispatch`. Four jobs:
   - `build` (`contents: read`, checkout without persisted credentials, no npm cache): Gitleaks
-    over the deployed commit's tree (a finding stops the deploy), `npm ci`,
+    over the deployed tree as files (`gitleaks dir`; a finding stops the deploy, and a false
+    positive gets an inline `gitleaks:allow` comment, since `.gitleaksignore` fingerprints name
+    commits), `npm ci`,
     `npm audit signatures` (registry signatures), `npm audit --audit-level=high` (hard gate),
     install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time; the
     tarball's SHA-256 must match the release's `checksums.txt`, and `gh attestation verify` must

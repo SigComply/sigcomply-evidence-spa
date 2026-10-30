@@ -44,10 +44,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # A committed secret stops the deploy, not only security.yml. The
-      # checkout is shallow, so this scans the deployed commit's whole tree
-      # (security.yml scans the full history). Same pinned binary as there;
-      # a false positive goes in .gitleaksignore.
+      # A committed secret stops the deploy, not only security.yml. This scans
+      # the deployed tree as files (`dir`; security.yml scans the full
+      # history). A shallow checkout would give every git finding the HEAD SHA,
+      # which no .gitleaksignore line can match, so a false positive here gets
+      # an inline `gitleaks:allow` comment on its line. Same pinned binary.
       - name: Gitleaks (deployed tree)
         env:
           GITLEAKS_VERSION: 8.30.1
@@ -60,7 +61,7 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum -c -
           tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
-          "$dir/gitleaks" detect --source . --verbose --redact --exit-code 1
+          "$dir/gitleaks" dir . --verbose --redact --exit-code 1
 
       # No npm cache in the jobs that build and upload what Pages publishes:
       # a cache any workflow run can write would be an input to the site.
