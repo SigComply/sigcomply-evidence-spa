@@ -45,6 +45,19 @@ test("a framework without a catalog shows an error, not a blank page", async ({ 
   await expect(page.getByText("Could not load the nist catalog")).toBeVisible();
 });
 
+// The framework route parameter must never steer the catalog fetch to
+// another file; sameOriginOnly fails the test on any such request.
+for (const framework of ["..%2Fconfig", "..%2F..%2Fsigcomply-evidence-spa%2Fconfig", "nist"]) {
+  test(`a framework route parameter ${framework} fetches nothing but app files`, async ({ page }) => {
+    const requests: string[] = [];
+    page.on("request", (r) => requests.push(new URL(r.url()).pathname));
+    await page.goto(`evidence/${framework}/code_of_conduct_acknowledgment`);
+    await expect(page.getByText("Could not load the catalog")).toBeVisible();
+    await expect(page.getByText(/Unknown framework/)).toBeVisible();
+    expect(requests.filter((p) => p.includes("/data/"))).toEqual([]);
+  });
+}
+
 test("a missing config.json falls back to the defaults", async ({ page }) => {
   await pinCatalogs(page);
   await page.route("**/config.json", (route) => route.fulfill({ status: 404, body: "" }));

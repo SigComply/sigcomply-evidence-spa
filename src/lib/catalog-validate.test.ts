@@ -134,6 +134,27 @@ describe("validateCatalog", () => {
     expect(result.errors).toEqual(['entries[0]: unknown field "owner"']);
   });
 
+  it.each(["../x", "a/b", ".hidden", "", "a b", "a%2Fb"])(
+    "fails an entry id %j that isn't a safe path segment",
+    (id) => {
+      const result = validateCatalog(catalog([entry({ id })]), "soc2");
+      expect(result.errors).toContainEqual(expect.stringMatching(/entries\[0\]\.id: unsafe id/));
+    },
+  );
+
+  it("fails a checklist item id that isn't a safe path segment", () => {
+    const items = [{ id: "../revoke", text: "Revoke access", required: true }];
+    const result = validateCatalog(catalog([entry({ items })]), "soc2");
+    expect(result.errors).toContainEqual(expect.stringMatching(/entries\[0\]\.items\[0\]\.id: unsafe id/));
+  });
+
+  it("fails a framework name that isn't a slug", () => {
+    const raw = { framework: "../soc2", version: "1.0", entries: [] };
+    expect(validateCatalog(raw, "../soc2").errors).toContainEqual(
+      expect.stringMatching(/catalog.framework: unsafe framework/),
+    );
+  });
+
   it("reports every problem, not just the first", () => {
     const result = validateCatalog(
       catalog([entry({ name: 1, severity: 2 })]),

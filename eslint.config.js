@@ -21,6 +21,27 @@ export default defineConfig([
     },
   },
   {
+    // Nothing leaves the browser: the app reads its own config.json and
+    // catalogs through src/lib/static-fetch.ts, which allowlists the paths.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].map((name) => ({
+          name,
+          message: 'Read app data through fetchStatic in src/lib/static-fetch.ts.',
+        })),
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'navigator', property: 'sendBeacon', message: 'Nothing leaves the browser.' },
+        { object: 'window', property: 'fetch', message: 'Use fetchStatic in src/lib/static-fetch.ts.' },
+        { object: 'globalThis', property: 'fetch', message: 'Use fetchStatic in src/lib/static-fetch.ts.' },
+      ],
+    },
+  },
+  {
     // Parsed JSON can carry any key: `"constructor" in obj` is true for every
     // plain object, so presence checks on untrusted data use Object.hasOwn.
     files: ['src/lib/verification/**/*.ts', 'scripts/verify-*.ts'],

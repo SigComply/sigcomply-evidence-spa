@@ -1,4 +1,6 @@
 import type { RuntimeConfig } from "@/types/config";
+import { FRAMEWORK_PATTERN } from "@/lib/catalog-validate";
+import { fetchStatic } from "@/lib/static-fetch";
 
 let cachedConfig: RuntimeConfig | null = null;
 
@@ -20,7 +22,9 @@ function normalizeConfig(raw: unknown): RuntimeConfig {
   const obj = (raw ?? {}) as Record<string, unknown>;
 
   const frameworks = Array.isArray(obj.frameworks)
-    ? obj.frameworks.filter((f): f is string => typeof f === "string")
+    ? obj.frameworks.filter(
+        (f): f is string => typeof f === "string" && FRAMEWORK_PATTERN.test(f),
+      )
     : [];
 
   const storageRaw = (obj.storage ?? {}) as Record<string, unknown>;
@@ -49,7 +53,7 @@ export async function loadConfig(): Promise<RuntimeConfig> {
   // any deployment override — resolve it relative to the base instead, exactly
   // as catalogs are fetched (src/data/index.ts).
   try {
-    const resp = await fetch(`${import.meta.env.BASE_URL}config.json`);
+    const resp = await fetchStatic("config.json");
     if (!resp.ok) {
       cachedConfig = DEFAULT_CONFIG;
       return cachedConfig;

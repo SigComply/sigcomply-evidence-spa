@@ -88,15 +88,28 @@ export const test = base.extend<{ sameOriginOnly: void; noCspViolations: void }>
   ],
   sameOriginOnly: [
     async ({ page, baseURL }, use) => {
-      const origin = new URL(baseURL!).origin;
+      const base = new URL(baseURL!);
+      // What the app itself may request: its bundle, its icon, config.json
+      // and one catalog per framework. A page load can be any path (404.html
+      // serves deep links), but nothing the app fetches may stray from these,
+      // e.g. through a route parameter carrying "../" or "%2F".
+      const appPath = new RegExp(
+        `^${base.pathname}(assets/[A-Za-z0-9._-]+|favicon\\.svg|config\\.json|data/catalogs/[a-z0-9][a-z0-9_-]*\\.json)$`,
+      );
       const foreign: string[] = [];
+      const offList: string[] = [];
       page.on("request", (req) => {
         const url = req.url();
         if (url.startsWith("data:") || url.startsWith("blob:")) return;
-        if (new URL(url).origin !== origin) foreign.push(url);
+        const u = new URL(url);
+        if (u.origin !== base.origin) foreign.push(url);
+        else if (!req.isNavigationRequest() && (u.search !== "" || !appPath.test(u.pathname))) {
+          offList.push(url);
+        }
       });
       await use();
       expect(foreign, "requests that left the app's origin").toEqual([]);
+      expect(offList, "same-origin requests outside the app's own files").toEqual([]);
     },
     { auto: true },
   ],

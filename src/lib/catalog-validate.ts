@@ -14,6 +14,13 @@ import type { Catalog } from "@/types/catalog";
 
 const EVIDENCE_TYPES = ["document_upload", "checklist", "declaration"];
 
+/** A framework name: it becomes a file name in data/catalogs/. */
+export const FRAMEWORK_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
+// Entry and item IDs end up in routes, upload paths and form keys. The CLI's
+// own grammar for vault IDs (vaultSafeID) minus the instance brackets: one
+// path segment, no separator, no leading dot.
+const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 /** The entry types the SPA renders. Every other type is dropped. */
 export const SPA_RENDERABLE_TYPES: ReadonlySet<string> = new Set([
   "declaration",
@@ -85,6 +92,7 @@ function checkItems(v: unknown, path: string, errors: string[]) {
     }
     unknownKeys(item, ITEM_FIELDS, p, errors);
     if (typeof item.id !== "string") errors.push(`${p}.id: expected a string`);
+    else if (!ID_PATTERN.test(item.id)) errors.push(`${p}.id: unsafe id ${JSON.stringify(item.id)}`);
     if (typeof item.text !== "string") errors.push(`${p}.text: expected a string`);
     if (typeof item.required !== "boolean") {
       errors.push(`${p}.required: expected a boolean`);
@@ -127,6 +135,8 @@ export function validateCatalog(
   unknownKeys(raw, ["framework", "version", "entries"], "catalog", warnings);
   if (typeof raw.framework !== "string") {
     errors.push("catalog.framework: expected a string");
+  } else if (!FRAMEWORK_PATTERN.test(raw.framework)) {
+    errors.push(`catalog.framework: unsafe framework ${JSON.stringify(raw.framework)}`);
   } else if (raw.framework !== framework) {
     errors.push(
       `catalog.framework: expected "${framework}", got "${raw.framework}"`,
@@ -173,6 +183,7 @@ export function validateCatalog(
       checkField(e[name], spec.kind, `${p}.${name}`, errors);
     }
     if (typeof e.id === "string") {
+      if (!ID_PATTERN.test(e.id)) errors.push(`${p}.id: unsafe id ${JSON.stringify(e.id)}`);
       if (seen.has(e.id)) errors.push(`${p}.id: duplicate "${e.id}"`);
       seen.add(e.id);
     }

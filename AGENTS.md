@@ -135,7 +135,9 @@ Rules:
 - `fetch-catalogs` checks the CLI output against `src/types/catalog.ts`
   (`src/lib/catalog-validate.ts`). On the entries the SPA renders (`declaration`, `checklist`), an
   unknown field, a missing required field or an unknown enum value fails the build; so does an
-  unknown `type` or a bad `framework`, `version` or `entries`. Unknown top-level fields and
+  unknown `type` or a bad `framework`, `version` or `entries`, or an entry or item `id` that
+  isn't one safe path segment (`ID_PATTERN`: `^[A-Za-z0-9][A-Za-z0-9._-]*$`). The app runs the
+  same validator on every catalog it loads. Unknown top-level fields and
   anything on a dropped `document_upload` entry only print a warning, because the SPA never ships
   them. When the Go struct changes, update the types and the validator together (JSON tags and
   `omitempty` against optional `?`).
@@ -189,7 +191,8 @@ Rules:
 
 ## Runtime config
 
-`public/config.json` holds `frameworks` and `storage` (`show_upload_path`, `prefix`). It is the only
+`public/config.json` holds `frameworks` and `storage` (`show_upload_path`, `prefix`). A framework
+name must match `FRAMEWORK_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`); `loadConfig` drops any other. It is the only
 list of frameworks: `fetch-catalogs` reads it (`frameworksFromConfig()`), and a framework the
 released CLI can't serve fails the build. `loadConfig()` fetches it relative to
 `import.meta.env.BASE_URL` and falls back field by field to `DEFAULT_CONFIG`. Self-hosted copies can
@@ -205,7 +208,11 @@ replace `config.json` without a rebuild; the public site ships the committed fil
 - New framework: add it to `public/config.json`, then `npm run fetch-catalogs`.
 - `localStorage` keys use the `sigcomply:` prefix and are never compliance status. Read and write
   them through `src/lib/local-prefs.ts` or `device-memory.ts`, which survive storage that throws.
-- Imports use `@/...`. Plain `fetch`; no data-fetching library.
+- Imports use `@/...`. No data-fetching library. Only `fetchStatic` in `src/lib/static-fetch.ts`
+  calls `fetch`, and only for `config.json` and `data/catalogs/<framework>.json` under the base
+  path; ESLint (`no-restricted-globals`) bans `fetch`, `XMLHttpRequest`, `WebSocket` and
+  `EventSource` elsewhere in `src/`. `fetchCatalog` takes a framework only if `config.json`
+  lists it and it matches `FRAMEWORK_PATTERN`, and checks the catalog with `validateCatalog`.
 - Lazy-load `@react-pdf/renderer` inside the submit handler (`useEvidenceForm`).
 - PDFs use only the embedded DejaVu Sans faces in `src/lib/pdf/fonts/` (registered in `fonts.ts`,
   loaded from the app's own origin on the first render). Never use the standard fonts: their
