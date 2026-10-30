@@ -39,8 +39,9 @@ Out of scope:
 
 ## What `/verify` proves (and does not)
 
-- A valid result proves the envelope's records match the Ed25519 public key embedded in the same
-  envelope. Anyone can sign an envelope with their own key, so it does not prove who signed them.
+- A valid result shows the envelope is self-consistent: its records match the Ed25519 public key
+  embedded in the same envelope. `/verify` shows that key's SHA-256 fingerprint. Anyone can sign
+  an envelope with their own key, so it does not prove who signed them.
   The CLI generates a new key for every evidence file, so there is no long-lived key to compare
   against; write-once storage of the vault is what keeps a run from being rewritten and
   re-signed.

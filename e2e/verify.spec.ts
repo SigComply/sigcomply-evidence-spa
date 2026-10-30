@@ -156,6 +156,27 @@ test("the valid verdict doesn't send auditors looking for a trusted key", async 
   await expect(page.getByText(/one you trust/)).toHaveCount(0);
 });
 
+// D6 (mirrors VerdictBanner copy in Verify.test.tsx): the verdict says the
+// file is self-consistent with its embedded key and nothing stronger.
+const OVERCLAIM = /intact|authentic|tamper-proof|proves|guarantee/i;
+
+test("no verdict overclaims, and a valid one shows the key fingerprint", async ({ page }) => {
+  const body = fixture("sample-envelope-v1.json");
+  const key = (JSON.parse(body.toString("utf-8")) as EvidenceEnvelope).signature.public_key;
+  const verdict = page.getByTestId("verdict");
+
+  await loadEnvelope(page, "sample-envelope-v1.json");
+  await expect(verdict).toContainText("Signature valid");
+  await expect(verdict).toContainText(sha256(Buffer.from(key, "base64")));
+  await expect(verdict).not.toContainText(OVERCLAIM);
+
+  await page.getByRole("button", { name: "Verify another" }).click();
+  const tampered = body.toString("utf-8").replace('"source_id": "aws.iam"', '"source_id": "aws.iaM"');
+  await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
+  await expect(verdict).toContainText("Signature invalid");
+  await expect(verdict).not.toContainText(OVERCLAIM);
+});
+
 test("a manual record with a wrongly typed field is refused, not a crash", async ({ page }) => {
   const bad = fixture("golden/fanout.json").toString("utf-8").replace(/"instances":\[/, '"instances":[null,');
   await loadEnvelope(page, "bad.json", Buffer.from(bad));

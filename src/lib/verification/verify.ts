@@ -33,6 +33,11 @@ export interface VerifyResult {
   reason?: string;
   /** The canonical UTF-8 string the signature was checked against. */
   signedBytes: string;
+  /**
+   * Hex SHA-256 of the raw 32-byte public key, once the key decodes. Lets an
+   * auditor tell two files' keys apart; it doesn't identify the signer.
+   */
+  keyFingerprint?: string;
 }
 
 /** Pulls the three signed content fields out of a parsed envelope value. */
@@ -131,6 +136,7 @@ export async function verifySignatureBlock(
       signedBytes,
     };
   }
+  const keyFingerprint = await sha256Hex(publicKey.buffer);
   try {
     signature = base64ToBytes(sig.value);
   } catch {
@@ -138,6 +144,7 @@ export async function verifySignatureBlock(
       valid: false,
       reason: "signature.value is not valid base64.",
       signedBytes,
+      keyFingerprint,
     };
   }
   if (signature.length !== 64) {
@@ -145,6 +152,7 @@ export async function verifySignatureBlock(
       valid: false,
       reason: `Ed25519 signature must be 64 bytes; got ${signature.length}.`,
       signedBytes,
+      keyFingerprint,
     };
   }
 
@@ -181,6 +189,7 @@ export async function verifySignatureBlock(
       ? undefined
       : "Signature does not match the canonical signed payload.",
     signedBytes,
+    keyFingerprint,
   };
 }
 

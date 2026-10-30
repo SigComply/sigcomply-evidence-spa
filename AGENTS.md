@@ -166,6 +166,10 @@ Rules:
 
 - A valid signature proves the records match the key embedded in the envelope, not who signed.
   The CLI makes a new key per file, so never tell users to check the key against a trusted one.
+  Decision (2026-10-30): the valid verdict calls the file "self-consistent" and shows the key's
+  SHA-256 fingerprint (`keyFingerprint` in `verify.ts`); no verdict state may say "intact",
+  "authentic", "tamper-proof", "proves" or "guarantee". `VerdictBanner copy` in
+  `src/pages/Verify.test.tsx` and its mirror in `e2e/verify.spec.ts` enforce the word list.
 - A single-folder manual record shows its signed verdict fields (`recordedChecks` in
   `src/lib/verification/manual.ts`; a check the CLI never ran reads "not checked"). The recorded
   verdicts, fan-out members included, and the PDF check appear only once the signature is valid.

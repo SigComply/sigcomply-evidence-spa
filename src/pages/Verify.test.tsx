@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Verify } from "./Verify";
+import { Verify, VerdictBanner, type SigStatus } from "./Verify";
 import { emptyFolderRecord, signEnvelope } from "@/test/sign-envelope";
 import { createHash } from "node:crypto";
 
@@ -206,5 +206,51 @@ describe("Verify page", () => {
     expect(screen.getByRole("button", { name: "Choose envelope file" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Drop the signed envelope JSON file here" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Drop/ })).toBeNull();
+  });
+});
+
+// D6: a valid signature only shows the file is self-consistent with the key
+// it carries. No verdict state may claim more than that.
+const OVERCLAIM = /intact|authentic|tamper-proof|proves|guarantee/i;
+
+describe("VerdictBanner copy", () => {
+  afterEach(cleanup);
+
+  const result = { signedBytes: "{}", keyFingerprint: "ab".repeat(32) };
+  const states: SigStatus[] = [
+    { state: "idle" },
+    { state: "verifying" },
+    { state: "valid", result: { ...result, valid: true } },
+    { state: "invalid", result: { ...result, valid: false, reason: "Signature does not match the canonical signed payload." } },
+    { state: "error", message: "Web Crypto API is not available in this browser." },
+  ];
+
+  it.each(states.map((s) => [s.state, s] as const))(
+    "%s claims nothing beyond what the signature shows",
+    (_name, status) => {
+      const { container } = render(<VerdictBanner status={status} />);
+      expect(container.textContent).not.toMatch(OVERCLAIM);
+    },
+  );
+
+  it("shows the key fingerprint with a valid verdict", () => {
+    const { container } = render(
+      <VerdictBanner status={{ state: "valid", result: { ...result, valid: true } }} />,
+    );
+    expect(container.textContent).toContain("ab".repeat(32));
+    expect(container.textContent).toMatch(/self-consistent/);
+  });
+});
+
+describe("Verify page key fingerprint", () => {
+  afterEach(cleanup);
+
+  it("is the SHA-256 of the envelope's raw public key", async () => {
+    const env = JSON.parse(text("sample-envelope-v1.json")) as { signature: { public_key: string } };
+    const want = createHash("sha256").update(Buffer.from(env.signature.public_key, "base64")).digest("hex");
+    const { container } = renderVerify();
+    await loadEnvelope(container, "sample-envelope-v1.json");
+    await screen.findByText("Signature valid");
+    expect(screen.getByText(want)).toBeTruthy();
   });
 });

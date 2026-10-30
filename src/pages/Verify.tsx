@@ -37,7 +37,7 @@ import {
 } from "@/lib/verification/manual";
 import { parseEnvelopeText } from "@/lib/verification/parse-envelope";
 
-type SigStatus =
+export type SigStatus =
   | { state: "idle" }
   | { state: "verifying" }
   | { state: "valid"; result: VerifyResult }
@@ -840,10 +840,10 @@ function MembersPanel({
   );
 }
 
-function VerdictBanner({ status }: { status: SigStatus }) {
+export function VerdictBanner({ status }: { status: SigStatus }) {
   if (status.state === "verifying" || status.state === "idle") {
     return (
-      <div className="flex items-center gap-3 bg-muted px-5 py-4 text-muted-foreground">
+      <div data-testid="verdict" className="flex items-center gap-3 bg-muted px-5 py-4 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" />
         <span className="text-lg font-semibold">Verifying signature…</span>
       </div>
@@ -852,16 +852,24 @@ function VerdictBanner({ status }: { status: SigStatus }) {
 
   if (status.state === "valid") {
     return (
-      <div className="flex items-center gap-3 bg-emerald-500/10 px-5 py-4 text-emerald-700 dark:text-emerald-400">
+      <div data-testid="verdict" className="flex items-center gap-3 bg-emerald-500/10 px-5 py-4 text-emerald-700 dark:text-emerald-400">
         <CheckCircle2 className="h-6 w-6" />
         <div>
           <p className="text-lg font-bold">Signature valid</p>
           <p className="text-sm opacity-80">
-            The records are intact and match the public key in this file. The
-            CLI makes a new key for every file, so this can&apos;t show who
-            signed it: trust in the files comes from write-once storage of the
-            evidence vault.
+            The file is self-consistent: its records match the signature made
+            with the public key it carries. The CLI makes a new key for every
+            file, so this can&apos;t show who signed it: trust in the files
+            comes from write-once storage of the evidence vault.
           </p>
+          {status.result.keyFingerprint && (
+            <p className="mt-1 text-xs opacity-80">
+              Key fingerprint (SHA-256):{" "}
+              <span className="font-mono break-all">
+                {status.result.keyFingerprint}
+              </span>
+            </p>
+          )}
         </div>
       </div>
     );
@@ -869,7 +877,7 @@ function VerdictBanner({ status }: { status: SigStatus }) {
 
   if (status.state === "invalid") {
     return (
-      <div className="flex items-center gap-3 bg-destructive/10 px-5 py-4 text-destructive">
+      <div data-testid="verdict" className="flex items-center gap-3 bg-destructive/10 px-5 py-4 text-destructive">
         <XCircle className="h-6 w-6" />
         <div>
           <p className="text-lg font-bold">Signature invalid</p>
@@ -880,7 +888,7 @@ function VerdictBanner({ status }: { status: SigStatus }) {
   }
 
   return (
-    <div className="flex items-center gap-3 bg-amber-500/10 px-5 py-4 text-amber-700 dark:text-amber-500">
+    <div data-testid="verdict" className="flex items-center gap-3 bg-amber-500/10 px-5 py-4 text-amber-700 dark:text-amber-500">
       <FileWarning className="h-6 w-6" />
       <div>
         <p className="text-lg font-bold">Verification could not run</p>
