@@ -257,15 +257,19 @@ function fieldProblem(
  * (`manualManifest`), or null when it does. Unknown fields are allowed;
  * a known field of the wrong type is not, because the page would render it.
  */
-// Booleans the CLI writes on every manual record and member (no omitempty in
-// manualManifest / instanceManifest). A missing one must not read as false
-// or, for `required`, as an exempt member.
+// Booleans the CLI writes on every manual record and member from v0.21.0 on
+// (no omitempty in manualManifest / instanceManifest). file_valid shipped in
+// v0.21.0, so v0.19-v0.20 manual envelopes lack it and fail here; none are in
+// use (pre-launch). A missing one must not read as false or, for `required`,
+// as an exempt member.
 const RECORD_BOOLEANS = ["file_present", "in_temporal_window", "file_valid"];
 const INSTANCE_BOOLEANS = ["required", "satisfied", ...RECORD_BOOLEANS];
 
 function missingBoolean(obj: Record<string, unknown>, keys: string[], where: string): string | null {
   for (const k of keys) {
-    if (typeof obj[k] !== "boolean") return `${where}${k} should be a boolean.`;
+    if (typeof obj[k] !== "boolean") {
+      return `${where}${k} should be a boolean; the CLI writes it on every manual record from v0.21.0 on.`;
+    }
   }
   return null;
 }

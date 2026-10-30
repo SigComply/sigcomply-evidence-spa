@@ -93,12 +93,12 @@ describe("signed_document payload shape", () => {
     ["instances holds null", fanoutRaw, (p: Record<string, unknown>) => { p.instances = [null]; }, "instances[0] should be an object."],
     ["a member has no id", fanoutRaw, (p: Record<string, unknown>) => { p.instances = [{ required: true }]; }, "instances[0].id should be a string."],
     ["a member's file_hash is a number", fanoutRaw, (p: Record<string, unknown>) => { (p.instances as Record<string, unknown>[])[0].file_hash = 5; }, "instances[0].file_hash should be a string."],
-    // The CLI always writes these booleans (no omitempty); a missing
-    // `required` once read as an exempt member.
-    ["file_valid is missing", manualRaw, (p: Record<string, unknown>) => { delete p.file_valid; }, "file_valid should be a boolean."],
-    ["in_temporal_window is null", manualRaw, (p: Record<string, unknown>) => { p.in_temporal_window = null; }, "in_temporal_window should be a boolean."],
+    // The CLI writes these booleans on every manual record from v0.21.0 on
+    // (no omitempty); a missing `required` once read as an exempt member.
+    ["file_valid is missing", manualRaw, (p: Record<string, unknown>) => { delete p.file_valid; }, "file_valid should be a boolean; the CLI writes it on every manual record from v0.21.0 on."],
+    ["in_temporal_window is null", manualRaw, (p: Record<string, unknown>) => { p.in_temporal_window = null; }, "in_temporal_window should be a boolean; the CLI writes it on every manual record from v0.21.0 on."],
     ...(["required", "satisfied", "file_present", "in_temporal_window", "file_valid"] as const).map(
-      (k) => [`a member has no ${k}`, fanoutRaw, (p: Record<string, unknown>) => { delete (p.instances as Record<string, unknown>[])[1][k]; }, `instances[1].${k} should be a boolean.`] as const,
+      (k) => [`a member has no ${k}`, fanoutRaw, (p: Record<string, unknown>) => { delete (p.instances as Record<string, unknown>[])[1][k]; }, `instances[1].${k} should be a boolean; the CLI writes it on every manual record from v0.21.0 on.`] as const,
     ),
   ] as const)("refuses a record where %s", (_name, raw, edit, problem) => {
     const r = parseEnvelopeText(withPayload(raw, edit));
