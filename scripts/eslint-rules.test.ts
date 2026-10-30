@@ -21,8 +21,16 @@ describe("security lint rules", () => {
     ["src/pages/X.tsx", "export const X = ({ h }: { h: string }) => <div dangerouslySetInnerHTML={{ __html: h }} />;", "no-restricted-syntax"],
     ["src/lib/x.ts", 'export const f = () => fetch("/x");', "no-restricted-globals"],
     ["src/lib/x.ts", 'export const f = () => navigator.sendBeacon("/x");', "no-restricted-properties"],
+    ["src/lib/x.ts", 'export const f = () => window.navigator.sendBeacon("/x");', "no-restricted-syntax"],
+    ["src/lib/x.ts", 'export const f = () => self.fetch("/x");', "no-restricted-properties"],
+    ["src/lib/x.ts", 'export const f = () => new window.WebSocket("wss://x");', "no-restricted-properties"],
+    ["src/lib/x.ts", "export const X = globalThis.XMLHttpRequest;", "no-restricted-properties"],
+    ["src/lib/x.ts", 'export const f = () => new self.EventSource("/x");', "no-restricted-properties"],
+    ["src/lib/verification/x.ts", 'export const f = () => window.navigator.sendBeacon("/x");', "no-restricted-syntax"],
     ["src/lib/verification/x.ts", 'export const f = (o: object) => "k" in o;', "no-restricted-syntax"],
     ["scripts/verify-x.ts", 'export const f = (o: object) => "k" in o;', "no-restricted-syntax"],
+    ["scripts/render-evidence-pdf.ts", 'export const f = (o: object) => "k" in o;', "no-restricted-syntax"],
+    ["scripts/fetch-catalogs.ts", 'export const f = (o: object) => "k" in o;', "no-restricted-syntax"],
   ])("%s: flags %s with %s", async (file, code, rule) => {
     expect(await ruleIds(code, file)).toContain(rule);
   });

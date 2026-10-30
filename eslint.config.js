@@ -12,6 +12,19 @@ const noDangerousHtml = {
   message: 'Render text through React; raw HTML is banned (and Trusted Types refuses it).',
 }
 
+// Member forms that no-restricted-globals can't see, e.g. window.navigator.sendBeacon(...).
+const noSendBeacon = {
+  selector: "MemberExpression[property.name='sendBeacon']",
+  message: 'Nothing leaves the browser.',
+}
+
+const noInOperator = {
+  selector: "BinaryExpression[operator='in']",
+  message: 'Use Object.hasOwn: `in` also finds inherited keys such as "constructor".',
+}
+
+const NETWORK_APIS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource']
+
 export default defineConfig([
   globalIgnores(['dist', 'dist-e2e', 'coverage', 'playwright-report', 'test-results']),
   {
@@ -43,7 +56,7 @@ export default defineConfig([
     rules: {
       'no-restricted-globals': [
         'error',
-        ...['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].map((name) => ({
+        ...NETWORK_APIS.map((name) => ({
           name,
           message: 'Read app data through fetchStatic in src/lib/static-fetch.ts.',
         })),
@@ -51,24 +64,25 @@ export default defineConfig([
       'no-restricted-properties': [
         'error',
         { object: 'navigator', property: 'sendBeacon', message: 'Nothing leaves the browser.' },
-        { object: 'window', property: 'fetch', message: 'Use fetchStatic in src/lib/static-fetch.ts.' },
-        { object: 'globalThis', property: 'fetch', message: 'Use fetchStatic in src/lib/static-fetch.ts.' },
+        ...['window', 'globalThis', 'self'].flatMap((object) =>
+          NETWORK_APIS.map((property) => ({
+            object,
+            property,
+            message: 'Read app data through fetchStatic in src/lib/static-fetch.ts.',
+          })),
+        ),
       ],
+      'no-restricted-syntax': ['error', noDangerousHtml, noSendBeacon],
     },
   },
   {
     // Parsed JSON can carry any key: `"constructor" in obj` is true for every
     // plain object, so presence checks on untrusted data use Object.hasOwn.
-    files: ['src/lib/verification/**/*.ts', 'scripts/verify-*.ts'],
+    // This block's no-restricted-syntax replaces the ones above, so it repeats
+    // their selectors.
+    files: ['src/lib/verification/**/*.ts', 'scripts/**/*.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        noDangerousHtml,
-        {
-          selector: "BinaryExpression[operator='in']",
-          message: 'Use Object.hasOwn: `in` also finds inherited keys such as "constructor".',
-        },
-      ],
+      'no-restricted-syntax': ['error', noDangerousHtml, noSendBeacon, noInOperator],
     },
   },
 ])
