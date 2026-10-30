@@ -35,16 +35,28 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # No npm cache in the jobs that build and upload what Pages publishes:
+      # a cache any workflow run can write would be an input to the site.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          cache: false
 
       - run: npm ci
+
+      # Every installed package must carry a valid registry signature (and
+      # provenance attestation, where the package publishes one).
+      - name: Verify registry signatures
+        run: npm audit signatures
 
       - name: Audit dependencies (fail on high/critical)
         run: npm audit --audit-level=high
@@ -62,8 +74,8 @@ jobs:
           # 60/hr per-IP anonymous one shared Actions runners burn through; a
           # throttled response would yield a null tag and 404 the download.
           VERSION=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/SigComply/sigcomply-cli/releases/latest | jq -r .tag_name)
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "Could not resolve the latest sigcomply-cli release tag." >&2
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Could not resolve the latest sigcomply-cli release tag (got '${VERSION}')." >&2
             exit 1
           fi
           ARCH=$(uname -m)
@@ -83,6 +95,23 @@ jobs:
           awk -v a="${ASSET}" '$2 == a' "${DL}/checksums.txt" > "${DL}/want.txt"
           [ "$(wc -l < "${DL}/want.txt")" -eq 1 ]
           (cd "${DL}" && sha256sum -c want.txt)
+          # Then its build provenance: signed by the CLI repo's release
+          # workflow, on a GitHub-hosted runner, from the commit the tag points
+          # to. Auto releases build from `main`, so the attested ref is a
+          # branch; pin the commit (--source-digest), not the ref. Renaming a
+          # CLI release workflow breaks this regex.
+          IDENTITY_REGEX='^https://github\.com/SigComply/sigcomply-cli/\.github/workflows/(auto-release-pipeline|release)\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$'
+          REFS=$(git ls-remote https://github.com/SigComply/sigcomply-cli "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}")
+          COMMIT=$(awk -v r="refs/tags/${VERSION}^{}" '$2 == r {print $1}' <<< "$REFS")
+          [ -n "$COMMIT" ] || COMMIT=$(awk -v r="refs/tags/${VERSION}" '$2 == r {print $1}' <<< "$REFS")
+          if ! [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Could not resolve the commit of ${VERSION}." >&2
+            exit 1
+          fi
+          gh attestation verify "${DL}/${ASSET}" --repo SigComply/sigcomply-cli \
+            --cert-identity-regex "$IDENTITY_REGEX" \
+            --source-digest "$COMMIT" \
+            --deny-self-hosted-runners
           tar xzf "${DL}/${ASSET}" -C "${DL}" sigcomply
           sudo mv "${DL}/sigcomply" /usr/local/bin/
           sigcomply version
@@ -116,7 +145,8 @@ jobs:
   # Playwright on the exact dist/ built above, in Playwright's image: it ships
   # the browsers and their system libraries, so the deploy never waits on an
   # Ubuntu package mirror (a slow mirror stalled `install --with-deps` past
-  # its timeout). Keep the tag equal to @playwright/test in package-lock.json.
+  # its timeout). Keep the tag equal to @playwright/test in package-lock.json
+  # and refresh the digest with it, here, in smoke and in ci.yml.
   # Only a green run uploads the Pages artifact.
   e2e:
     needs: build
@@ -125,7 +155,7 @@ jobs:
     permissions:
       contents: read
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
       options: --user 1001
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,7 +165,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          cache: false
 
       - run: npm ci
 
@@ -199,7 +229,7 @@ jobs:
     permissions:
       contents: read
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
       options: --user 1001
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -14,15 +14,18 @@ environment.
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
   daily at 07:00 UTC, and on `workflow_dispatch`. Four jobs:
-  - `build` (`contents: read`, checkout without persisted credentials): `npm ci`,
-    `npm audit --audit-level=high` (hard gate), install the latest `sigcomply` CLI release
-    (resolved from `releases/latest` at run time; the tarball's SHA-256 must match the release's
-    `checksums.txt` before it is extracted), `npm run build` with `VITE_BASE_PATH=/<repo-name>/`,
+  - `build` (`contents: read`, checkout without persisted credentials, no npm cache): `npm ci`,
+    `npm audit signatures` (registry signatures), `npm audit --audit-level=high` (hard gate),
+    install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time; the
+    tarball's SHA-256 must match the release's `checksums.txt`, and `gh attestation verify` must
+    accept its build provenance from the CLI's release workflow, before it is extracted),
+    `npm run build` with `VITE_BASE_PATH=/<repo-name>/`,
     copy `index.html` to `404.html` for client-side routes, then lint and
     `npm run test:coverage`. It hands `dist/` to the next job as an artifact.
   - `e2e` (in the `mcr.microsoft.com/playwright` image, so no apt mirror is involved; keep its tag
     equal to `@playwright/test` in `package-lock.json`, here and in `ci.yml`): Playwright against
-    that exact `dist/` (`E2E_DIST=dist`). Only a green run uploads `dist/` as the Pages artifact.
+    that exact `dist/` (`E2E_DIST=dist`). The image is pinned by digest (`AGENTS.md`
+    "Supply-chain controls"). Only a green run uploads `dist/` as the Pages artifact.
   - `deploy` (`pages: write`, `id-token: write`): publishes that artifact. It checks out nothing
     and runs no repo code.
   - `smoke`: runs `e2e/smoke.live.spec.ts` against the live URL (home loads a catalog, `/verify`
@@ -33,10 +36,11 @@ environment.
   scheduled workflows after 60 days without activity in the repo (re-enable it in the Actions
   tab, or push).
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
-  OSV, CodeQL, Semgrep, Trivy, Retire.js, secret scan, ZAP, SBOM. The `npm-audit` job is a hard
-  gate. In the `secret-scan` job only TruffleHog (`--only-verified`) fails the job, on a verified
-  secret; `gitleaks` findings print a warning and the step exits 0. The rest are advisory. It has no
-  `paths-ignore`, so docs-only pushes run it too.
+  OSV, CodeQL, Semgrep, Trivy, Retire.js, zizmor, secret scan, ZAP, SBOM. The `npm-audit` and
+  `secret-scan` jobs are hard gates. In `secret-scan`, TruffleHog fails on a verified secret and
+  Gitleaks on any finding; a confirmed Gitleaks false positive goes in `.gitleaksignore` (its
+  fingerprint, with a comment saying why). zizmor audits the workflows and sends findings to code
+  scanning. The rest are advisory. It has no `paths-ignore`, so docs-only pushes run it too.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
   `CONTRIBUTING.md`. A push or pull request that changes `.vale.ini`, `.vale/**` or the workflow
   itself lints all three. Otherwise it lints only the ones that changed.
@@ -75,6 +79,9 @@ affects the live site: fix forward before anything else.
 ```bash
 npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e
 ```
+
+Run it on the `.nvmrc` Node (npm >= 11.16); `npm ci` refuses an older one. `AGENTS.md`
+"Supply-chain controls" has the install rules (age gate, install scripts).
 
 - `npm run lint`: `eslint .`. There is no formatter; don't add Prettier or Biome.
 - `npx tsc -b`: the standalone typecheck. Faster than a build during the inner loop.
@@ -214,8 +221,8 @@ The self-review "contracts and invariants" lens checks these against `AGENTS.md`
   `@react-pdf/renderer` stays lazy-loaded; `/verify` stays button-free, dependency-free and never
   gated on a framework; `src/components/ui/` untouched by hand. See "Conventions".
 
-For a change to any workflow under `.github/workflows/`, check that `actionlint` reports no new
-findings on the changed file. For a change to `deploy.yml`, also check that the deploy still fails
+For a change to any workflow under `.github/workflows/`, check that `actionlint` and `zizmor .`
+(the version pinned in `security.yml`) report no new findings on the changed file. For a change to `deploy.yml`, also check that the deploy still fails
 on a `fetch-catalogs` error, that the gate steps still run before the upload, and that only the
 `deploy` job holds `pages: write` and `id-token: write`.
 

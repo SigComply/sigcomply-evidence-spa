@@ -47,6 +47,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
@@ -71,11 +73,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -98,6 +102,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run OSV Scanner
         uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
@@ -137,6 +143,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
@@ -155,11 +163,16 @@ jobs:
     permissions:
       contents: read
       security-events: write  # SARIF upload
+    # Pinned by digest so a re-pushed tag can't change what runs. Harden-Runner
+    # skips container jobs, so this job has none. Bump: a release at least 7
+    # days old, then `docker buildx imagetools inspect semgrep/semgrep:<ver>`.
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.182.0@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run Semgrep
         run: semgrep ci --sarif --output=semgrep.sarif || true
@@ -196,6 +209,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Run Trivy (filesystem scan)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -206,6 +221,8 @@ jobs:
           output: 'trivy-fs.sarif'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
+          # The action's default Trivy moves with the action; pin it here.
+          version: 'v0.76.1'
         continue-on-error: true
 
       - name: Upload Trivy results
@@ -228,11 +245,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -246,9 +265,10 @@ jobs:
       - name: Run Retire.js on built bundle
         # Retire.js looks for known-vulnerable JS *runtime* libraries by
         # signature in the shipped bundle — complements OSV/npm-audit which
-        # work off package-lock.json.
+        # work off package-lock.json. `retire` is an exact-pinned devDependency,
+        # so npx runs the locked copy and never fetches one.
         run: |
-          npx --yes retire --path dist --outputformat json --outputpath retire-report.json --exitwith 0
+          npx --no -- retire --path dist --outputformat json --outputpath retire-report.json --exitwith 0
           echo "## Retire.js Report" >> $GITHUB_STEP_SUMMARY
           findings=$(jq '.data | length' retire-report.json)
           if [ "$findings" != "0" ]; then
@@ -264,6 +284,38 @@ jobs:
         with:
           name: retire-js-report
           path: retire-report.json
+
+  # ===========================================
+  # WORKFLOW SECURITY
+  # ===========================================
+
+  # Static analysis of .github/workflows and dependabot.yml: unpinned actions,
+  # template injection, excessive permissions, persisted credentials, cache
+  # poisoning. Findings go to code scanning (SARIF); the job itself passes.
+  # Suppress a reviewed finding inline with `# zizmor: ignore[<audit>]` and
+  # say why on the same line.
+  zizmor:
+    name: zizmor (workflow audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          version: 1.31.1
 
   # ===========================================
   # SECRET DETECTION
@@ -284,20 +336,31 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # gitleaks scans full history
+          persist-credentials: false
 
       - name: TruffleHog Secret Scan
         uses: trufflesecurity/trufflehog@31ce31ee1abbcc7dc8eee5764c17121c3044c8b2 # v3.99.7
         with:
           extra_args: --only-verified
 
+      # Blocking: a finding fails the job, and the summary job with it. For a
+      # false positive, add its fingerprint (printed in the finding) to
+      # .gitleaksignore; gitleaks reads that file from the repo root.
       - name: Gitleaks Secret Scan
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          # sha256 of gitleaks_<version>_linux_x64.tar.gz, from the release's
+          # gitleaks_<version>_checksums.txt.
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
         run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar xz -C /tmp
-          chmod +x /tmp/gitleaks
-          /tmp/gitleaks detect --source . --verbose --redact --exit-code 1 || {
-            echo "::warning::Gitleaks found potential secrets - review the output above"
-            exit 0
-          }
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          "$dir/gitleaks" detect --source . --verbose --redact --exit-code 1
 
   # ===========================================
   # DYNAMIC APPLICATION SECURITY TESTING (DAST)
@@ -321,11 +384,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -336,11 +401,13 @@ jobs:
         env:
           VITE_BASE_PATH: /
 
+      # Vite's own preview server from the lockfile, not a package fetched at
+      # run time. ZAP runs in Docker on the host network, so 127.0.0.1 reaches it.
       - name: Serve built SPA in the background
         run: |
-          npx --yes serve dist -p 8080 -L &
+          npx --no -- vite preview --host 127.0.0.1 --port 8080 --strictPort &
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:8080/ > /dev/null; then
+            if curl -sf http://127.0.0.1:8080/ > /dev/null; then
               echo "SPA is up"
               exit 0
             fi
@@ -352,7 +419,7 @@ jobs:
       - name: ZAP Baseline Scan
         uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
-          target: 'http://localhost:8080/'
+          target: 'http://127.0.0.1:8080/'
           # Don't open an issue on findings (we don't want CI bots filing
           # noise against the repo); the artifact is enough.
           allow_issue_writing: false
@@ -377,11 +444,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -393,6 +462,7 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: false
+          syft-version: v1.55.0
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
@@ -400,6 +470,7 @@ jobs:
           format: cyclonedx-json
           output-file: sbom.cyclonedx.json
           upload-artifact: false
+          syft-version: v1.55.0
 
       - name: Upload SBOMs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

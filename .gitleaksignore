@@ -1,0 +1,5 @@
+# Gitleaks allowlist: one finding fingerprint per line, as gitleaks prints it
+# (<commit>:<file>:<rule-id>:<line>). The secret-scan job in security.yml fails
+# on any finding not listed here. Add a line only for a confirmed false
+# positive, with a comment above it saying why. A real secret gets rotated,
+# not listed.
