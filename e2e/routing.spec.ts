@@ -106,3 +106,24 @@ test("the built page's Content-Security-Policy keeps fetches on the app's origin
   const violations = await page.evaluate(() => (globalThis as unknown as { __csp: string[] }).__csp.splice(0));
   expect(violations).toEqual([expect.stringMatching(/^connect-src https:\/\/example\.invalid/)]);
 });
+
+test("the built page refuses strings in HTML sinks (Trusted Types)", async ({ page }) => {
+  await page.goto("verify");
+  const csp = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute("content");
+  expect(csp).toContain("require-trusted-types-for 'script'");
+  const outcome = await page.evaluate(() => {
+    // e2e/ compiles without the DOM lib; this runs in the page.
+    const doc = (globalThis as unknown as { document: { createElement(t: string): { innerHTML: string } } }).document;
+    try {
+      doc.createElement("div").innerHTML = "<img src=x>";
+      return "assigned";
+    } catch (e) {
+      return (e as Error).name;
+    }
+  });
+  expect(outcome).toBe("TypeError");
+  const violations = await page.evaluate(() => (globalThis as unknown as { __csp: string[] }).__csp.splice(0));
+  expect(violations).toEqual([expect.stringMatching(/^require-trusted-types-for/)]);
+});

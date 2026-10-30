@@ -19,6 +19,10 @@ export const CONTENT_SECURITY_POLICY = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",
+  // No code may hand a string to an HTML or script sink (innerHTML, eval-like
+  // APIs), and no Trusted Types policy may be created to allow one.
+  "require-trusted-types-for 'script'",
+  "trusted-types 'none'",
 ].join("; ")
 
 function contentSecurityPolicy(): Plugin {
