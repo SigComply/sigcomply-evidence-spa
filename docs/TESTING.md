@@ -215,7 +215,7 @@ a vault the way the CLI's `05-vault-layout.md` "Verification" defines it:
 - `--public-key`: every envelope and manifest must carry exactly that key. The CLI's built-in
   signer uses a fresh key per file, so this fits only a long-lived (HSM/KMS) signer; a "same key
   across the run" check would fail every real run. Without it, each manifest line shows its key
-  fingerprint (first 16 hex of SHA-256 of the raw key).
+  fingerprint (hex SHA-256 of the raw key, the same value `/verify` shows).
 - Exit 0: every check passed and at least one envelope was found. Exit 1: any `FAIL`, or no
   envelope. Exit 2: bad arguments.
 

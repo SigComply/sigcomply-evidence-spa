@@ -26,7 +26,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { validateCatalog } from "../src/lib/catalog-validate.ts";
+import { FRAMEWORK_PATTERN, validateCatalog } from "../src/lib/catalog-validate.ts";
 import {
   buildPdfInput,
   initialItems,
@@ -70,10 +70,6 @@ const FIELDS: Record<keyof RenderInput, "string" | "boolean" | "strings" | "note
   prefix: "string",
 };
 
-// The framework names a file under public/data/catalogs/, so it must be a
-// plain name.
-const FRAMEWORK_RE = /^[a-z0-9_]+$/;
-
 // Period keys per frequency, as currentPeriod() and the CLI write them.
 const PERIOD_FORMATS: Record<Frequency, [RegExp, string]> = {
   daily: [/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "YYYY-MM-DD"],
@@ -98,7 +94,7 @@ function configFrameworks(): string[] {
 export function readInput(raw: unknown): RenderInput {
   if (!isPlainObject(raw)) fail("input must be a JSON object");
   for (const k of Object.keys(raw)) {
-    if (!(k in FIELDS)) fail(`input: unknown field "${k}"`);
+    if (!Object.hasOwn(FIELDS, k)) fail(`input: unknown field "${k}"`);
   }
   for (const k of ["framework", "evidence_id", "completed_by"]) {
     if (typeof raw[k] !== "string" || !(raw[k] as string).trim()) {
@@ -118,8 +114,9 @@ export function readInput(raw: unknown): RenderInput {
     }
   }
   const input = raw as unknown as RenderInput;
-  if (!FRAMEWORK_RE.test(input.framework)) {
-    fail(`input.framework must match ${FRAMEWORK_RE.source}, got "${input.framework}"`);
+  // The framework names a file under public/data/catalogs/.
+  if (!FRAMEWORK_PATTERN.test(input.framework)) {
+    fail(`input.framework must match ${FRAMEWORK_PATTERN.source}, got "${input.framework}"`);
   }
   if (input.catalog === undefined) {
     const known = configFrameworks();

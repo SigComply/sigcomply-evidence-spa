@@ -19,7 +19,7 @@ export const FRAMEWORK_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 // Entry and item IDs end up in routes, upload paths and form keys. The CLI's
 // own grammar for vault IDs (vaultSafeID) minus the instance brackets: one
 // path segment, no separator, no leading dot.
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** The entry types the SPA renders. Every other type is dropped. */
 export const SPA_RENDERABLE_TYPES: ReadonlySet<string> = new Set([

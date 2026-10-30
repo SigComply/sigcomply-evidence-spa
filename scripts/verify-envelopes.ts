@@ -18,7 +18,7 @@
 // --public-key: every envelope and manifest must carry exactly this key.
 // The CLI's built-in signer uses a fresh key per file, so this only fits a
 // long-lived (HSM/KMS) signer. Without it, each manifest's key fingerprint
-// (first 16 hex of SHA-256 of the raw key) is printed.
+// (hex SHA-256 of the raw key, as /verify shows it) is printed.
 //
 // Symlinks fail and are not followed. Other JSON is listed as SKIP.
 //
@@ -35,7 +35,6 @@ import {
   readdirSync,
   readFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseEnvelopeText } from "../src/lib/verification/parse-envelope.ts";
@@ -50,6 +49,7 @@ import {
   type SignatureBlock,
 } from "../src/lib/verification/verify.ts";
 import { expectedPdfHashes } from "../src/lib/verification/manual.ts";
+import { ID_PATTERN } from "../src/lib/catalog-validate.ts";
 import {
   getManualDocumentPayload,
   isEvidenceEnvelope,
@@ -96,12 +96,18 @@ export function listTree(dir: string): TreeListing {
   return out;
 }
 
-/** First 16 hex characters of the SHA-256 of a raw public key. */
-export function keyFingerprint(publicKeyB64: string): string {
-  return createHash("sha256")
-    .update(Buffer.from(publicKeyB64, "base64"))
-    .digest("hex")
-    .slice(0, 16);
+function bufferSha256(bytes: Buffer): Promise<string> {
+  return sha256Hex(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+  );
+}
+
+/**
+ * Hex SHA-256 of a raw public key: the same value /verify shows as the key
+ * fingerprint (sha256Hex over the decoded key).
+ */
+export function keyFingerprint(publicKeyB64: string): Promise<string> {
+  return bufferSha256(Buffer.from(publicKeyB64, "base64"));
 }
 
 // Compares decoded bytes, so two spellings of the same key match.
@@ -109,8 +115,8 @@ function sameKey(a: string, b: string): boolean {
   return Buffer.from(a, "base64").equals(Buffer.from(b, "base64"));
 }
 
-function keyMismatch(got: string, want: string): string {
-  return `signed by key ${keyFingerprint(got)}, expected ${keyFingerprint(want)}`;
+async function keyMismatch(got: string, want: string): Promise<string> {
+  return `signed by key ${await keyFingerprint(got)}, expected ${await keyFingerprint(want)}`;
 }
 
 // The CLI writes envelopes to policies/<id>/envelopes/*.json. A file there
@@ -128,15 +134,12 @@ function looksLikeEnvelope(text: string): boolean {
 }
 
 function fileSha256(path: string): Promise<string> {
-  const bytes = readFileSync(path);
-  return sha256Hex(
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-  );
+  return bufferSha256(readFileSync(path));
 }
 
-// One file-name segment: no separator, no leading dot. The IDs come from a
-// payload whose key is self-asserted, so they must not steer the path.
-const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// IDs must be one file-name segment (ID_PATTERN: no separator, no leading
+// dot). They come from a payload whose key is self-asserted, so they must not
+// steer the path.
 
 // Merged PDFs sit beside the envelopes: policies/<id>/attachments/
 // <evidence_id>.pdf, or <evidence_id>.<member_id>.pdf for a fan-out member.
@@ -146,8 +149,8 @@ function attachmentPath(
   memberId?: string,
 ): string {
   const id = doc.evidence_id ?? "";
-  if (!SAFE_ID.test(id)) throw new Error(`unsafe evidence_id ${JSON.stringify(id)}`);
-  if (memberId !== undefined && !SAFE_ID.test(memberId)) {
+  if (!ID_PATTERN.test(id)) throw new Error(`unsafe evidence_id ${JSON.stringify(id)}`);
+  if (memberId !== undefined && !ID_PATTERN.test(memberId)) {
     throw new Error(`unsafe member id ${JSON.stringify(memberId)}`);
   }
   const name = memberId ? `${id}.${memberId}.pdf` : `${id}.pdf`;
@@ -197,7 +200,7 @@ export async function verifyEnvelopeFile(
   }
   const sig = parsed.envelope.signature;
   if (opts.publicKey && !sameKey(sig.public_key, opts.publicKey)) {
-    return { status: "fail", path, detail: keyMismatch(sig.public_key, opts.publicKey) };
+    return { status: "fail", path, detail: await keyMismatch(sig.public_key, opts.publicKey) };
   }
   let result;
   try {
@@ -273,7 +276,7 @@ export async function verifyManifest(
   }
   const block = sig as unknown as SignatureBlock;
   if (opts.publicKey && !sameKey(block.public_key, opts.publicKey)) {
-    return fail(keyMismatch(block.public_key, opts.publicKey));
+    return fail(await keyMismatch(block.public_key, opts.publicKey));
   }
 
   // The signed object is the manifest minus `signature` (sign.VerifyManifest).
@@ -312,7 +315,7 @@ export async function verifyManifest(
   return {
     status: "ok",
     path,
-    detail: `signature valid (key ${keyFingerprint(block.public_key)}), ${n} files match file_hashes`,
+    detail: `signature valid (key ${await keyFingerprint(block.public_key)}), ${n} files match file_hashes`,
   };
 }
 
@@ -346,7 +349,7 @@ export async function verifyDirectory(
   let manifestsOk = 0;
   let manifestsFailed = 0;
 
-  if (opts.publicKey) lines.push(`pinned public key ${keyFingerprint(opts.publicKey)}`);
+  if (opts.publicKey) lines.push(`pinned public key ${await keyFingerprint(opts.publicKey)}`);
 
   const { files, symlinks } = listTree(dir);
   for (const s of symlinks) failLine(s, "symlink, not followed");

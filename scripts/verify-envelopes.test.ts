@@ -74,7 +74,7 @@ function newKey(): Key {
 }
 
 function fingerprint(k: Key): string {
-  return createHash("sha256").update(Buffer.from(k.b64, "base64")).digest("hex").slice(0, 16);
+  return createHash("sha256").update(Buffer.from(k.b64, "base64")).digest("hex");
 }
 
 function signBlock(key: Key, signedBytes: string) {
@@ -187,7 +187,7 @@ describe("verifyDirectory", () => {
     cpSync(join(fixtures, "cli-run"), join(root, run), { recursive: true });
     const r = await verifyDirectory(root);
     expect(r.lines[0]).toBe(
-      `OK   ${run}/manifest.json: signature valid (key f647819de862080a), 2 files match file_hashes`,
+      `OK   ${run}/manifest.json: signature valid (key f647819de862080a53e3d63ef08bc02b458f9c3de611c64a85a8979f9cc84691), 2 files match file_hashes`,
     );
     put(`${run}/summary.json`, readFileSync(join(fixtures, "cli-run/summary.json"), "utf-8") + " ");
     const tampered = await verifyDirectory(root);
@@ -295,7 +295,7 @@ describe("verifyDirectory", () => {
     expect(r.lines[0]).toBe(`pinned public key ${fingerprint(key)}`);
     expect(out).toMatch(new RegExp(`OK   ${run}/manifest.json`));
     expect(out).toMatch(/OK {3}.*user_record__aws\.iam\.json/);
-    expect(out).toMatch(new RegExp(`FAIL .*x__y\\.json: signed by key [0-9a-f]{16}, expected ${fingerprint(key)}`));
+    expect(out).toMatch(new RegExp(`FAIL .*x__y\\.json: signed by key [0-9a-f]{64}, expected ${fingerprint(key)}`));
     expect(r.failed).toBe(3);
     expect(r.ok).toBe(false);
   });
@@ -305,7 +305,7 @@ describe("verifyDirectory", () => {
     signedVault(newKey());
     const r = await verifyDirectory(root, { publicKey: pinned.b64 });
     expect(r.lines.join("\n")).toMatch(
-      new RegExp(`FAIL ${run}/manifest.json: signed by key [0-9a-f]{16}, expected ${fingerprint(pinned)}`),
+      new RegExp(`FAIL ${run}/manifest.json: signed by key [0-9a-f]{64}, expected ${fingerprint(pinned)}`),
     );
   });
 
@@ -367,6 +367,17 @@ describe("verifyDirectory", () => {
     const r = await verifyDirectory(root, { requireManifest: false });
     expect(r.ok).toBe(false);
     expect(r.lines.join("\n")).toMatch(/FAIL envelopes\/m\.json: unsafe evidence_id "\.\.\/secret"/);
+  });
+
+  it("refuses a signed fan-out member id that would lead the attachment path out of attachments/", async () => {
+    const env = JSON.parse(readFileSync(fx("sample-envelope-v1-fanout.json"), "utf-8"));
+    env.records[0].payload.instances[0].id = "../x";
+    const { format_version, produced_at, records } = env;
+    const signed = canonicalJSON({ format_version, produced_at, records });
+    put("envelopes/m.json", JSON.stringify({ format_version, produced_at, records, signature: signBlock(newKey(), signed) }));
+    const r = await verifyDirectory(root, { requireManifest: false });
+    expect(r.ok).toBe(false);
+    expect(r.lines.join("\n")).toMatch(/FAIL envelopes\/m\.json: unsafe member id "\.\.\/x"/);
   });
 
   it("fails a broken file under envelopes/ instead of skipping it", async () => {
