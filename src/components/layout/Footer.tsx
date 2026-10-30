@@ -16,6 +16,18 @@ export function Footer() {
           </a>
         ))}
       </nav>
+      <p className="mt-2">
+        Source-available under the{" "}
+        <a
+          href="https://github.com/SigComply/sigcomply-evidence-spa/blob/main/LICENSE"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Elastic License 2.0
+        </a>
+        .
+      </p>
     </footer>
   );
 }

@@ -50,7 +50,11 @@ doc.
 12. Change a CLI contract (table below) only together with the matching `sigcomply-cli` change.
 13. Every user-visible flow has a Playwright spec in `e2e/`; a change to one updates or adds its
     spec in the same commit. That is the proof the flow works.
-14. Also look at every change that can alter what the app looks like in a real browser, for visual
+14. The code is source-available under the Elastic License 2.0 (`LICENSE`), like the CLI, not
+    open source. Never call the SPA or the CLI "open source". `NOTICE` holds the copyright line,
+    the Apache-2.0 cut-off and which files come from the CLI; keep `licenses/APACHE-2.0.txt`,
+    which that cut-off refers to. The footer links to `LICENSE` so site visitors get the terms.
+15. Also look at every change that can alter what the app looks like in a real browser, for visual
     and UX judgement only, again after review fixes (`docs/WORKFLOW.md` "Verify in the real
     product"). The browser is cmux (`docs/CMUX_BROWSER.md`). Run its setup check first; if you
     aren't inside cmux, ask the human to set it up rather than to click through the flow for you.

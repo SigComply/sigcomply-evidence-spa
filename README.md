@@ -114,4 +114,20 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-[Apache-2.0](LICENSE).
+The SPA is free to use and its source is public, but it is source-available, not open source: it
+is licensed under the [Elastic License 2.0](LICENSE), like the SigComply CLI.
+
+You can use, copy, modify and redistribute it, including at work, at no cost. You may not:
+
+- provide it to others as a hosted or managed service that gives them a substantial set of its
+  features or functionality;
+- move, change, disable or circumvent its license key functionality, or remove or obscure a
+  feature that a license key protects;
+- alter, remove or obscure SigComply's licensing, copyright or other notices.
+
+Anyone you give a copy to must also get the license terms, and modified copies must carry a
+prominent notice that you changed them.
+
+Code published before the license change, including the v0.0.1 tag, was released under
+Apache-2.0 and remains available under it. See [NOTICE](NOTICE). For other licensing terms,
+contact support@sigcomply.com.

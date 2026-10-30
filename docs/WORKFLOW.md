@@ -187,6 +187,7 @@ report. A change to the build or to `scripts/fetch-catalogs.ts` is covered by th
 | Test layout, fixtures, test tooling | `docs/TESTING.md`, this file | none |
 | Dependency or toolchain change | `AGENTS.md` Gotchas | `CONTRIBUTING.md` if setup changes |
 | Scope of the SPA | `AGENTS.md` Role and scope | `README.md`, `.github/ISSUE_TEMPLATE/feature_request.md` |
+| License, notices or files copied from the CLI | `AGENTS.md` Always-on rules (license) | `LICENSE`, `NOTICE`, `README.md` (License), `CONTRIBUTING.md`, the footer link |
 | How users fill forms or verify envelopes | none | `sigcomply-cli` `docs/guides/manual-evidence.md` and `docs/guides/verify-evidence.md` (they own the how-to) |
 
 A contract change also needs the matching doc change in `sigcomply-cli`.

@@ -155,7 +155,7 @@ test("switching framework clears the search", async ({ page }) => {
   await expect(search).toHaveValue("");
 });
 
-test("the footer links to the CLI guides without loading them", async ({ page }) => {
+test("the footer links to the CLI guides and the license without loading them", async ({ page }) => {
   await pinCatalogs(page);
   await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
   await page.goto("./");
@@ -167,6 +167,11 @@ test("the footer links to the CLI guides without loading them", async ({ page })
   await expect(guides.getByRole("link", { name: "How to verify signed evidence" })).toHaveAttribute(
     "href",
     "https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/verify-evidence.md",
+  );
+  // ELv2 requires that anyone who gets the code also gets the license terms.
+  await expect(page.locator("footer").getByRole("link", { name: "Elastic License 2.0" })).toHaveAttribute(
+    "href",
+    "https://github.com/SigComply/sigcomply-evidence-spa/blob/main/LICENSE",
   );
 });
 
