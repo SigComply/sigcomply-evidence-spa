@@ -96,20 +96,30 @@ export const test = base.extend<{ sameOriginOnly: void; noCspViolations: void }>
       const appPath = new RegExp(
         `^${base.pathname}(assets/[A-Za-z0-9._-]+|favicon\\.svg|config\\.json|data/catalogs/[a-z0-9][a-z0-9_-]*\\.json)$`,
       );
+      // The browser resolves "../" before the request, so a catalog path a
+      // route parameter bent back to config.json would pass appPath. The app
+      // reads config.json once per page load; a second read is that bend.
+      const configPath = `${base.pathname}config.json`;
+      let configReads = 0;
+      const extraConfigReads: string[] = [];
       const foreign: string[] = [];
       const offList: string[] = [];
       page.on("request", (req) => {
         const url = req.url();
         if (url.startsWith("data:") || url.startsWith("blob:")) return;
         const u = new URL(url);
+        if (req.isNavigationRequest() && req.frame() === page.mainFrame()) configReads = 0;
         if (u.origin !== base.origin) foreign.push(url);
         else if (!req.isNavigationRequest() && (u.search !== "" || !appPath.test(u.pathname))) {
           offList.push(url);
+        } else if (u.pathname === configPath && ++configReads > 1) {
+          extraConfigReads.push(url);
         }
       });
       await use();
       expect(foreign, "requests that left the app's origin").toEqual([]);
       expect(offList, "same-origin requests outside the app's own files").toEqual([]);
+      expect(extraConfigReads, "config.json read more than once in one page load").toEqual([]);
     },
     { auto: true },
   ],

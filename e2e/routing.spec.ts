@@ -46,8 +46,11 @@ test("a framework without a catalog shows an error, not a blank page", async ({ 
 });
 
 // The framework route parameter must never steer the catalog fetch to
-// another file; sameOriginOnly fails the test on any such request.
-for (const framework of ["..%2Fconfig", "..%2F..%2Fsigcomply-evidence-spa%2Fconfig", "nist"]) {
+// another file. The browser resolves "../" before the request, so a bent
+// path shows up as the file it lands on: sameOriginOnly fails any file
+// outside the app's own and a second config.json read in one page load (where
+// these traversals land). The error text shows fetchCatalog refused the name.
+for (const framework of ["..%2Fconfig", "..%2F..%2Fconfig", "..%2F..%2Fsigcomply-evidence-spa%2Fconfig", "nist"]) {
   test(`a framework route parameter ${framework} fetches nothing but app files`, async ({ page }) => {
     const requests: string[] = [];
     page.on("request", (r) => requests.push(new URL(r.url()).pathname));

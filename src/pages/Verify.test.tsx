@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /// <reference types="node" />
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -299,7 +299,10 @@ describe("Verify page with an invalid signature", () => {
 });
 
 describe("Verify page PDF check", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("drops a hash that finishes after another envelope was loaded", async () => {
     const pdf = fixture("golden/manual.access_review_quarterly.pdf");
@@ -308,6 +311,20 @@ describe("Verify page PDF check", () => {
     const slow = new File([pdf], "evidence.pdf", { type: "application/pdf" });
     const bytes = await slow.arrayBuffer();
     slow.arrayBuffer = () => gate.then(() => bytes);
+    // Observe the PDF's own digest, so the test waits for the stale hash to
+    // finish rather than for a fixed time.
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let pdfDigest: Promise<ArrayBuffer> | undefined;
+    let digestStarted!: () => void;
+    const started = new Promise<void>((r) => (digestStarted = r));
+    vi.spyOn(crypto.subtle, "digest").mockImplementation((alg, data) => {
+      const p = digest(alg, data);
+      if (data === bytes) {
+        pdfDigest = p;
+        digestStarted();
+      }
+      return p;
+    });
 
     const { container } = renderVerify();
     const user = await loadEnvelope(container, "golden/manual.json");
@@ -318,8 +335,15 @@ describe("Verify page PDF check", () => {
     await user.click(screen.getByRole("button", { name: /verify another/i }));
     await loadEnvelope(container, "golden/fanout.json");
     await screen.findByText("Signature valid");
-    release();
-    await new Promise((r) => setTimeout(r, 50));
+    await act(async () => {
+      release();
+      await started;
+      await pdfDigest;
+    });
+    // What follows the digest (hex encoding, the stale check, setState) runs
+    // in microtasks; one macrotask turn drains them all.
+    await act(() => new Promise<void>((r) => setTimeout(r, 0)));
+    expect(pdfDigest).toBeDefined();
     expect(screen.queryByText("match")).toBeNull();
     expect(screen.queryByText(/evidence\.pdf matches/)).toBeNull();
     expect(screen.getByRole("button", { name: "Choose PDF" })).toBeTruthy();

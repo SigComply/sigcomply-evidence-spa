@@ -261,7 +261,9 @@ another session fails fast instead of testing someone else's build.
     too uniform to filter.
 - `e2e/fixtures.ts` exports `test` with automatic checks that no request leaves the app's
   origin, that every same-origin request the app makes (not page loads) is one of its own files
-  (`assets/`, `favicon.svg`, `config.json`, `data/catalogs/<slug>.json`), and that the built
+  (`assets/`, `favicon.svg`, `config.json`, `data/catalogs/<slug>.json`), that `config.json` is
+  read at most once per page load (the browser resolves `../` before the request, so a catalog
+  path bent back to `config.json` shows up only as a second read), and that the built
   page's Content-Security-Policy blocked nothing (except the PDF
   renderer's data: fetch of its WebAssembly, which falls back to the same inline bytes). Import
   `test` from there, never from `@playwright/test`.
