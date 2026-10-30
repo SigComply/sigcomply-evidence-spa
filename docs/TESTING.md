@@ -155,7 +155,8 @@ The two verification files carry the **cross-repo signing contract** with the CL
 load-bearing tests in the repo:
 
 - **`canonical.test.ts`** asserts the SPA's `canonicalJSON()` matches the CLI's RFC 8785-style
-  canonicalization — sorted keys at every level, no insignificant whitespace, `\u` escapes for
+  canonicalization — keys sorted by code point (Go's UTF-8 byte order, not JS's UTF-16 default)
+  at every level, no insignificant whitespace, `\u` escapes for
   control characters only, **no** HTML-escaping of `<`/`>`/`&` (the CLI disables `encoding/json`'s
   HTML escaping; the SPA must too), U+2028/U+2029 escaped like Go. Its final test compares SPA output
   byte-for-byte against `__fixtures__/sample-envelope-v1.canonical.txt`, which was produced by the Go
@@ -171,6 +172,11 @@ load-bearing tests in the repo:
 Node version the tests run under without any polyfill — do **not** add
 `tweetnacl`/`noble-ed25519` to make tests pass. Browser-support gating lives in `verify.ts`
 (`WebCryptoUnsupportedError`); `verify.test.ts` covers it by stubbing `crypto` and `importKey`.
+
+Security guards outside the crypto files: `scripts/csp.test.ts` pins the exact CSP,
+`scripts/eslint-rules.test.ts` checks every security lint rule still fires, and
+`scripts/verify-envelopes.test.ts` covers a file named `constructor` and a signed `evidence_id`
+of `../secret`.
 
 ## Testing PDF generation
 
@@ -245,14 +251,18 @@ another session fails fast instead of testing someone else's build.
   - `e2e/form.spec.ts`: form → `evidence.pdf` download, keywords, PDF body and checkbox marks,
     upload path, Edit & re-download, the "uploaded" note on the list, config overrides.
   - `e2e/verify.spec.ts`: valid, tampered, bignum, fan-out PDF match, wrong file, no Web Crypto,
-    and the CLI golden manual and fan-out envelopes with their PDFs.
+    the CLI golden manual and fan-out envelopes with their PDFs, no overclaiming verdict words,
+    the key fingerprint, and no unverified payload fields outside the raw block.
   - `e2e/routing.spec.ts`: deep links, in-app 404, picker, missing catalog, missing
-    `config.json`, `config.json` loaded from the base path.
+    `config.json`, `config.json` loaded from the base path, `..%2F` framework parameters, and
+    the CSP (connect-src, Trusted Types).
   - `e2e/dashboard.spec.ts`: search, filter chips, Clear all, the row copy button and
     `show_upload_path`, Esc on the picker. It serves its own catalog because the pinned ones are
     too uniform to filter.
 - `e2e/fixtures.ts` exports `test` with automatic checks that no request leaves the app's
-  origin and that the built page's Content-Security-Policy blocked nothing (except the PDF
+  origin, that every same-origin request the app makes (not page loads) is one of its own files
+  (`assets/`, `favicon.svg`, `config.json`, `data/catalogs/<slug>.json`), and that the built
+  page's Content-Security-Policy blocked nothing (except the PDF
   renderer's data: fetch of its WebAssembly, which falls back to the same inline bytes). Import
   `test` from there, never from `@playwright/test`.
 - Time: `page.clock.setFixedTime(...)` pins the period. The config sets `timezoneId: "UTC"`; a
