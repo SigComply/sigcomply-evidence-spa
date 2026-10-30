@@ -348,6 +348,27 @@ describe("verifyDirectory", () => {
     expect(strict.ok).toBe(false);
   });
 
+  it("fails a file named after an Object.prototype key that file_hashes lacks", async () => {
+    signedVault();
+    put(`${run}/constructor`, "added after signing");
+    const r = await verifyDirectory(root);
+    expect(r.lines.join("\n")).toContain(`FAIL ${run}/manifest.json: not in file_hashes: constructor`);
+    expect(r.ok).toBe(false);
+  });
+
+  it("refuses a signed evidence_id that would lead the attachment path out of attachments/", async () => {
+    const env = JSON.parse(readFileSync(fx("sample-envelope-v1-manual.json"), "utf-8"));
+    env.records[0].payload.evidence_id = "../secret";
+    const { format_version, produced_at, records } = env;
+    const signed = canonicalJSON({ format_version, produced_at, records });
+    put("envelopes/m.json", JSON.stringify({ format_version, produced_at, records, signature: signBlock(newKey(), signed) }));
+    // The fixture's file_hash is the SHA-256 of zero bytes.
+    put("secret.pdf", "");
+    const r = await verifyDirectory(root, { requireManifest: false });
+    expect(r.ok).toBe(false);
+    expect(r.lines.join("\n")).toMatch(/FAIL envelopes\/m\.json: unsafe evidence_id "\.\.\/secret"/);
+  });
+
   it("fails a broken file under envelopes/ instead of skipping it", async () => {
     put("policies/p/envelopes/broken.json", "{not json");
     put("policies/p/envelopes/v2.json", readFileSync(fx("sample-envelope-v1.json"), "utf-8").replace('"envelope.v1"', '"envelope.v2"'));

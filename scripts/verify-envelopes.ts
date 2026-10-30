@@ -134,6 +134,10 @@ function fileSha256(path: string): Promise<string> {
   );
 }
 
+// One file-name segment: no separator, no leading dot. The IDs come from a
+// payload whose key is self-asserted, so they must not steer the path.
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 // Merged PDFs sit beside the envelopes: policies/<id>/attachments/
 // <evidence_id>.pdf, or <evidence_id>.<member_id>.pdf for a fan-out member.
 function attachmentPath(
@@ -141,9 +145,12 @@ function attachmentPath(
   doc: ManualDocumentPayload,
   memberId?: string,
 ): string {
-  const name = memberId
-    ? `${doc.evidence_id}.${memberId}.pdf`
-    : `${doc.evidence_id}.pdf`;
+  const id = doc.evidence_id ?? "";
+  if (!SAFE_ID.test(id)) throw new Error(`unsafe evidence_id ${JSON.stringify(id)}`);
+  if (memberId !== undefined && !SAFE_ID.test(memberId)) {
+    throw new Error(`unsafe member id ${JSON.stringify(memberId)}`);
+  }
+  const name = memberId ? `${id}.${memberId}.pdf` : `${id}.pdf`;
   return join(dirname(envelopePath), "..", "attachments", name);
 }
 
@@ -155,7 +162,13 @@ async function checkAttachments(
   const notes: string[] = [];
   const errors: string[] = [];
   for (const want of expectedPdfHashes(doc)) {
-    const pdf = attachmentPath(envelopePath, doc, want.memberId);
+    let pdf: string;
+    try {
+      pdf = attachmentPath(envelopePath, doc, want.memberId);
+    } catch (err) {
+      errors.push((err as Error).message);
+      continue;
+    }
     if (!existsSync(pdf)) {
       const msg = `no attachment for ${want.label}`;
       if (opts.requireAttachments) errors.push(msg);
@@ -291,7 +304,7 @@ export async function verifyManifest(
     if (got !== hashes[rel]) problems.push(`hash mismatch: ${rel}`);
   }
   for (const rel of [...onDisk.keys()].sort()) {
-    if (!(rel in hashes)) problems.push(`not in file_hashes: ${rel}`);
+    if (!Object.hasOwn(hashes, rel)) problems.push(`not in file_hashes: ${rel}`);
   }
   if (problems.length > 0) return fail(problems.join("; "));
 
@@ -388,7 +401,7 @@ const USAGE =
 
 function parseArgs(
   argv: string[],
-): { dir: string; opts: VerifyOptions } | { error: string } {
+): { ok: true; dir: string; opts: VerifyOptions } | { ok: false; error: string } {
   const opts: VerifyOptions = {};
   const dirs: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -397,21 +410,21 @@ function parseArgs(
     else if (a === "--no-manifest") opts.requireManifest = false;
     else if (a === "--public-key") {
       const v = argv[++i];
-      if (v === undefined) return { error: "--public-key needs a value" };
+      if (v === undefined) return { ok: false, error: "--public-key needs a value" };
       if (!/^[A-Za-z0-9+/]+={0,2}$/.test(v) || Buffer.from(v, "base64").length !== 32) {
-        return { error: "--public-key must be the base64 of a raw 32-byte Ed25519 key" };
+        return { ok: false, error: "--public-key must be the base64 of a raw 32-byte Ed25519 key" };
       }
       opts.publicKey = v;
-    } else if (a.startsWith("--")) return { error: `unknown flag ${a}` };
+    } else if (a.startsWith("--")) return { ok: false, error: `unknown flag ${a}` };
     else dirs.push(a);
   }
-  if (dirs.length !== 1) return { error: "expected exactly one directory" };
-  return { dir: dirs[0], opts };
+  if (dirs.length !== 1) return { ok: false, error: "expected exactly one directory" };
+  return { ok: true, dir: dirs[0], opts };
 }
 
 export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgs(argv);
-  if ("error" in parsed) {
+  if (!parsed.ok) {
     console.error(`verify-envelopes: ${parsed.error}`);
     console.error(USAGE);
     return 2;
