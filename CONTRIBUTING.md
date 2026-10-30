@@ -6,6 +6,19 @@ against `main`.
 Report a security issue privately as described in [`SECURITY.md`](./SECURITY.md), not in a public
 issue.
 
+## Licensing your contribution
+
+The SPA is licensed under the [Elastic License 2.0](./LICENSE). By opening a pull request or
+otherwise submitting a contribution, you agree that:
+
+- you wrote it, or have the right to submit it under these terms;
+- it is licensed under the Elastic License 2.0;
+- you grant SigComply a perpetual, worldwide, royalty-free, irrevocable license to use, modify,
+  sublicense and distribute your contribution under any terms, including commercial ones.
+
+You keep the copyright in your contribution. Earlier contributions were made under Apache-2.0;
+see [`NOTICE`](./NOTICE).
+
 ## Set up
 
 ```bash
