@@ -179,7 +179,9 @@ Rules:
   details"; until then the raw records block, labelled "Unverified file contents", is the only
   place payload values appear (`Verify page with an invalid signature` in `Verify.test.tsx`).
 - `parseEnvelopeText` refuses a `signed_document` payload whose known fields have the wrong
-  type (`manualPayloadProblem` in `src/types/envelope.ts`), so the page never renders one.
+  type, or that lacks a boolean the CLI always writes (`file_present`, `in_temporal_window`,
+  `file_valid` on a record with `evidence_id`; those plus `required` and `satisfied` on every
+  member), so the page never renders one (`manualPayloadProblem` in `src/types/envelope.ts`).
 - `file_hash` is the hash of the merged PDF, which the CLI stores in the run folder as
   `policies/<policy_id>/attachments/<evidence_id>.pdf` (fan-out:
   `<evidence_id>.<member_id>.pdf`). It equals the uploaded file only when the folder held one PDF.

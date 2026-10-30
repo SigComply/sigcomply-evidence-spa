@@ -257,9 +257,28 @@ function fieldProblem(
  * (`manualManifest`), or null when it does. Unknown fields are allowed;
  * a known field of the wrong type is not, because the page would render it.
  */
+// Booleans the CLI writes on every manual record and member (no omitempty in
+// manualManifest / instanceManifest). A missing one must not read as false
+// or, for `required`, as an exempt member.
+const RECORD_BOOLEANS = ["file_present", "in_temporal_window", "file_valid"];
+const INSTANCE_BOOLEANS = ["required", "satisfied", ...RECORD_BOOLEANS];
+
+function missingBoolean(obj: Record<string, unknown>, keys: string[], where: string): string | null {
+  for (const k of keys) {
+    if (typeof obj[k] !== "boolean") return `${where}${k} should be a boolean.`;
+  }
+  return null;
+}
+
 export function manualPayloadProblem(payload: Record<string, unknown>): string | null {
   const top = fieldProblem(payload, DOCUMENT_FIELDS, "signed_document payload: ");
   if (top) return top;
+  // Only a manual record carries evidence_id; older fixtures use the
+  // signed_document type for other payloads.
+  if (payload.evidence_id !== undefined) {
+    const missing = missingBoolean(payload, RECORD_BOOLEANS, "signed_document payload: ");
+    if (missing) return missing;
+  }
   const instances = payload.instances;
   if (instances === undefined || instances === null) return null;
   if (!Array.isArray(instances)) return "signed_document payload: instances should be a list.";
@@ -268,6 +287,8 @@ export function manualPayloadProblem(payload: Record<string, unknown>): string |
     const problem = fieldProblem(m, INSTANCE_FIELDS, `signed_document payload: instances[${i}].`);
     if (problem) return problem;
     if (typeof m.id !== "string") return `signed_document payload: instances[${i}].id should be a string.`;
+    const missing = missingBoolean(m, INSTANCE_BOOLEANS, `signed_document payload: instances[${i}].`);
+    if (missing) return missing;
   }
   return null;
 }
