@@ -71,7 +71,7 @@ doc.
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
 | E2E | `npm run test:e2e` (`npx playwright test`) | Playwright, Chromium and WebKit, on a fresh `dist-e2e/` build served like GitHub Pages (`e2e/pages-server.ts`). Browsers: `npx playwright install chromium webkit` once. |
 | Live smoke | `npm run test:e2e:live` | `e2e/smoke.live.spec.ts` against the live site; deploy runs it after each deploy. |
-| Lint | `npm run lint` | `eslint .`. No formatter. |
+| Lint | `npm run lint` | `eslint .`. No formatter. Security rules: `no-eval`, `no-implied-eval`, `no-new-func`, `no-script-url`, `eslint-plugin-no-unsanitized`, no `dangerouslySetInnerHTML`, network APIs only in `src/lib/static-fetch.ts`, no `in` on parsed data in `src/lib/verification/` and `scripts/verify-*.ts`. `scripts/eslint-rules.test.ts` checks each still fires. |
 | Typecheck | `npx tsc -b` | No npm script. |
 | Build | `npm run build` | `prebuild` runs `fetch-catalogs` (needs `sigcomply` on `PATH`, fatal on any error), then `tsc -b && vite build`. |
 | Build without the CLI | `npx tsc -b && npx vite build` | Skips `prebuild`; bundles the committed catalogs. |

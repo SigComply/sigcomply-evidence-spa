@@ -3,7 +3,14 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
+import nounsanitized from 'eslint-plugin-no-unsanitized'
 import { defineConfig, globalIgnores } from 'eslint/config'
+
+// Raw HTML from React; the CSP's Trusted Types would also refuse it at run time.
+const noDangerousHtml = {
+  selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+  message: 'Render text through React; raw HTML is banned (and Trusted Types refuses it).',
+}
 
 export default defineConfig([
   globalIgnores(['dist', 'dist-e2e', 'coverage', 'playwright-report', 'test-results']),
@@ -14,10 +21,18 @@ export default defineConfig([
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
+      nounsanitized.configs.recommended,
     ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'no-script-url': 'error',
+      'no-restricted-syntax': ['error', noDangerousHtml],
     },
   },
   {
@@ -48,6 +63,7 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
+        noDangerousHtml,
         {
           selector: "BinaryExpression[operator='in']",
           message: 'Use Object.hasOwn: `in` also finds inherited keys such as "constructor".',
