@@ -51,10 +51,10 @@ earlier file from the folder.
 
 ### What `/verify` can and can't check
 
-- A valid signature shows the records match the public key inside the envelope. The CLI makes a
-  new key for every file, and anyone can sign an envelope with their own key, so a valid
-  signature doesn't prove who signed it. Trust in the files comes from write-once storage of the
-  evidence vault.
+- A valid signature shows the file is self-consistent: its records match the public key inside
+  the envelope. The page shows that key's SHA-256 fingerprint. The CLI makes a new key for every
+  file, and anyone can sign an envelope with their own key, so a valid signature doesn't show who
+  signed it. Trust in the files comes from write-once storage of the evidence vault.
 - For a manual evidence folder, the page shows the CLI's recorded result: whether a file was in
   the folder, whether it was uploaded within the period or its grace window, and whether it passed
   the CLI's file checks. It shows these results only when the signature is valid, and doesn't

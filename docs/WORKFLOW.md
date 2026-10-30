@@ -45,10 +45,11 @@ environment.
   skipped. In `secret-scan`, TruffleHog fails on a verified secret and
   Gitleaks on any finding; a confirmed Gitleaks false positive goes in `.gitleaksignore` (its
   fingerprint, with a comment saying why). The ZAP baseline (push to `main` and weekly, digest-pinned
-  image) fails on the `FAIL` rules in `.zap/rules.tsv`: the CSP meta tag, cross-domain scripts,
-  known-vulnerable or dangerous JS; response headers only GitHub Pages can set are ignored.
-  zizmor audits the workflows and Scorecard scores the repo; both send findings to code
-  scanning. The rest are advisory. None of these jobs gates the deploy; Gitleaks and `npm audit`
+  image) fails its own job on the `FAIL` rules in `.zap/rules.tsv`: the CSP meta tag,
+  cross-domain scripts, known-vulnerable or dangerous JS; response headers only GitHub Pages can
+  set are ignored. The summary job doesn't check ZAP, so a ZAP failure shows only on its own job.
+  zizmor audits the workflows; Scorecard (push to `main` and weekly, not pull requests) scores
+  the repo; both send findings to code scanning. The rest are advisory. None of these jobs gates the deploy; Gitleaks and `npm audit`
   run again in `deploy.yml`'s `build` job, which does. It has no `paths-ignore`, so docs-only
   pushes run it too.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and

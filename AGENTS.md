@@ -143,10 +143,11 @@ Rules:
   anything on a dropped `document_upload` entry only print a warning, because the SPA never ships
   them. When the Go struct changes, update the types and the validator together (JSON tags and
   `omitempty` against optional `?`).
-- The signed bytes are `canonicalJSON({format_version, produced_at, records})`: sorted keys, no
-  whitespace, `\u` escapes for control characters, U+2028 and U+2029 only, no HTML escaping, and
-  numbers kept as their source lexeme (`parseJSONPreservingNumbers`). Pass the original envelope
-  text to `verifyEnvelopeSignature`, never a re-serialised copy, or integers above 2^53 break.
+- The signed bytes are `canonicalJSON({format_version, produced_at, records})`: keys sorted by
+  code point (Go's UTF-8 byte order, `compareCodePoints`), no whitespace, `\u` escapes for
+  control characters, U+2028 and U+2029 only, no HTML escaping, and numbers kept as their source
+  lexeme (`parseJSONPreservingNumbers`). Pass the original envelope text to
+  `verifyEnvelopeSignature`, never a re-serialised copy, or integers above 2^53 break.
 - Golden fixtures pin the envelope, period, folder and catalog contracts. The CLI's tests generate
   them with `-update`; this repo keeps byte-for-byte copies in
   `src/lib/verification/__fixtures__/golden/` (envelopes, canonical bytes, manual PDFs) and
