@@ -9,6 +9,13 @@ updates:
       time: "09:00"
       timezone: "UTC"
     open-pull-requests-limit: 10
+    # Same 7-day age gate as `min-release-age` in .npmrc, so a PR never
+    # proposes a version npm would refuse. Majors wait 30 days.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 7
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
@@ -54,20 +61,12 @@ updates:
           - "tailwind-merge"
           - "tw-animate-css"
     ignore:
-      # TypeScript 7 cannot be installed while typescript-eslint 8.x is in
-      # the tree: it declares a `typescript <6.1.0` peer range. Revisit when
-      # typescript-eslint ships a release that accepts 7.
+      # `typescript` aliases @typescript/typescript6 (the TS 6 API that
+      # typescript-eslint loads); `tsc -b` runs TS 7 from @typescript/native.
+      # typescript-eslint 8.x peers on `typescript <6.1.0`, so a 7.x alias
+      # can't install. Revisit when typescript-eslint accepts 7.
       - dependency-name: "typescript"
         versions: [">=7"]
-      # Resolving vitest 5's peer set crashes npm's arborist ("Cannot read
-      # properties of null (reading 'edgesOut')"), so the lockfile cannot be
-      # regenerated with it. Revisit once npm or vitest fixes that.
-      - dependency-name: "vitest"
-        versions: [">=5"]
-      # @vitejs/plugin-react 6.1+ pulls @rolldown/plugin-babel, which peers on
-      # a @babel/core 8 release candidate that conflicts with Babel 7.
-      - dependency-name: "@vitejs/plugin-react"
-        versions: [">=6.1"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -78,6 +77,9 @@ updates:
       time: "09:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
+    # Propose an action release only once it is 7 days old.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore(ci)"
       include: "scope"

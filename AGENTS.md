@@ -63,7 +63,7 @@ doc.
 
 | Purpose | Command | Notes |
 |---|---|---|
-| Install | `npm ci` | Node 24 (`.nvmrc`); `.npmrc` sets `engine-strict`, so npm refuses an older Node. `npm install` needs npm >= 11 (see Gotchas). |
+| Install | `npm ci` | Node 24.22.2 (`.nvmrc`), npm >= 11.16. `engine-strict` plus `engines` in `package.json` make npm refuse an older Node or npm. See "Supply-chain controls". |
 | Dev server | `npm run dev` | http://localhost:5173, uses the committed catalogs; no CLI needed. |
 | Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
@@ -209,6 +209,34 @@ replace `config.json` without a rebuild; the public site ships the committed fil
   dismissible, and never gates `/verify`.
 - `/verify` verifies on parse with no button, and adds no JSON editor dependency.
 
+## Supply-chain controls
+
+npm reads the keys below from 11.16 on and silently ignores the ones it doesn't know, so run every
+npm command on the `.nvmrc` Node (`mise exec node@$(cat .nvmrc) -- npm ...` if your default is
+older). `npm ci` on an older Node or npm fails with `EBADENGINE`/`notsup`; that is the floor working.
+
+- Age gate: `.npmrc` `min-release-age=7` makes npm refuse any version published less than 7 days
+  ago (`ETARGET ... with a date before ...`). Dependabot's `cooldown` uses the same 7 days (30 for
+  majors), so its PRs never propose a version npm refuses. For a deliberate same-week security fix,
+  bypass once: `npm install --min-release-age=0 <pkg>@<version>`, and say why in the commit.
+- No git or URL dependencies: `allow-git=none`, `allow-remote=none`.
+- Install scripts: `strict-allow-scripts=true` fails the install when a dependency has an install
+  script that `allowScripts` in `package.json` doesn't list. `esbuild` and `fsevents` are denied
+  (`false`): esbuild's binary comes from its `@esbuild/<platform>` package, so the postinstall
+  isn't needed. For a new package with a script, decide with `npm approve-scripts <pkg>` (writes a
+  pinned `pkg@version` entry) or `npm deny-scripts <pkg>`; list pending ones with
+  `npm approve-scripts --allow-scripts-pending`. Don't add `ignore-scripts` to `.npmrc`: it breaks
+  `approve-scripts`. Re-check these keys when npm 12 changes the install-script defaults.
+- Pinned CI tools: container images by digest (Semgrep, Playwright), downloaded binaries by sha256
+  (Gitleaks, Vale), and the Trivy and Syft versions inside their actions. Dependabot bumps
+  `@playwright/test` but not the image: a Playwright bump also changes the image tag and digest in
+  `ci.yml` and the `e2e` and `smoke` jobs of `deploy.yml`
+  (`docker buildx imagetools inspect mcr.microsoft.com/playwright:v<ver>-noble`).
+- `deploy.yml` checks the CLI tarball's sha256 and its GitHub build provenance
+  (`gh attestation verify`) before it runs the CLI.
+- `security.yml` runs zizmor on the workflows (findings in code scanning). Fix a finding, or
+  suppress it inline with `# zizmor: ignore[<audit>]` and the reason.
+
 ## Gotchas
 
 - `currentPeriod()` computes periods in UTC from the browser's clock, like the CLI's
@@ -217,8 +245,6 @@ replace `config.json` without a rebuild; the public site ships the committed fil
   show another folder near every boundary. The CLI may still take the period from a run clock or
   the HEAD commit time that differs from the moment the form was filled.
 - `useCatalog` resets `catalog` to `null` on framework switch; handle the loading state.
-- `npm install` crashes on npm 10 (`Cannot read properties of null (reading 'edgesOut')`) because
-  `typescript` is an npm alias. `npm ci` works on npm 10. Use `npx npm@11 install` to re-resolve.
 - `typescript` aliases the TS 6 API (needed by `typescript-eslint`) and `@typescript/native` is TS
   7, which `tsc -b` runs. Removing the aliases breaks `npm run lint`.
 - `shadcn` is not a dependency: it pulls a package with a high advisory that fails `npm audit`.

@@ -21,15 +21,22 @@ see [`NOTICE`](./NOTICE).
 
 ## Set up
 
+Use the Node version in `.nvmrc` (24.22.2) and the npm it ships (11.16 or later). `npm ci` refuses
+an older Node or npm.
+
 ```bash
 npm ci
 npm run dev        # http://localhost:5173, uses the committed catalogs (no sigcomply CLI needed)
 ```
 
+`.npmrc` rejects package versions published less than 7 days ago, git and URL dependencies, and
+install scripts that `allowScripts` in `package.json` doesn't list. A new dependency must pass
+those checks; say in the pull request if it needs an install script.
+
 ## Run the checks before you commit
 
-CI runs the same checks on every push and pull request; run them locally first. Use Node 24
-(`.nvmrc`) and install the test browsers once with `npx playwright install chromium webkit`.
+CI runs the same checks on every push and pull request; run them locally first. Install the test
+browsers once with `npx playwright install chromium webkit`.
 
 ```bash
 npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e
