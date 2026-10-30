@@ -63,7 +63,7 @@ doc.
 
 | Purpose | Command | Notes |
 |---|---|---|
-| Install | `npm ci` | Node 24.22.2 (`.nvmrc`), npm >= 11.16. `engine-strict` plus `engines` in `package.json` make npm refuse an older Node or npm. See "Supply-chain controls". |
+| Install | `npm ci` | Node 24.22.2 (`.nvmrc`). `engine-strict` plus `engines` in `package.json` make npm refuse Node older than 24.22 or npm older than 11.18. See "Supply-chain controls". |
 | Dev server | `npm run dev` | http://localhost:5173, uses the committed catalogs; no CLI needed. |
 | Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
@@ -211,8 +211,9 @@ replace `config.json` without a rebuild; the public site ships the committed fil
 
 ## Supply-chain controls
 
-npm reads the keys below from 11.16 on and silently ignores the ones it doesn't know, so run every
-npm command on the `.nvmrc` Node (`mise exec node@$(cat .nvmrc) -- npm ...` if your default is
+npm reads the keys below from 11.16 on and silently ignores the ones it doesn't know; 11.17 and
+11.18 closed gaps in `allowScripts` enforcement, hence the 11.18 floor. Run every npm command on
+the `.nvmrc` Node (`mise exec node@$(cat .nvmrc) -- npm ...` if your default is
 older). `npm ci` on an older Node or npm fails with `EBADENGINE`/`notsup`; that is the floor working.
 
 - Age gate: `.npmrc` `min-release-age=7` makes npm refuse any version published less than 7 days

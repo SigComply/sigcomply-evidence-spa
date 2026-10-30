@@ -21,8 +21,8 @@ see [`NOTICE`](./NOTICE).
 
 ## Set up
 
-Use the Node version in `.nvmrc` (24.22.2) and the npm it ships (11.16 or later). `npm ci` refuses
-an older Node or npm.
+Use the Node version in `.nvmrc` (24.22.2) and the npm it ships. `npm ci` refuses Node older than
+24.22 or npm older than 11.18.
 
 ```bash
 npm ci

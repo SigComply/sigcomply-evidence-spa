@@ -80,7 +80,7 @@ affects the live site: fix forward before anything else.
 npm run lint && npx tsc -b && npm run test:coverage && npm run build && npm run test:e2e
 ```
 
-Run it on the `.nvmrc` Node (npm >= 11.16); `npm ci` refuses an older one. `AGENTS.md`
+Run it on the `.nvmrc` Node; `npm ci` refuses Node older than 24.22 or npm older than 11.18. `AGENTS.md`
 "Supply-chain controls" has the install rules (age gate, install scripts).
 
 - `npm run lint`: `eslint .`. There is no formatter; don't add Prettier or Biome.

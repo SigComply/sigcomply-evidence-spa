@@ -14,8 +14,8 @@ Test strategy for the Manual Evidence SPA. Read this before adding or changing t
   coverage goes up; never lower one to get green.
 - **Component tests:** `jsdom`, `@testing-library/react` and `@testing-library/user-event`.
 - **E2E:** `@playwright/test`, Chromium and WebKit projects (`playwright.config.ts`).
-- **Node:** 24 (`.nvmrc`, `engines`; `.npmrc` `engine-strict=true` makes `npm ci` fail on an
-  older Node). Vitest 5 does not support Node 23: two `/verify` component tests fail there with
+- **Node:** 24.22.2 (`.nvmrc`; `engines` plus `.npmrc` `engine-strict=true` make `npm ci` fail on
+  Node older than 24.22 or npm older than 11.18). Vitest 5 does not support Node 23: two `/verify` component tests fail there with
   misleading "element not found" errors. So Vitest's `globalSetup`
   (`scripts/vitest-node-check.ts`) stops any run on a Node older than `.nvmrc` with
   `Node >=24 required (see .nvmrc)`.
