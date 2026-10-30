@@ -1,8 +1,8 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { validateCatalog } from "../src/lib/catalog-validate.ts";
+import { FRAMEWORK_PATTERN, validateCatalog } from "../src/lib/catalog-validate.ts";
 import type { Catalog } from "../src/types/catalog.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -11,15 +11,20 @@ const catalogsDir = join(publicDir, "data", "catalogs");
 
 // public/config.json is the single source of truth for which frameworks the
 // UI exposes. Read the prefetch list from it so the shipped catalogs can
-// never drift from what the app can actually reach.
-function frameworksFromConfig(): string[] {
-  const raw = readFileSync(join(publicDir, "config.json"), "utf-8");
-  const config = JSON.parse(raw) as { frameworks?: string[] };
+// never drift from what the app can actually reach. Each name becomes a CLI
+// argument and a file name, so it must be a slug.
+export function frameworksFromConfig(raw: string): string[] {
+  const config = JSON.parse(raw) as { frameworks?: unknown[] };
   const frameworks = config.frameworks ?? [];
   if (frameworks.length === 0) {
-    fail("public/config.json declares no frameworks.");
+    throw new Error("public/config.json declares no frameworks.");
   }
-  return frameworks;
+  for (const fw of frameworks) {
+    if (typeof fw !== "string" || !FRAMEWORK_PATTERN.test(fw)) {
+      throw new Error(`public/config.json: ${JSON.stringify(fw)} is not a framework name`);
+    }
+  }
+  return frameworks as string[];
 }
 
 function fail(message: string): never {
@@ -27,12 +32,9 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function run(cmd: string): string {
-  // Build-time only. `cmd` is composed from the framework list in
-  // public/config.json (a repo-controlled file); never user input. Script
-  // is not shipped in the SPA bundle.
-  // (Semgrep suppression for this file lives in .semgrepignore.)
-  return execSync(cmd, { encoding: "utf-8" }).trim();
+// No shell: the arguments reach the CLI as they are.
+function run(file: string, args: string[]): string {
+  return execFileSync(file, args, { encoding: "utf-8" }).trim();
 }
 
 /**
@@ -79,7 +81,7 @@ export function prepareCatalog(
 function main() {
   // Check sigcomply binary exists
   try {
-    run("which sigcomply");
+    run("which", ["sigcomply"]);
   } catch {
     fail(
       "sigcomply binary not found on PATH.\n" +
@@ -92,7 +94,12 @@ function main() {
 
   mkdirSync(catalogsDir, { recursive: true });
 
-  const frameworks = frameworksFromConfig();
+  let frameworks: string[];
+  try {
+    frameworks = frameworksFromConfig(readFileSync(join(publicDir, "config.json"), "utf-8"));
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+  }
 
   for (const fw of frameworks) {
     console.log(`Fetching catalog for ${fw}...`);
@@ -105,7 +112,7 @@ function main() {
     // CLI invocation produce a green deploy serving last month's catalogs.
     let json: string;
     try {
-      json = run(`sigcomply evidence catalog --framework ${fw} -o json`);
+      json = run("sigcomply", ["evidence", "catalog", "--framework", fw, "-o", "json"]);
     } catch (err) {
       fail(
         `\`sigcomply evidence catalog --framework ${fw}\` failed: ${

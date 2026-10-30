@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { prepareCatalog } from "./fetch-catalogs.ts";
+import { frameworksFromConfig, prepareCatalog } from "./fetch-catalogs.ts";
 import { validateCatalog } from "../src/lib/catalog-validate.ts";
 
 // public/data/catalogs/, not the pinned e2e copies: in deploy.yml this runs
@@ -86,5 +86,27 @@ describe("CLI catalog goldens", () => {
     expect(after).toBe(renderable);
     expect(after).toBeGreaterThan(0);
     expect(catalog.framework).toBe(fw);
+  });
+});
+
+describe("frameworksFromConfig", () => {
+  it("returns the frameworks of a valid config", () => {
+    expect(frameworksFromConfig(JSON.stringify({ frameworks: ["soc2", "iso27001"] }))).toEqual([
+      "soc2",
+      "iso27001",
+    ]);
+  });
+
+  it.each([["soc2; touch pwned"], ["../soc2"], ["--help"], ["SOC2"], [""]])(
+    "refuses the framework %j before it reaches the CLI",
+    (fw) => {
+      expect(() => frameworksFromConfig(JSON.stringify({ frameworks: [fw] }))).toThrow(
+        /not a framework name/,
+      );
+    },
+  );
+
+  it("refuses a config with no frameworks", () => {
+    expect(() => frameworksFromConfig("{}")).toThrow(/declares no frameworks/);
   });
 });
