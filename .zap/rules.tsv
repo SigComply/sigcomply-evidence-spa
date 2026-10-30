@@ -1,0 +1,22 @@
+# ZAP baseline rules for the zap-baseline job in security.yml:
+# <rule id><TAB><FAIL|WARN|IGNORE><TAB>(name). FAIL fails the job; the job
+# passes -I, so WARN stays advisory. The scan targets `vite preview` of the
+# built dist/, which serves no headers of its own; GitHub Pages can't set
+# headers either, so the CSP is a meta tag (vite.config.ts).
+# FAIL: what the app's own files control.
+10017	FAIL	(Cross-Domain JavaScript Source File Inclusion)
+10003	FAIL	(Vulnerable JS Library)
+10110	FAIL	(Dangerous JS Functions)
+10038	FAIL	(Content Security Policy (CSP) Header Not Set: ZAP reads the meta tag too)
+# WARN: reported for review, not blocking.
+10055	WARN	(CSP: notes on the policy, such as style-src 'unsafe-inline')
+10027	WARN	(Information Disclosure - Suspicious Comments: matches words in bundled libraries)
+10094	WARN	(Base64 Disclosure: embedded fonts and WebAssembly)
+# IGNORE: response headers GitHub Pages decides, not this repo.
+10020	IGNORE	(Missing Anti-clickjacking Header: frame-ancestors can't be set in a meta CSP)
+10021	IGNORE	(X-Content-Type-Options Header Missing: Pages sends it; vite preview doesn't)
+10063	IGNORE	(Permissions Policy Header Not Set: needs a response header)
+90004	IGNORE	(Insufficient Site Isolation Against Spectre Vulnerability: needs COOP/COEP headers)
+90005	IGNORE	(Sec-Fetch-* headers missing: request headers, sent by browsers)
+10049	IGNORE	(Storable and Cacheable Content: informational)
+10109	IGNORE	(Modern Web Application: informational)

@@ -44,6 +44,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # A committed secret stops the deploy, not only security.yml. The
+      # checkout is shallow, so this scans the deployed commit's whole tree
+      # (security.yml scans the full history). Same pinned binary as there;
+      # a false positive goes in .gitleaksignore.
+      - name: Gitleaks (deployed tree)
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          "$dir/gitleaks" detect --source . --verbose --redact --exit-code 1
+
       # No npm cache in the jobs that build and upload what Pages publishes:
       # a cache any workflow run can write would be an input to the site.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

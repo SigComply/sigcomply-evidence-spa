@@ -10,11 +10,13 @@ environment.
 
 - `.github/workflows/ci.yml` runs on every push and pull request: `npm ci`, `npm run lint`,
   `npx tsc -b`, `npm run test:coverage`, `npx vite build` (committed catalogs) and
-  `npm run test:e2e` (Playwright, Chromium and WebKit).
+  `npm run test:e2e` (Playwright, Chromium and WebKit). A second job runs `actionlint` (pinned
+  by sha256, with shellcheck on every `run:` script) over all workflows; any finding fails it.
 - `.github/workflows/deploy.yml` (Build & Deploy to GitHub Pages) runs on every push to `main`
   except pushes that change only Markdown, `docs/`, `.claude/` or Vale files (`paths-ignore`),
   daily at 07:00 UTC, and on `workflow_dispatch`. Four jobs:
-  - `build` (`contents: read`, checkout without persisted credentials, no npm cache): `npm ci`,
+  - `build` (`contents: read`, checkout without persisted credentials, no npm cache): Gitleaks
+    over the deployed commit's tree (a finding stops the deploy), `npm ci`,
     `npm audit signatures` (registry signatures), `npm audit --audit-level=high` (hard gate),
     install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time; the
     tarball's SHA-256 must match the release's `checksums.txt`, and `gh attestation verify` must
@@ -36,11 +38,19 @@ environment.
   scheduled workflows after 60 days without activity in the repo (re-enable it in the Actions
   tab, or push).
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
-  OSV, CodeQL, Semgrep, Trivy, Retire.js, zizmor, secret scan, ZAP, SBOM. The `npm-audit` and
-  `secret-scan` jobs are hard gates. In `secret-scan`, TruffleHog fails on a verified secret and
+  OSV, Scorecard, CodeQL, Semgrep, Trivy, Retire.js, zizmor, secret scan, ZAP, SBOM. The
+  `npm-audit`, `semgrep` and `secret-scan` jobs are hard gates (the summary job fails on them).
+  Semgrep fails on any finding of its rule packs; fix it, or mark a confirmed false positive with
+  `// nosemgrep: <rule-id>` and the reason on that line; there is no `.semgrepignore`, so no file is
+  skipped. In `secret-scan`, TruffleHog fails on a verified secret and
   Gitleaks on any finding; a confirmed Gitleaks false positive goes in `.gitleaksignore` (its
-  fingerprint, with a comment saying why). zizmor audits the workflows and sends findings to code
-  scanning. The rest are advisory. It has no `paths-ignore`, so docs-only pushes run it too.
+  fingerprint, with a comment saying why). The ZAP baseline (push to `main` and weekly, digest-pinned
+  image) fails on the `FAIL` rules in `.zap/rules.tsv`: the CSP meta tag, cross-domain scripts,
+  known-vulnerable or dangerous JS; response headers only GitHub Pages can set are ignored.
+  zizmor audits the workflows and Scorecard scores the repo; both send findings to code
+  scanning. The rest are advisory. None of these jobs gates the deploy; Gitleaks and `npm audit`
+  run again in `deploy.yml`'s `build` job, which does. It has no `paths-ignore`, so docs-only
+  pushes run it too.
 - `.github/workflows/docs-lint.yml` runs Vale at error level on `README.md`, `SECURITY.md` and
   `CONTRIBUTING.md`. A push or pull request that changes `.vale.ini`, `.vale/**` or the workflow
   itself lints all three. Otherwise it lints only the ones that changed.

@@ -247,14 +247,16 @@ older). `npm ci` on an older Node or npm fails with `EBADENGINE`/`notsup`; that 
   `npm approve-scripts --allow-scripts-pending`. Don't add `ignore-scripts` to `.npmrc`: it breaks
   `approve-scripts`. Re-check these keys when npm 12 changes the install-script defaults.
 - Pinned CI tools: container images by digest (Semgrep, Playwright), downloaded binaries by sha256
-  (Gitleaks, Vale), and the Trivy and Syft versions inside their actions. Dependabot bumps
+  (Gitleaks, Vale, actionlint), the ZAP image by digest, and the Trivy and Syft versions inside
+  their actions. Dependabot bumps
   `@playwright/test` but not the image: a Playwright bump also changes the image tag and digest in
   `ci.yml` and the `e2e` and `smoke` jobs of `deploy.yml`
   (`docker buildx imagetools inspect mcr.microsoft.com/playwright:v<ver>-noble`).
 - `deploy.yml` checks the CLI tarball's sha256 and its GitHub build provenance
   (`gh attestation verify`) before it runs the CLI.
 - `security.yml` runs zizmor on the workflows (findings in code scanning). Fix a finding, or
-  suppress it inline with `# zizmor: ignore[<audit>]` and the reason.
+  suppress it inline with `# zizmor: ignore[<audit>]` and the reason. `ci.yml` runs actionlint;
+  its findings fail CI.
 
 ## Gotchas
 

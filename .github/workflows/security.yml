@@ -125,6 +125,43 @@ jobs:
         if: always()
         continue-on-error: true  # May fail on private repos without GitHub Advanced Security
 
+  # Repo hygiene (pinned actions, token permissions, branch protection) as
+  # scored by OpenSSF; findings go to code scanning, the job never blocks.
+  scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      security-events: write  # SARIF upload
+      id-token: write  # publish_results signing
+      actions: read  # workflow analysis
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard analysis
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+        continue-on-error: true
+
+      - name: Upload Scorecard results
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: scorecard-results.sarif
+        if: always()
+        continue-on-error: true  # May fail on private repos without GitHub Advanced Security
+
   # ===========================================
   # STATIC APPLICATION SECURITY TESTING (SAST)
   # ===========================================
@@ -174,8 +211,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Blocking: a finding fails the job and the summary. Fix it, or for a
+      # confirmed false positive add `// nosemgrep: <rule-id>` with the reason
+      # on the line; never ignore a whole file.
       - name: Run Semgrep
-        run: semgrep ci --sarif --output=semgrep.sarif || true
+        run: semgrep ci --sarif --output=semgrep.sarif
         env:
           SEMGREP_RULES: >-
             p/javascript
@@ -189,6 +229,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: semgrep.sarif
+        if: always()
         continue-on-error: true  # May fail on private repos without GitHub Advanced Security
 
   # ===========================================
@@ -269,14 +310,16 @@ jobs:
         # so npx runs the locked copy and never fetches one.
         run: |
           npx --no -- retire --path dist --outputformat json --outputpath retire-report.json --exitwith 0
-          echo "## Retire.js Report" >> $GITHUB_STEP_SUMMARY
           findings=$(jq '.data | length' retire-report.json)
-          if [ "$findings" != "0" ]; then
-            echo "⚠️ Vulnerable libraries detected in built bundle:" >> $GITHUB_STEP_SUMMARY
-            jq -r '.data[] | "- \(.file): \(.results[]?.component)@\(.results[]?.version)"' retire-report.json >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ No vulnerable libraries detected" >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## Retire.js Report"
+            if [ "$findings" != "0" ]; then
+              echo "⚠️ Vulnerable libraries detected in built bundle:"
+              jq -r '.data[] | "- \(.file): \(.results[]?.component)@\(.results[]?.version)"' retire-report.json
+            else
+              echo "✅ No vulnerable libraries detected"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Retire.js report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -369,10 +412,11 @@ jobs:
   zap-baseline:
     name: OWASP ZAP Baseline (built SPA)
     runs-on: ubuntu-latest
-    # DAST against a static SPA mostly catches missing security headers (a
-    # Pages concern) and obvious client-side issues. Kept for visibility; do
-    # not gate releases on it. Skip on PRs to keep the PR feedback loop fast
-    # — push to main + weekly is enough.
+    # DAST against a static SPA: .zap/rules.tsv fails the job on what the
+    # app's own files control (CSP meta tag, cross-domain scripts, known
+    # vulnerable libraries, dangerous JS functions) and ignores the response
+    # headers only GitHub Pages can set. Skip on PRs to keep the PR feedback
+    # loop fast; push to main + weekly is enough.
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
@@ -406,7 +450,7 @@ jobs:
       - name: Serve built SPA in the background
         run: |
           npx --no -- vite preview --host 127.0.0.1 --port 8080 --strictPort &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf http://127.0.0.1:8080/ > /dev/null; then
               echo "SPA is up"
               exit 0
@@ -423,8 +467,12 @@ jobs:
           # Don't open an issue on findings (we don't want CI bots filing
           # noise against the repo); the artifact is enough.
           allow_issue_writing: false
-          fail_action: false
-          cmd_options: '-a'
+          # FAIL rules in the rules file fail the job; -I keeps WARN advisory.
+          fail_action: true
+          rules_file_name: .zap/rules.tsv
+          cmd_options: '-a -I'
+          # Pinned by digest so a re-pushed tag can't change the scanner.
+          docker_name: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:030d3df57735dacbb83464854758e674dd9ad01d79d12a129a8e58b1fd384238
 
   # ===========================================
   # SBOM
@@ -498,29 +546,37 @@ jobs:
           egress-policy: audit
 
       - name: Check security job results
+        env:
+          NPM_AUDIT: ${{ needs.npm-audit.result }}
+          OSV: ${{ needs.osv-scanner.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          SEMGREP: ${{ needs.semgrep.result }}
+          TRIVY: ${{ needs.trivy.result }}
+          RETIRE: ${{ needs.retire-js.result }}
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
         run: |
-          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Security Scan Summary"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| npm audit | $NPM_AUDIT |"
+            echo "| OSV Scanner | $OSV |"
+            echo "| CodeQL | $CODEQL |"
+            echo "| Semgrep | $SEMGREP |"
+            echo "| Trivy | $TRIVY |"
+            echo "| Retire.js | $RETIRE |"
+            echo "| Secret Scan | $SECRET_SCAN |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| npm audit | ${{ needs.npm-audit.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| OSV Scanner | ${{ needs.osv-scanner.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| CodeQL | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Semgrep | ${{ needs.semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Retire.js | ${{ needs.retire-js.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-
-          # npm-audit and secret-scan are the hard gates. npm audit catches
-          # high+ CVEs in deps; secret-scan catches credential leaks. The
-          # rest are advisory (continue-on-error or non-blocking).
-          if [[ "${{ needs.npm-audit.result }}" == "failure" ]] || \
-             [[ "${{ needs.secret-scan.result }}" == "failure" ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "❌ Critical security checks failed!" >> $GITHUB_STEP_SUMMARY
+          # npm-audit, semgrep and secret-scan are the hard gates: high+ CVEs
+          # in deps, SAST findings and credential leaks. The rest are advisory
+          # (continue-on-error or non-blocking).
+          if [[ "$NPM_AUDIT" == "failure" ]] || [[ "$SEMGREP" == "failure" ]] || \
+             [[ "$SECRET_SCAN" == "failure" ]]; then
+            echo "❌ Critical security checks failed!" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All critical security checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All critical security checks passed" >> "$GITHUB_STEP_SUMMARY"
