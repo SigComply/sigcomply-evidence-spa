@@ -94,6 +94,18 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
   ).toBeVisible();
 });
 
+test("a fixed field error is gone, not moved under the Download button", async ({ page }) => {
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await page.getByRole("button", { name: "Download evidence.pdf" }).click();
+  const errors = page.locator('[role="alert"].text-destructive');
+  await expect(errors).toHaveText(["You must accept the declaration to continue", "Enter who completed this"]);
+
+  await page.getByLabel("Completed by").fill("Jane Doe");
+  await expect(errors).toHaveText(["You must accept the declaration to continue"]);
+  await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+  await expect(errors).toHaveCount(0);
+});
+
 test("the form and the upload screen say what the CLI does", async ({ page }) => {
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await expect(

@@ -223,4 +223,32 @@ describe("EvidenceForm", () => {
     expect(renderEvidencePdf).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Optional notes for: Revoke access").getAttribute("aria-invalid")).toBe("false");
   });
+
+  it("clears a validation error once the user fixes it, without repeating it below", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    expect(errorAlerts().map((el) => el.textContent)).toEqual([
+      "You must accept the declaration to continue",
+    ]);
+
+    await user.click(screen.getByRole("checkbox"));
+    expect(screen.queryAllByRole("alert").filter((el) => el.classList.contains("text-destructive"))).toEqual([]);
+  });
+
+  it("shows no stale error while the user fixes several fields one by one", async () => {
+    const user = userEvent.setup();
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    expect(errorAlerts()).toHaveLength(2);
+
+    await user.type(screen.getByLabelText("Completed by"), "Jane Doe");
+    expect(errorAlerts().map((el) => el.textContent)).toEqual([
+      "You must accept the declaration to continue",
+    ]);
+    await user.click(screen.getByRole("checkbox"));
+    expect(screen.queryAllByRole("alert").filter((el) => el.classList.contains("text-destructive"))).toEqual([]);
+    expect(renderEvidencePdf).not.toHaveBeenCalled();
+  });
 });

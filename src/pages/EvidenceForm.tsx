@@ -329,8 +329,6 @@ function EvidenceFormContent({
 }) {
   const form = useEvidenceForm(entry, framework);
   const [error, setError] = useState<string | null>(null);
-  const hasFieldErrors =
-    form.attempted && Object.keys(form.fieldErrors).length > 0;
 
   async function handleSubmit() {
     setError(null);
@@ -473,9 +471,9 @@ function EvidenceFormContent({
         title="Generate evidence.pdf"
         description="Renders in your browser and downloads — nothing is uploaded."
       >
-        {/* A validation problem is already announced next to its field;
+        {/* A validation problem is announced next to its field only;
             this line is for what has no field, such as a render failure. */}
-        {error && !hasFieldErrors && (
+        {error && (
           <p role="alert" className="mb-3 text-sm text-destructive">
             {error}
           </p>

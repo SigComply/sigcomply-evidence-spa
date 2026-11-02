@@ -70,10 +70,12 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     [completedBy, accepted, items, entry],
   );
 
+  // submit resolves to an error only for a failure no field carries (a render
+  // failure). A validation problem is shown beside its field and clears as the
+  // user fixes it, so returning it here would leave a stale copy on the page.
   const submit = useCallback(async (): Promise<string | null> => {
     setAttempted(true);
-    const error = validate();
-    if (error) return error;
+    if (validate()) return null;
 
     setSubmitting(true);
     try {
