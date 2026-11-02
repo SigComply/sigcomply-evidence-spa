@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { serveJson } from "@/test/component-env";
+import { getDeviceRecord } from "@/lib/device-memory";
 import type { Catalog } from "@/types/catalog";
 import type { PdfInput } from "@/types/pdf-input";
 
@@ -222,6 +223,53 @@ describe("EvidenceForm", () => {
     expect(errorAlerts()).toHaveLength(1);
     expect(renderEvidencePdf).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Optional notes for: Revoke access").getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("names the period of the click time in the PDF and the upload path when a boundary passes first", async () => {
+    // Filled in just before the quarter ends (UTC)...
+    vi.setSystemTime(new Date(Date.UTC(2026, 11, 31, 23, 59, 50)));
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("checkbox"));
+    expect(screen.getByText("2026-Q4")).toBeTruthy();
+
+    // ...and downloaded a minute later, in the next one.
+    vi.setSystemTime(new Date(Date.UTC(2027, 0, 1, 0, 0, 50)));
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    await screen.findByText("evidence.pdf downloaded");
+
+    const input = renderEvidencePdf.mock.calls[0][0];
+    expect(input.completed_at).toBe("2027-01-01T00:00:50.000Z");
+    expect(input.period).toBe("2027-Q1");
+    expect(screen.getByText("manual/policy_ack/2027-Q1/evidence.pdf")).toBeTruthy();
+    expect(getDeviceRecord("soc2", "policy_ack", "2027-Q1")?.generatedAt).toBeTruthy();
+    expect(getDeviceRecord("soc2", "policy_ack", "2026-Q4")).toBeUndefined();
+  });
+
+  it("keeps the upload screen on the downloaded period when a boundary passes while the PDF renders", async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 11, 31, 23, 59, 59)));
+    // Rendering takes long enough for the quarter to end before the upload
+    // screen first shows.
+    renderEvidencePdf.mockImplementationOnce(async () => {
+      vi.setSystemTime(new Date(Date.UTC(2027, 0, 1, 0, 0, 2)));
+      return new Blob(["%PDF-1.3"], { type: "application/pdf" });
+    });
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    await screen.findByText("evidence.pdf downloaded");
+
+    expect(renderEvidencePdf.mock.calls[0][0].period).toBe("2026-Q4");
+    expect(screen.getByText("manual/policy_ack/2026-Q4/evidence.pdf")).toBeTruthy();
+    await user.click(screen.getByRole("checkbox", { name: /uploaded this to my evidence storage/i }));
+    expect(getDeviceRecord("soc2", "policy_ack", "2026-Q4")?.uploadedAt).toBeTruthy();
+
+    // Editing again starts from the current period.
+    await user.click(screen.getByRole("button", { name: /edit & re-download/i }));
+    expect(screen.getByText("2027-Q1")).toBeTruthy();
   });
 
   it("clears a validation error once the user fixes it, without repeating it below", async () => {

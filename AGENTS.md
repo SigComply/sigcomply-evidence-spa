@@ -266,6 +266,10 @@ older). `npm ci` on an older Node or npm fails with `EBADENGINE`/`notsup`; that 
   (`getFullYear`, `getDate`, date-fns `format`) for periods: a browser east or west of UTC would
   show another folder near every boundary. The CLI may still take the period from a run clock or
   the HEAD commit time that differs from the moment the form was filled.
+- The form reads the clock once per download: the PDF's period is the period of its
+  `completed_at`, and the upload screen keeps showing that period's folder. Don't take the
+  period from the last render, or a boundary passing before the click splits the PDF from its
+  folder.
 - `useCatalog` resets `catalog` to `null` on framework switch; handle the loading state.
 - `typescript` aliases the TS 6 API (needed by `typescript-eslint`) and `@typescript/native` is TS
   7, which `tsc -b` runs. Removing the aliases breaks `npm run lint`.

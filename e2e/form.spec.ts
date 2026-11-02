@@ -193,6 +193,22 @@ test("checklist form needs every required item", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("a boundary passing before the click moves the PDF and the folder together", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-12-31T23:59:50Z"));
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)")).toBeVisible();
+  await page.getByLabel("Completed by").fill("Sam");
+  await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
+
+  await page.clock.setFixedTime(new Date("2027-01-01T00:00:50Z"));
+  const keywords = readPdfInfoString(await pdfFrom(await submit(page)), "Keywords");
+  expect(keywords).toContain("; period=2027; ");
+  expect(keywords).toContain("; completed_at=2027-01-01T00:00:50.000Z; ");
+  await expect(
+    uploadPath(page, "manual/code_of_conduct_acknowledgment/2027/evidence.pdf"),
+  ).toBeVisible();
+});
+
 test("Edit & re-download keeps the answers", async ({ page }) => {
   await page.goto("evidence/soc2/incident_response_tested");
   await page.getByLabel("Completed by").fill("Sam");

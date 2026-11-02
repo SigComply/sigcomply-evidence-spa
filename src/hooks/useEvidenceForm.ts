@@ -8,7 +8,7 @@ import {
   type ChecklistItemState,
 } from "@/lib/evidence-form";
 import { readPref, writePref } from "@/lib/local-prefs";
-import { currentPeriod } from "@/lib/period";
+import { currentPeriod, type Period } from "@/lib/period";
 import {
   computeUploadPath,
   EVIDENCE_PDF_FILENAME,
@@ -27,7 +27,15 @@ const COMPLETED_BY_KEY = "sigcomply:completed-by";
 // user attestations. document_upload entries are not handled here; the
 // EvidenceForm page guards them with an "uploaded directly" message.
 export function useEvidenceForm(entry: CatalogEntry, framework: string) {
-  const period = currentPeriod(entry.frequency);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  // The period the downloaded PDF names. The upload screen shows its folder,
+  // not the period at the latest render, so the two can't split when a
+  // boundary passes while the PDF renders or the screen stays open.
+  const [downloadedPeriod, setDownloadedPeriod] = useState<Period | null>(null);
+  const period =
+    downloadSuccess && downloadedPeriod
+      ? downloadedPeriod
+      : currentPeriod(entry.frequency);
 
   // Declaration state.
   const [accepted, setAccepted] = useState(false);
@@ -54,7 +62,6 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     writePref(COMPLETED_BY_KEY, value);
   }, []);
 
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // `attempted` flips on the first submit press so inline field errors only
@@ -79,11 +86,16 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
 
     setSubmitting(true);
     try {
+      // Read the clock once: the period is the entry's period at completed_at,
+      // as the CLI and render-evidence-pdf derive it. The period from the last
+      // render may be stale if a boundary passed before the click.
+      const now = new Date();
+      const submitted = currentPeriod(entry.frequency, now);
       const input = buildPdfInput({
         entry,
         framework,
-        periodKey: period.key,
-        completedAt: new Date().toISOString(),
+        periodKey: submitted.key,
+        completedAt: now.toISOString(),
         state: { completedBy, accepted, items },
       });
 
@@ -94,8 +106,9 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
       downloadBlob(blob, EVIDENCE_PDF_FILENAME);
 
       // Local-only breadcrumb (this browser): never authoritative status.
-      markGenerated(framework, entry.id, period.key);
+      markGenerated(framework, entry.id, submitted.key);
 
+      setDownloadedPeriod(submitted);
       setDownloadSuccess(true);
       return null;
     } catch (err) {
@@ -105,7 +118,7 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, entry, framework, period, completedBy, accepted, items]);
+  }, [validate, entry, framework, completedBy, accepted, items]);
 
   const config = getConfig();
   const uploadPath = computeUploadPath(
