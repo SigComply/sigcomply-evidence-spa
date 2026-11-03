@@ -25,7 +25,7 @@ test("one changed character in records fails the signature", async ({ page }) =>
   expect(tampered).not.toBe(text);
   await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
   await expect(page.getByText("Signature invalid")).toBeVisible();
-  await expect(page.getByText("Signature does not match the canonical signed payload.")).toBeVisible();
+  await expect(page.getByText("The signature doesn't match this file's contents.")).toBeVisible();
 });
 
 test("64-bit integers verify from the raw text", async ({ page }) => {

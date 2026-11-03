@@ -187,7 +187,7 @@ export async function verifySignatureBlock(
     valid,
     reason: valid
       ? undefined
-      : "Signature does not match the canonical signed payload.",
+      : "The signature doesn't match this file's contents.",
     signedBytes,
     keyFingerprint,
   };

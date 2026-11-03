@@ -45,7 +45,7 @@ describe("verifyEnvelopeSignature", () => {
     (env.records[0].payload as Record<string, unknown>).mfa_enabled = true;
     const result = await verifyEnvelopeSignature(env);
     expect(result.valid).toBe(false);
-    expect(result.reason).toMatch(/does not match/i);
+    expect(result.reason).toMatch(/doesn't match/i);
   });
 
   it("returns invalid when the records array is tampered with", async () => {

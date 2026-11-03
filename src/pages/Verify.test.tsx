@@ -52,7 +52,7 @@ describe("Verify page", () => {
     await loadEnvelope(container, "tampered.json", tampered);
     expect(await screen.findByText("Signature invalid")).toBeTruthy();
     expect(
-      screen.getByText("Signature does not match the canonical signed payload."),
+      screen.getByText("The signature doesn't match this file's contents."),
     ).toBeTruthy();
   });
 
@@ -221,7 +221,7 @@ describe("VerdictBanner copy", () => {
     { state: "idle" },
     { state: "verifying" },
     { state: "valid", result: { ...result, valid: true } },
-    { state: "invalid", result: { ...result, valid: false, reason: "Signature does not match the canonical signed payload." } },
+    { state: "invalid", result: { ...result, valid: false, reason: "The signature doesn't match this file's contents." } },
     { state: "error", message: "Web Crypto API is not available in this browser." },
   ];
 

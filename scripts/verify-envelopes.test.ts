@@ -234,7 +234,7 @@ describe("verifyDirectory", () => {
     });
     const r = await verifyDirectory(root);
     expect(r.lines.join("\n")).toMatch(
-      new RegExp(`FAIL ${run}/manifest.json: Signature does not match`),
+      new RegExp(`FAIL ${run}/manifest.json: The signature doesn't match`),
     );
     expect(r.ok).toBe(false);
   });
@@ -316,7 +316,7 @@ describe("verifyDirectory", () => {
     const r = await verifyDirectory(root);
     expect(r.ok).toBe(false);
     expect(r.lines.join("\n")).toMatch(
-      /FAIL .*user_record__aws\.iam\.json: Signature does not match/,
+      /FAIL .*user_record__aws\.iam\.json: The signature doesn't match/,
     );
   });
 
