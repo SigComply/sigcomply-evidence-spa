@@ -223,8 +223,11 @@ export function Dashboard() {
               className="underline underline-offset-2 hover:text-foreground"
             >
               the manual evidence guide
-            </a>
-            . Auditors checking a signed evidence file: use{" "}
+            </a>{" "}
+            or run{" "}
+            <code className="font-mono">sigcomply evidence due --all</code>,
+            which also gives the folder for a custom prefix or calendar.
+            Auditors checking a signed evidence file: use{" "}
             <span className="font-medium text-foreground">Verify</span>.
           </p>
         </div>

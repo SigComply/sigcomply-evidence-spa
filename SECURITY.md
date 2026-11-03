@@ -59,7 +59,6 @@ Out of scope:
 - Fan-out envelopes (one folder per vendor) carry a result and a `file_hash` per vendor under
   `instances`, and no top-level `file_hash`. `/verify` lists each vendor's result as the CLI
   signed it and compares a PDF you supply with every vendor's `file_hash`, naming the vendor it
-  matches. Each vendor's result appears only after a valid signature, and `/verify` doesn't
-  re-check the folders.
+  matches. `/verify` doesn't re-check the folders.
 - `/verify` checks one envelope at a time. It does not verify the per-run signed `manifest.json`,
   so it can't tell you whether a run's files are complete.

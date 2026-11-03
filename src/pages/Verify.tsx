@@ -710,7 +710,7 @@ export function Verify() {
 
               {(sigStatus.state === "valid" ||
                 sigStatus.state === "invalid") && (
-                <LazyDetails summary="Signed bytes">
+                <LazyDetails summary="Bytes the signature covers">
                   {() => (
                     <pre
                       data-raw

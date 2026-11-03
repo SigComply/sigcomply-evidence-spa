@@ -26,7 +26,7 @@ Step-by-step instructions are in the CLI docs:
 - [Verify signed evidence](https://github.com/SigComply/sigcomply-cli/blob/main/docs/guides/verify-evidence.md):
   how an auditor checks an envelope, including with `/verify`.
 
-The form shows the upload folder for the default prefix `manual/` and the default calendar. If
+The hosted form shows the upload folder for the default prefix `manual/` and the default calendar. If
 your `manual.pdf` source sets another `prefix`, or your project uses a `fiscal_year` or `custom`
 calendar, run `sigcomply evidence due --all` for the exact folders.
 
@@ -83,14 +83,16 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 ## License
 
 The SPA is source-available under the [Elastic License 2.0](LICENSE), like the SigComply CLI. You
-can use, copy, modify and redistribute it at no cost, including at work.
+can use, copy, modify and redistribute it at no cost, including at work. You may not:
 
-You may not provide it to others as a hosted or managed service that gives them a substantial set
-of its features or functionality. You may not move, change, disable or circumvent its license key
-functionality, or remove or obscure a feature that a license key protects. You may not alter,
-remove or obscure SigComply's licensing, copyright or other notices. Anyone you give a copy to must
-also get the license terms, and modified copies must carry a prominent notice that you changed
-them.
+- provide it to others as a hosted or managed service that gives them a substantial set of its
+  features or functionality;
+- move, change, disable or circumvent its license key functionality, or remove or obscure a
+  feature that a license key protects;
+- alter, remove or obscure SigComply's licensing, copyright or other notices.
+
+Anyone you give a copy to must also get the license terms, and modified copies must carry a
+prominent notice that you changed them.
 
 Code published before the license change, including the v0.0.1 tag, remains available under
 Apache-2.0 ([NOTICE](NOTICE)). For other licensing terms, contact support@sigcomply.com.

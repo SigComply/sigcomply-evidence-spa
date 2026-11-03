@@ -198,7 +198,7 @@ report. A change to the build or to `scripts/fetch-catalogs.ts` is covered by th
 
 | Change | Agent-internal docs | Customer-facing docs |
 |---|---|---|
-| New or changed npm script, gate step or CI workflow | `AGENTS.md` Commands, this file | `CONTRIBUTING.md`, `README.md` (Build, Deployment) |
+| New or changed npm script, gate step or CI workflow | `AGENTS.md` Commands, this file | `CONTRIBUTING.md`, `README.md` (Self-host, Develop) |
 | Envelope, canonical JSON or signature verification | `AGENTS.md` Contracts and Verifier limits, `docs/TESTING.md` | `SECURITY.md` ("What `/verify` proves"), `README.md` ("What a valid signature means"), `/verify` verdict copy |
 | Catalog shape, evidence types, frequencies, period keys | `AGENTS.md` Contracts | `README.md` if user-visible |
 | Upload path, prefix, PDF filename, PDF layout or metadata | `AGENTS.md` Contracts and Conventions | `README.md` ("Use it" upload-path caveat, Self-host), upload-path screen copy |
