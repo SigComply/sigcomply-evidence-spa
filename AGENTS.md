@@ -162,7 +162,7 @@ Rules:
 - `Verify.tsx` refuses any `format_version` other than `ENVELOPE_FORMAT_VERSION`.
 - The period agreement holds only for the CLI's default `calendar_quarter` calendar. The SPA cannot
   see a project's `fiscal_year` or `custom` calendar; those users take the path from
-  `sigcomply evidence due --all` (the form and README say so).
+  `sigcomply evidence due --all` (the form's path note and the README "Use it" section say so).
 - The shown prefix comes from this deployment's `config.json`. It must equal the `prefix` of the
   project's `manual.pdf` source. Both sides collapse trailing slashes to one and add one when
   missing (`folders` in the periods golden).

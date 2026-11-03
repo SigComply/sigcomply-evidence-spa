@@ -14,7 +14,7 @@ Before 1.0, only the latest deployed build receives security fixes.
 ## Scope
 
 The app is a static single-page app with no backend. It reads a catalog JSON and `config.json`
-from its own host, renders PDFs in the browser and verifies signed `EvidenceEnvelope` files
+from its own host, renders PDFs in the browser and verifies signed evidence files (envelopes)
 locally. It uploads nothing and never handles credentials.
 
 In scope:
@@ -40,26 +40,26 @@ Out of scope:
 ## What `/verify` proves (and does not)
 
 - A valid result shows the envelope is self-consistent: its records match the Ed25519 public key
-  embedded in the same envelope. `/verify` shows that key's SHA-256 fingerprint. Anyone can sign
-  an envelope with their own key, so it does not prove who signed them.
-  The CLI generates a new key for every evidence file, so there is no long-lived key to compare
-  against; write-once storage of the vault is what keeps a run from being rewritten and
-  re-signed.
+  embedded in it. `/verify` shows that key's SHA-256 fingerprint. The CLI generates a new key for
+  every evidence file, and anyone can sign an envelope with their own key, so a valid result
+  doesn't show who signed it. Write-once storage of the vault is what keeps a run from being
+  rewritten and re-signed.
 - For a single-folder manual record, `/verify` shows the result fields the CLI signed: file
   present, uploaded within the period or its grace window, passed the CLI's file checks, any
   validation failures and the files in the folder. A check the CLI never ran (no file, or no file
   it could turn into a PDF) shows as "not checked". It displays them; it doesn't re-check the
   folder.
 - The recorded results (single-folder and per vendor) and the PDF check appear only when the
-  signature is valid, since an unverified record vouches for nothing. It compares the SHA-256 of the PDF you supply with the envelope's
-  `file_hash`. The CLI computes `file_hash` over the PDF it merges from every file in the evidence
-  folder and stores that merged PDF in the run folder under `policies/<policy_id>/attachments/`.
-  Supply that file. A folder that held exactly one PDF also matches the original upload, which the CLI uses
+  signature is valid. An unverified record vouches for nothing.
+- The PDF check compares the SHA-256 of the PDF you supply with the envelope's `file_hash`. The
+  CLI computes `file_hash` over the PDF it merges from every file in the evidence folder, and
+  stores that PDF in the run folder under `policies/<policy_id>/attachments/`. Supply that file.
+  If the folder held exactly one PDF, the original upload matches too, because the CLI uses it
   unchanged.
 - Fan-out envelopes (one folder per vendor) carry a result and a `file_hash` per vendor under
   `instances`, and no top-level `file_hash`. `/verify` lists each vendor's result as the CLI
   signed it and compares a PDF you supply with every vendor's `file_hash`, naming the vendor it
-  matches. The per-vendor limits are the same as above. The results are the CLI's; `/verify`
-  doesn't re-check the folders.
+  matches. Each vendor's result appears only after a valid signature, and `/verify` doesn't
+  re-check the folders.
 - `/verify` checks one envelope at a time. It does not verify the per-run signed `manifest.json`,
   so it can't tell you whether a run's files are complete.

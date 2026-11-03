@@ -12,7 +12,7 @@ as described in SECURITY.md.
 
 ## What happened
 
-A clear description of the bug.
+What you did and what went wrong.
 
 ## Which tool
 
@@ -39,6 +39,6 @@ What you expected instead.
 
 ## Additional context
 
-Screenshots, console errors, or (for `/verify`) a redacted envelope
-that reproduces the issue. Do not paste real evidence, PII, or private
-keys.
+Screenshots, console errors, or (for `/verify`) an envelope that
+reproduces the issue. Don't paste a real envelope: its records name your
+accounts and people. Redact them, or use one from a test project.
