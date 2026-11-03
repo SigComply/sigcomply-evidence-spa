@@ -64,7 +64,7 @@ export function parseEnvelopeText(text: string): ParseEnvelopeResult {
     return {
       kind: "invalid",
       message:
-        "This doesn't look like a SigComply signed-evidence file. Use a JSON file from a run's policies/<policy_id>/envelopes/ folder. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.",
+        "This doesn't look like a SigComply signed-evidence file, which the CLI writes to a run's policies/<policy_id>/envelopes/ folder. Expected fields: format_version, produced_at, records[] (with type, id, source_id, collected_at, payload), signature.algorithm, signature.public_key, signature.value.",
       pretty,
     };
   }

@@ -55,6 +55,7 @@ describe("parseEnvelopeText", () => {
     expect(r.kind).toBe("invalid");
     if (r.kind !== "invalid") return;
     expect(r.message).toMatch(/doesn't look like a SigComply signed-evidence file/);
+    expect(r.message).toContain("policies/<policy_id>/envelopes/");
     expect(r.pretty).toBe('{\n  "hello": "world"\n}');
   });
 
