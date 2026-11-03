@@ -178,15 +178,15 @@ test("the footer links to the CLI guides and the license without loading them", 
 test("Esc dismisses the framework picker and keeps the default", async ({ page }) => {
   await pinCatalogs(page);
   await page.goto("./");
-  await expect(page.getByText("Select Your Framework")).toBeVisible();
+  await expect(page.getByText("Select your framework")).toBeVisible();
   // The catalog models only a few processing-integrity and privacy criteria;
-  // the picker must not present SOC 2 as covering all five categories.
-  await expect(page.getByText(/plus a few processing integrity and privacy criteria/)).toBeVisible();
+  // the picker must not claim which SOC 2 categories it covers.
+  await expect(page.getByRole("dialog")).not.toContainText(/availability|confidentiality|processing integrity|privacy/i);
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Select Your Framework")).toBeHidden();
+  await expect(page.getByText("Select your framework")).toBeHidden();
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("sigcomply:framework"))).toBe("soc2");
   await page.reload();
   await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
-  await expect(page.getByText("Select Your Framework")).toBeHidden();
+  await expect(page.getByText("Select your framework")).toBeHidden();
 });

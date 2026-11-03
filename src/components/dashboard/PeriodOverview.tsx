@@ -50,9 +50,8 @@ export function PeriodOverview({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Current period per cadence. Counts are how many entries the catalog
-        defines at that cadence — not your outstanding work (this tool can’t
-        see your storage).
+        The current period for each frequency. Counts are catalog entries, not
+        what you still need to upload: this page can’t see your storage.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map((c) => {

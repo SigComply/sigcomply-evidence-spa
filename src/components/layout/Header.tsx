@@ -20,7 +20,7 @@ export function Header() {
           </span>
           <span className="font-semibold tracking-tight">SigComply</span>
           <span className="hidden text-sm text-muted-foreground sm:inline">
-            Evidence Portal
+            Evidence tools
           </span>
         </NavLink>
         <nav className="ml-auto flex items-center gap-1 rounded-lg bg-muted/60 p-1">

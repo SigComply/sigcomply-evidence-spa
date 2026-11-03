@@ -204,19 +204,18 @@ export function Dashboard() {
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Declarations and checklists that need a person to sign off. Fill
-            one in to generate an{" "}
+            one in to download an{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">
               evidence.pdf
-            </code>{" "}
-            you upload to your own storage — nothing is sent anywhere. The
-            SigComply CLI picks it up on its next scheduled run (daily by
-            default).
+            </code>
+            , then upload it to your evidence storage. Nothing is sent
+            anywhere. The SigComply CLI picks it up on its next scheduled run
+            (daily by default).
           </p>
           <p className="mt-2 max-w-2xl text-xs text-muted-foreground">
-            Only declaration and checklist entries appear here. Evidence
-            sourced elsewhere (training certificates, HR exports, scanned
-            documents) is produced outside this app and uploaded to your
-            evidence storage directly;{" "}
+            Other manual evidence, such as training certificates and HR
+            exports, has no form: upload those files to your evidence storage
+            yourself. To list every entry and its folder, see{" "}
             <a
               href={GUIDE_LINKS[0].href}
               target="_blank"
@@ -224,11 +223,9 @@ export function Dashboard() {
               className="underline underline-offset-2 hover:text-foreground"
             >
               the manual evidence guide
-            </a>{" "}
-            explains how to list those entries and their folders
-            (<code className="font-mono">sigcomply evidence due --all</code>).
-            Auditors checking a signed evidence file want the{" "}
-            <span className="font-medium text-foreground">Verify</span> tab.
+            </a>
+            . Auditors checking a signed evidence file: use{" "}
+            <span className="font-medium text-foreground">Verify</span>.
           </p>
         </div>
         <FrameworkSelector
@@ -370,12 +367,7 @@ export function Dashboard() {
               {attestations.length === 0 ? (
                 <div className="max-w-sm space-y-1">
                   <p className="text-sm font-medium">
-                    No user attestations in this framework
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Document-style evidence (HR exports, scans, certificates)
-                    is uploaded straight to your evidence storage — it never
-                    appears here.
+                    This framework has no declarations or checklists.
                   </p>
                 </div>
               ) : (

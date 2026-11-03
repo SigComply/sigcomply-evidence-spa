@@ -18,18 +18,18 @@ test("an unknown route shows the in-app 404", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
   await page.goto("no/such/page");
   await expect(page.getByText("Page not found")).toBeVisible();
-  await page.getByRole("link", { name: "Back to Dashboard" }).click();
+  await page.getByRole("link", { name: "Back to list" }).click();
   await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
 });
 
 test("the framework picker asks once and Verify needs no framework", async ({ page }) => {
   await page.goto("./");
-  await expect(page.getByText("Select Your Framework")).toBeVisible();
+  await expect(page.getByText("Select your framework")).toBeVisible();
   await page.getByRole("button", { name: /ISO 27001/ }).click();
-  await expect(page.getByText("Select Your Framework")).toBeHidden();
+  await expect(page.getByText("Select your framework")).toBeHidden();
   await page.reload();
   await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
-  await expect(page.getByText("Select Your Framework")).toBeHidden();
+  await expect(page.getByText("Select your framework")).toBeHidden();
   await page.getByRole("link", { name: "Verify", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Verify signed evidence" })).toBeVisible();
 });
@@ -67,7 +67,7 @@ test("a missing config.json falls back to the defaults", async ({ page }) => {
   await page.goto("./");
   // Default: soc2 only, so no picker.
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
-  await expect(page.getByText("Select Your Framework")).toBeHidden();
+  await expect(page.getByText("Select your framework")).toBeHidden();
 });
 
 // The site lives under a sub-path, so config.json must load from there, not

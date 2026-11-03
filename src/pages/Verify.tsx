@@ -243,7 +243,7 @@ export function Verify() {
       if (!looksPdf) {
         setPdfStatus({
           state: "error",
-          message: `“${file.name}” doesn't look like a PDF. Drop the evidence.pdf that was signed alongside this envelope.`,
+          message: `“${file.name}” doesn't look like a PDF. Drop the PDF from the run folder's attachments/.`,
         });
         return;
       }
@@ -322,13 +322,10 @@ export function Verify() {
           Verify signed evidence
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          For auditors. Drop a CLI-signed{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            EvidenceEnvelope
-          </code>{" "}
-          to re-check its Ed25519 signature against the public key inside it;
-          optionally add the matching PDF to re-hash and confirm it. Nothing is
-          uploaded — verification runs entirely in your browser.
+          For auditors: check the signature on an evidence file the SigComply
+          CLI wrote to the vault. You can also check that a PDF matches the
+          hash in the file. Everything runs in your browser; nothing is
+          uploaded.
         </p>
       </div>
 
@@ -484,7 +481,7 @@ export function Verify() {
                   Recorded results and PDF check
                 </p>
                 {sigStatus.state === "invalid" || sigStatus.state === "error"
-                  ? "Hidden: the signature isn't valid, so nothing vouches for the results or hashes in this file."
+                  ? "Hidden: the signature isn't valid, so the results and hashes in this file can't be relied on."
                   : "Shown once the signature is verified."}
               </div>
             )}
@@ -519,20 +516,23 @@ export function Verify() {
                     <p className="text-xs text-muted-foreground">
                       {members ? (
                         <>
-                          Hash a member&apos;s PDF and compare it to the{" "}
-                          <code className="font-mono">file_hash</code> the
-                          record holds for each member.
+                          Drop a member&apos;s PDF from the run folder&apos;s{" "}
+                          <code className="font-mono">
+                            policies/&lt;policy_id&gt;/attachments/
+                          </code>{" "}
+                          to check it against each member&apos;s hash.
                         </>
                       ) : (
                         <>
-                          Hash the matching PDF and compare it to the
-                          record&apos;s{" "}
-                          <code className="font-mono">file_hash</code>.
+                          Drop the PDF from the run folder&apos;s{" "}
+                          <code className="font-mono">
+                            policies/&lt;policy_id&gt;/attachments/
+                          </code>{" "}
+                          to check it against the hash in this file. If the
+                          evidence folder held one PDF, the original upload
+                          matches too.
                         </>
-                      )}{" "}
-                      The hash is of the merged PDF the CLI stores in the run
-                      folder under <code className="font-mono">attachments/</code>;
-                      a single uploaded PDF also matches.
+                      )}
                     </p>
                   </div>
                   {pdfStatus.state === "match" && (
@@ -710,7 +710,7 @@ export function Verify() {
 
               {(sigStatus.state === "valid" ||
                 sigStatus.state === "invalid") && (
-                <LazyDetails summary="Canonical bytes verified">
+                <LazyDetails summary="Signed bytes">
                   {() => (
                     <pre
                       data-raw
@@ -750,8 +750,8 @@ function RecordedPanel({ record }: { record: ManualDocumentPayload }) {
       <div>
         <p className="text-sm font-medium">What the CLI recorded</p>
         <p className="text-xs text-muted-foreground">
-          These results are what the CLI recorded and signed for the folder;
-          this page checks the signature, not the folder.
+          The CLI signed these results when it checked the folder. This page
+          doesn&apos;t re-check it.
         </p>
       </div>
       <ul className="divide-y rounded-md border bg-background">
@@ -812,8 +812,8 @@ function MembersPanel({
           {satisfied} of {total} members satisfied
         </p>
         <p className="text-xs text-muted-foreground">
-          One folder per member. These verdicts are what the CLI recorded and
-          signed; this page checks the signature, not the folders.
+          Each member has its own folder. The CLI signed these results; this
+          page doesn&apos;t re-check the folders.
         </p>
       </div>
       <ul className="divide-y rounded-md border bg-background">
@@ -879,10 +879,11 @@ export function VerdictBanner({ status }: { status: SigStatus }) {
         <div>
           <p className="text-lg font-bold">Signature valid</p>
           <p className="text-sm opacity-80">
-            The file is self-consistent: its records match the signature made
-            with the public key it carries. The CLI makes a new key for every
-            file, so this can&apos;t show who signed it: trust in the files
-            comes from write-once storage of the evidence vault.
+            The file is self-consistent: its records match the signature and
+            the public key inside it. The CLI makes a new key for every file,
+            so a valid signature doesn&apos;t show who signed it. Ask whether
+            the vault is write-once storage; that is what stops a file being
+            replaced and signed again.
           </p>
           {status.result.keyFingerprint && (
             <p className="mt-1 text-xs opacity-80">

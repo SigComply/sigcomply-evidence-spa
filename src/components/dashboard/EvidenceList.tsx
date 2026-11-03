@@ -148,9 +148,9 @@ function EvidenceRow({
                   "Drafted in this browser on " +
                   format(new Date(device.generatedAt), "PP p") +
                   (device.uploadedAt
-                    ? `; you marked it uploaded on ${format(new Date(device.uploadedAt), "PP")}`
+                    ? `; marked uploaded on ${format(new Date(device.uploadedAt), "PP")}`
                     : "") +
-                  ". Personal note on this device only — not proof of upload and not compliance status. The CLI is the source of truth."
+                  ". Saved on this device only; it doesn’t show what is in your storage."
                 }
                 className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
               >
@@ -182,7 +182,7 @@ function EvidenceRow({
           <button
             type="button"
             onClick={handleCopy}
-            title={`Copy the path in your evidence storage — ${uploadPath}. The leading "${cfg.prefix}" segment comes from this deployment's config. The period assumes the CLI's default calendar; for a fiscal_year or custom calendar, run "sigcomply evidence due --all" for the exact folder.`}
+            title={`Copy ${uploadPath}`}
             aria-label={`Copy upload path for ${entry.name}`}
             className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:opacity-0 sm:group-hover:opacity-100"
           >

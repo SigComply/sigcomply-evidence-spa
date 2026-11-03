@@ -64,7 +64,7 @@ describe("Dashboard", () => {
     });
     expect(await screen.findByText("SOC 2 acknowledgment")).toBeTruthy();
     expect(screen.queryByText("An upload entry")).toBeNull();
-    expect(screen.queryByText("Select Your Framework")).toBeNull();
+    expect(screen.queryByText("Select your framework")).toBeNull();
   });
 
   it("asks once for a framework and remembers the choice", async () => {
@@ -73,7 +73,7 @@ describe("Dashboard", () => {
       "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
       "data/catalogs/iso27001.json": catalog("iso27001", "ISO acknowledgment"),
     });
-    expect(await screen.findByText("Select Your Framework")).toBeTruthy();
+    expect(await screen.findByText("Select your framework")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /ISO/ }));
     expect(await screen.findByText("ISO acknowledgment")).toBeTruthy();
     expect(localStorage.getItem("sigcomply:framework")).toBe("iso27001");
@@ -85,7 +85,7 @@ describe("Dashboard", () => {
       "data/catalogs/iso27001.json": catalog("iso27001", "ISO acknowledgment"),
     });
     expect(await screen.findByText("ISO acknowledgment")).toBeTruthy();
-    expect(screen.queryByText("Select Your Framework")).toBeNull();
+    expect(screen.queryByText("Select your framework")).toBeNull();
   });
 
   it("still renders when localStorage throws", async () => {

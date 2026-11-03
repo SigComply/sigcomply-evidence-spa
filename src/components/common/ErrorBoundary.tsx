@@ -31,8 +31,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
           <h1 className="text-2xl font-bold">Something went wrong</h1>
           <p className="max-w-md text-sm text-muted-foreground">
-            The page hit an unexpected error. Nothing was sent anywhere — this
-            app runs entirely in your browser. Try reloading.
+            The page hit an unexpected error. Nothing was sent anywhere. Reload
+            to try again.
           </p>
           <button
             type="button"

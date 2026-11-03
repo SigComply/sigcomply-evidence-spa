@@ -206,7 +206,8 @@ describe("EvidenceForm", () => {
     const back = screen.getAllByRole("link", { name: "Back to list" });
     expect(back.length).toBe(1);
     expect(back[0].querySelector("button")).toBeNull();
-    expect(screen.getByRole("link", { name: /verify a signed envelope/i }).querySelector("button")).toBeNull();
+    // Verify is an auditor task; the header nav already links it.
+    expect(screen.queryByRole("link", { name: /verify a signed envelope/i })).toBeNull();
   });
 
   it("shows a note the PDF can't draw beside that note, linked to its input", async () => {
