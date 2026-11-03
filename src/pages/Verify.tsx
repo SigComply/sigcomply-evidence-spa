@@ -243,7 +243,7 @@ export function Verify() {
       if (!looksPdf) {
         setPdfStatus({
           state: "error",
-          message: `“${file.name}” doesn't look like a PDF. Drop the PDF from the run folder's attachments/.`,
+          message: `“${file.name}” doesn't look like a PDF. Drop the PDF from the run folder's attachments/, or the original upload if the folder held one PDF.`,
         });
         return;
       }
@@ -520,7 +520,8 @@ export function Verify() {
                           <code className="font-mono">
                             policies/&lt;policy_id&gt;/attachments/
                           </code>{" "}
-                          to check it against each member&apos;s hash.
+                          to check it against each member&apos;s hash. A member folder that
+                          held one PDF also matches its original upload.
                         </>
                       ) : (
                         <>

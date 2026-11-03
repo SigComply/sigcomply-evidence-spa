@@ -215,7 +215,7 @@ export function Dashboard() {
           <p className="mt-2 max-w-2xl text-xs text-muted-foreground">
             Other manual evidence, such as training certificates and HR
             exports, has no form: upload those files to your evidence storage
-            yourself. To list every entry and its folder, see{" "}
+            yourself. To list the entries whose folder is still empty, with each path, see{" "}
             <a
               href={GUIDE_LINKS[0].href}
               target="_blank"

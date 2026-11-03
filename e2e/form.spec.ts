@@ -34,7 +34,7 @@ function boxBefore(runs: string[], itemText: string): string {
   return runs[i - 1];
 }
 
-// The copyable upload path (the breadcrumb below it repeats the same text).
+// The copyable upload path, matched exactly.
 function uploadPath(page: Page, path: string) {
   return page.locator("code").filter({ hasText: new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) });
 }
