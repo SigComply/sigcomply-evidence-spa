@@ -131,6 +131,7 @@ E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 | Canonical JSON | `src/lib/verification/canonical.ts` | `internal/sign/canonical.go`; byte-equal |
 | Signature | Ed25519 via Web Crypto, base64 32-byte key and 64-byte signature | `internal/sign` |
 | Run manifest | `verifyManifest` in `scripts/verify-envelopes.ts`: `run.v1`, signed object = manifest minus `signature`, `file_hashes` keyed by run-relative path, values `sha256:<hex>` | `internal/core/manifest.go`, `internal/sign/manifest.go`, `writeManifest` in `internal/orchestrator/orchestrator.go` |
+| Form deep link | Route `/evidence/:framework/:evidenceId` in `src/App.tsx`, under the Pages base path; renders every `declaration` and `checklist` entry, and an unknown ID shows a "not found" page that links back | `manualcatalog.FormURL` and `DefaultFormBaseURL` in `internal/manualcatalog/formlink.go`; `check` and `evidence due` print it for failing or due `declaration`/`checklist` entries only |
 
 Rules:
 

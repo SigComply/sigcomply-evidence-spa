@@ -9,13 +9,14 @@ Two browser tools for SigComply users, hosted at
 
 | Tool | For | What it does |
 |---|---|---|
-| Evidence forms (`/`) | Whoever signs off a declaration or checklist | Fill a form and download `evidence.pdf`. You upload it to your manual evidence folder, and the CLI collects it on its next scheduled run. |
+| Evidence forms (`/`) | Whoever signs off a declaration or checklist | Fill in a form and download `evidence.pdf`. You upload it to your manual evidence folder, and the CLI collects it on its next scheduled run. |
 | Verifier (`/verify`) | Auditors | Check the signature on an evidence file from the vault, and optionally that a PDF matches the hash in it. |
 
-Both run in your browser. The app has no backend, sends nothing anywhere and needs no account.
+Both run in your browser. The app has no backend and needs no account. Nothing you enter or drop
+leaves your browser.
 
-The forms are optional: the CLI accepts any PDF or supported image in the right folder. They are a
-quick way to produce a declaration or checklist.
+The forms are optional. The CLI accepts any PDF or supported image in the right folder, and the
+forms are a quick way to produce a declaration or checklist.
 
 ## Use it
 
@@ -32,9 +33,9 @@ calendar, run `sigcomply evidence due --all` for the exact folders.
 
 ## What a valid signature means
 
-A valid signature shows the file is self-consistent: its records match the public key inside it.
+A valid signature shows the file is self-consistent. Its records match the public key inside it.
 The CLI makes a new key for every file, so a valid signature doesn't show who signed it.
-Write-once storage of the vault is what stops a file being replaced and signed again.
+Only write-once storage for the vault stops someone replacing a file and signing it again.
 [SECURITY.md](SECURITY.md#what-verify-proves-and-does-not) lists everything `/verify` does and
 doesn't check.
 
