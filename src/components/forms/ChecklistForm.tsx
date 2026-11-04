@@ -1,6 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { INPUT } from "@/components/common/styles";
 import { CHECKBOX, INPUT_INVALID } from "@/components/forms/styles";
 import { cn } from "@/lib/utils";
@@ -13,19 +13,27 @@ interface ChecklistFormProps {
   setItem: (id: string, patch: Partial<ChecklistItemState>) => void;
   /** Per item id, shown under that item's note once the user has submitted. */
   noteErrors?: Record<string, string>;
+  /** Set once a submit failed on unticked required items: the error's id. */
+  requiredErrorId?: string;
 }
 
 // ChecklistForm renders a multi-item user attestation. Conceptually it is a
 // multi-point declaration — the user attests that each listed step has been
 // performed. Required items are marked with a red asterisk; the rendered PDF
 // flags them the same way (see ChecklistPdf).
-export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFormProps) {
+export function ChecklistForm({
+  entry,
+  items,
+  setItem,
+  noteErrors,
+  requiredErrorId,
+}: ChecklistFormProps) {
   const catalogItems = entry.items ?? [];
 
   if (catalogItems.length === 0) {
     return (
       <p className="text-sm text-slate-400">
-        This checklist has no items defined in the catalog.
+        The catalog lists no items for this checklist.
       </p>
     );
   }
@@ -36,8 +44,7 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
   return (
     <div>
       <p className="text-sm text-slate-400">
-        Tick each step you have completed. Optional notes are included in the
-        downloaded PDF.
+        Tick each step you’ve completed. Any notes you add go into the PDF.
       </p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
         <span className="font-medium text-slate-300">
@@ -57,6 +64,7 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
           };
 
           const noteError = noteErrors?.[item.id];
+          const missing = Boolean(requiredErrorId) && item.required && !state.checked;
           const noteErrorId = `item-${item.id}-notes-error`;
           return (
             <li key={item.id} className="py-4">
@@ -68,6 +76,8 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
                     setItem(item.id, { checked })
                   }
                   className={CHECKBOX}
+                  aria-invalid={missing}
+                  aria-describedby={missing ? requiredErrorId : undefined}
                 />
                 <div className="min-w-0 flex-1 space-y-2">
                   <Label
@@ -79,13 +89,15 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
                       <span className="text-red-400"> *</span>
                     ) : null}
                   </Label>
-                  <Input
+                  <Textarea
                     id={`item-${item.id}-notes`}
                     aria-label={`Optional notes for: ${item.text}`}
                     value={state.notes}
                     onChange={(e) => setItem(item.id, { notes: e.target.value })}
-                    placeholder="Optional notes…"
-                    className={cn(INPUT, INPUT_INVALID, "h-8")}
+                    placeholder="Notes (optional)"
+                    rows={1}
+                    // One line until the note grows (field-sizing-content).
+                    className={cn(INPUT, INPUT_INVALID, "h-auto min-h-8 py-1.5")}
                     aria-invalid={Boolean(noteError)}
                     aria-describedby={noteError ? noteErrorId : undefined}
                   />

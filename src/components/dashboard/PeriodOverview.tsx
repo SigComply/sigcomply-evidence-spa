@@ -104,8 +104,8 @@ export function PeriodOverview({
       </div>
       <p className="mt-3 text-sm text-slate-400">
         {filterable && "Select a period to filter the list. "}
-        Counts are catalog entries, not what you still need to upload: this
-        page can’t see your storage.
+        Counts show catalog entries. This page can’t see your storage, so it
+        can’t tell what you still need to upload.
       </p>
     </section>
   );

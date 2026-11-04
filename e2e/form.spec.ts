@@ -61,12 +61,14 @@ async function submit(page: Page): Promise<Download> {
 test("declaration form downloads evidence.pdf and shows the upload path", async ({ page }) => {
   await page.goto("./");
   await page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }).click();
-  await expect(page.getByRole("heading", { name: "Code Of Conduct Acknowledgment" })).toBeVisible();
+  // A route change lands on the new page's heading.
+  await expect(page.getByRole("heading", { level: 1, name: "Code Of Conduct Acknowledgment" })).toBeFocused();
 
-  // Submitting empty shows inline errors and downloads nothing.
+  // Submitting empty shows inline errors, focuses the first invalid field and downloads nothing.
   await page.getByRole("button", { name: "Download evidence.pdf" }).click();
   await expect(page.getByText("Enter who completed this")).toBeVisible();
   await expect(page.getByText("You must accept the declaration to continue")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /I accept this declaration/ })).toBeFocused();
 
   await page.getByLabel("Completed by").fill("Jane Doe");
   await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
@@ -88,10 +90,40 @@ test("declaration form downloads evidence.pdf and shows the upload path", async 
     "evidence_id=code_of_conduct_acknowledgment; framework=soc2; control=CC1.1; period=2026; type=declaration; completed_by=Jane Doe; completed_at=2026-05-15T12:00:00.000Z; accepted=true",
   );
 
-  await expect(page.getByRole("heading", { name: "evidence.pdf downloaded" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "evidence.pdf downloaded" })).toBeFocused();
+  // e2e/ compiles without the DOM lib; this runs in the page.
+  expect(await page.evaluate(() => (globalThis as unknown as { scrollY: number }).scrollY)).toBe(0);
   await expect(
     uploadPath(page, "manual/code_of_conduct_acknowledgment/2026/evidence.pdf"),
   ).toBeVisible();
+});
+
+test("a form opened from a link sets the list's framework", async ({ page }) => {
+  // Nothing stored: the list would otherwise open on SOC 2 and ask.
+  await page.addInitScript(() => localStorage.removeItem("sigcomply:framework"));
+  await page.goto("evidence/iso27001/return_of_assets");
+  await expect(page.getByRole("heading", { level: 1, name: "Return Of Assets" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to list" }).click();
+  await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
+  await expect(page.getByText("Select your framework")).toBeHidden();
+  await expect(
+    page.getByRole("group", { name: "Framework" }).getByRole("button", { name: "ISO 27001" }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("on a phone the period and folder show above the form", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  const summary = page.getByTestId("period-compact");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText("Period 2026, Jan 1 – Dec 31, 2026 (UTC)");
+  await expect(uploadPath(page, "manual/code_of_conduct_acknowledgment/2026/evidence.pdf").first()).toBeVisible();
+  const summaryBox = (await summary.boundingBox())!;
+  const formBox = (await page.getByRole("heading", { name: "Review and accept" }).boundingBox())!;
+  expect(summaryBox.y).toBeLessThan(formBox.y);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(summary).toBeHidden();
 });
 
 test("a fixed field error is gone, not moved under the Download button", async ({ page }) => {
@@ -109,14 +141,14 @@ test("a fixed field error is gone, not moved under the Download button", async (
 test("the form and the upload screen say what the CLI does", async ({ page }) => {
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await expect(
-    page.getByText("Upload during this period: once it ends, scheduled runs read the next period’s folder."),
+    page.getByText("Upload before this period ends. After that, scheduled runs read the next period’s folder."),
   ).toBeVisible();
   await expect(page.getByText(/retrospective|just ended|grace/)).toHaveCount(0);
 
   await page.getByLabel("Completed by").fill("Sam");
   await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
   await submit(page);
-  await expect(page.getByText(/the CLI merges every file in the folder into one PDF/)).toBeVisible();
+  await expect(page.getByText(/The CLI merges every file in the folder into one PDF, so delete/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Upload it to this folder in your evidence storage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "The CLI picks it up on the next scheduled run" })).toBeVisible();
   await expect(page.getByText("sigcomply check --scheduled")).toBeVisible();
@@ -196,7 +228,7 @@ test("checklist form needs every required item", async ({ page }) => {
 test("a boundary passing before the click moves the PDF and the folder together", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-12-31T23:59:50Z"));
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
-  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)")).toBeVisible();
+  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)", { exact: true })).toBeVisible();
   await page.getByLabel("Completed by").fill("Sam");
   await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
 
@@ -305,7 +337,7 @@ for (const { zone, now, period } of [
     test(`the period and folder follow UTC (${period})`, async ({ page }) => {
       await page.clock.setFixedTime(new Date(now));
       await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
-      await expect(page.getByText(`Jan 1 – Dec 31, ${period} (UTC)`)).toBeVisible();
+      await expect(page.getByText(`Jan 1 – Dec 31, ${period} (UTC)`, { exact: true })).toBeVisible();
       await page.getByLabel("Completed by").fill("Sam");
       await page.getByRole("checkbox", { name: /I accept this declaration/ }).click();
       await submit(page);

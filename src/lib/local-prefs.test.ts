@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readPref, writePref } from "./local-prefs";
+import { FRAMEWORK_PREF_KEY, readPref, writePref } from "./local-prefs";
 
 function memoryStorage(): Storage {
   const m = new Map<string, string>();
@@ -50,5 +50,9 @@ describe("local prefs", () => {
     vi.stubGlobal("localStorage", undefined);
     expect(readPref("sigcomply:x")).toBeNull();
     expect(() => writePref("sigcomply:x", "soc2")).not.toThrow();
+  });
+
+  it("keeps the framework key the dashboard and the form share", () => {
+    expect(FRAMEWORK_PREF_KEY).toBe("sigcomply:framework");
   });
 });

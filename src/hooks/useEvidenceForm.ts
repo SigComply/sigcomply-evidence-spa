@@ -114,7 +114,7 @@ export function useEvidenceForm(entry: CatalogEntry, framework: string) {
     } catch (err) {
       return err instanceof Error
         ? err.message
-        : "Failed to render PDF";
+        : "Couldn’t create the PDF. Try again.";
     } finally {
       setSubmitting(false);
     }

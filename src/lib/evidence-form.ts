@@ -57,7 +57,7 @@ const UNSUPPORTED = "Unsupported evidence type for SPA rendering";
  * evaluated. The grace only absorbs clock lag; it is not an upload window.
  */
 export const UPLOAD_WINDOW_TEXT =
-  "Upload during this period: once it ends, scheduled runs read the next period’s folder.";
+  "Upload before this period ends. After that, scheduled runs read the next period’s folder.";
 
 export function initialItems(entry: CatalogEntry): ChecklistItemState[] {
   return (entry.items ?? []).map((i) => ({ id: i.id, checked: false, notes: "" }));

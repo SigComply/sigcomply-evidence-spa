@@ -50,8 +50,8 @@ export function HowItWorks() {
       </section>
       <p className="text-sm text-slate-400">
         Other manual evidence, such as training certificates and HR exports, has
-        no form: upload those files to your evidence storage yourself. To list
-        the entries whose folder is still empty, with each path, see{" "}
+        no form. Upload those files to your evidence storage yourself. To see
+        which folders are still empty, read{" "}
         <a
           href={GUIDE_LINKS[0].href}
           target="_blank"
@@ -60,9 +60,9 @@ export function HowItWorks() {
         >
           the manual evidence guide
         </a>{" "}
-        or run <code className={INLINE_CODE}>sigcomply evidence due --all</code>,
-        which also gives the folder for a custom prefix or calendar. Auditors
-        checking a signed evidence file: use{" "}
+        or run <code className={INLINE_CODE}>sigcomply evidence due --all</code>.
+        The command also gives the right folder for a custom prefix or
+        calendar. Auditors can check a signed evidence file in{" "}
         <span className="font-medium text-slate-200">Verify</span>.
       </p>
     </div>

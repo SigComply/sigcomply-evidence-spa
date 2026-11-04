@@ -151,7 +151,7 @@ function EvidenceRow({
                   (device.uploadedAt
                     ? `; marked uploaded on ${format(new Date(device.uploadedAt), "PP")}`
                     : "") +
-                  ". Saved on this device only; it doesn’t show what is in your storage."
+                  ". Saved on this device only. It doesn’t show what’s in your storage."
                 }
                 // Above the stretched link so its tooltip shows on hover.
                 className="pointer-events-auto relative z-[1]"

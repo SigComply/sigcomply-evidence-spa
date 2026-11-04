@@ -7,12 +7,15 @@ interface DeclarationFormProps {
   entry: CatalogEntry;
   accepted: boolean;
   setAccepted: (accepted: boolean) => void;
+  /** Set once a submit failed because the box is unticked: the error's id. */
+  errorId?: string;
 }
 
 export function DeclarationForm({
   entry,
   accepted,
   setAccepted,
+  errorId,
 }: DeclarationFormProps) {
   return (
     <div className="space-y-5">
@@ -26,6 +29,8 @@ export function DeclarationForm({
           checked={accepted}
           onCheckedChange={(checked: boolean) => setAccepted(checked)}
           className={CHECKBOX}
+          aria-invalid={Boolean(errorId)}
+          aria-describedby={errorId}
         />
         <Label
           htmlFor="accept-declaration"

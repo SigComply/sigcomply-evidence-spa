@@ -6,7 +6,8 @@ import { EvidenceList } from "@/components/dashboard/EvidenceList";
 import { HowItWorks } from "@/components/dashboard/HowItWorks";
 import { useCatalog } from "@/hooks/useCatalog";
 import { getConfig } from "@/config/runtime";
-import { readPref, writePref } from "@/lib/local-prefs";
+import { FRAMEWORK_PREF_KEY, readPref, writePref } from "@/lib/local-prefs";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,8 +21,6 @@ import {
   SECTION_LABEL,
 } from "@/components/common/styles";
 import { Search, X, FileText } from "lucide-react";
-
-const STORAGE_KEY = "sigcomply:framework";
 
 // FilterChip is a real toggle button (keyboard-operable, state announced via
 // aria-pressed), so filtering works for keyboard and screen-reader users.
@@ -63,12 +62,13 @@ const SEVERITY_ORDER = ["high", "medium", "low"];
 const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
 function getStoredFramework(available: string[]): string | null {
-  const stored = readPref(STORAGE_KEY);
+  const stored = readPref(FRAMEWORK_PREF_KEY);
   if (stored && available.includes(stored)) return stored;
   return null;
 }
 
 export function Dashboard() {
+  useDocumentTitle("User attestations");
   const config = getConfig();
   const stored = getStoredFramework(config.frameworks);
   const [framework, setFramework] = useState(
@@ -107,7 +107,7 @@ export function Dashboard() {
     (value: string) => {
       if (value !== framework) clearAll();
       setFramework(value);
-      writePref(STORAGE_KEY, value);
+      writePref(FRAMEWORK_PREF_KEY, value);
     },
     [clearAll, framework],
   );

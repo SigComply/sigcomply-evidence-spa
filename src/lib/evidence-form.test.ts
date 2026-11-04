@@ -257,9 +257,9 @@ describe("buildPdfInput", () => {
 });
 
 describe("upload window", () => {
-  it("asks for an upload during the period and promises no grace upload", () => {
+  it("asks for an upload before the period ends and promises no grace upload", () => {
     expect(UPLOAD_WINDOW_TEXT).toBe(
-      "Upload during this period: once it ends, scheduled runs read the next period’s folder.",
+      "Upload before this period ends. After that, scheduled runs read the next period’s folder.",
     );
     expect(UPLOAD_WINDOW_TEXT).not.toMatch(/grace|after it ends/);
   });

@@ -78,11 +78,32 @@ for (const framework of ["..%2Fconfig", "..%2F..%2Fconfig", "..%2F..%2Fsigcomply
     const requests: string[] = [];
     page.on("request", (r) => requests.push(new URL(r.url()).pathname));
     await page.goto(`evidence/${framework}/code_of_conduct_acknowledgment`);
-    await expect(page.getByText("Could not load the catalog")).toBeVisible();
-    await expect(page.getByText(/Unknown framework/)).toBeVisible();
+    await expect(page.getByText("Framework not found")).toBeVisible();
     expect(requests.filter((p) => p.includes("/data/"))).toEqual([]);
   });
 }
+
+test("an unknown framework in a deep link names the ones on offer and links back", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  await page.goto("evidence/foo/code_of_conduct_acknowledgment");
+  const alert = page.getByRole("alert").filter({ hasText: "Framework not found" });
+  await expect(alert).toContainText("This site has no “foo” framework. It offers SOC 2 Type II and ISO 27001.");
+  await expect(page.getByText(/Unknown framework/)).toHaveCount(0);
+  await alert.getByRole("link", { name: "Back to the list" }).click();
+  await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
+});
+
+test("an unknown evidence ID says the entry may be new or renamed and links back", async ({ page }) => {
+  await pinCatalogs(page);
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  await page.goto("evidence/soc2/no_such_entry");
+  const alert = page.getByRole("alert").filter({ hasText: "Evidence entry not found" });
+  await expect(alert).toContainText("no entry “no_such_entry”");
+  await expect(alert).toContainText("The entry may be new, since the catalogs update daily from the latest CLI release.");
+  await expect(alert).toContainText("It may also have been renamed.");
+  await alert.getByRole("link", { name: "Back to the list" }).click();
+  await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
+});
 
 test("a missing config.json falls back to the defaults", async ({ page }) => {
   await pinCatalogs(page);

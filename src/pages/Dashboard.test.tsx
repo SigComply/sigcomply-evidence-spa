@@ -215,4 +215,12 @@ describe("Dashboard", () => {
     expect(within(periods).getByText("yearly")).toBeTruthy();
     expect(within(periods).queryByRole("button")).toBeNull();
   });
+
+  it("names the page in the document title", async () => {
+    await renderDashboard(["soc2"], {
+      "data/catalogs/soc2.json": catalog("soc2", "SOC 2 acknowledgment"),
+    });
+    await screen.findByText("SOC 2 acknowledgment");
+    expect(document.title).toBe("User attestations · SigComply Evidence");
+  });
 });

@@ -45,7 +45,7 @@ export function Footer({ input }: FooterProps) {
   return (
     <View style={styles.footer} fixed>
       <Text>
-        SigComply Evidence — {input.evidence_id} — {input.period}
+        SigComply Evidence · {input.evidence_id} · {input.period}
       </Text>
       <Text
         render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}

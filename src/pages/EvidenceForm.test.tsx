@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { serveJson } from "@/test/component-env";
 import { getDeviceRecord } from "@/lib/device-memory";
 import type { Catalog } from "@/types/catalog";
@@ -59,13 +59,16 @@ function errorAlerts() {
 async function renderForm(
   evidenceId: string,
   config: unknown = { frameworks: ["soc2"] },
+  framework = "soc2",
 ) {
   serveJson({ "config.json": config, "data/catalogs/soc2.json": catalog });
   const { loadConfig } = await import("@/config/runtime");
   await loadConfig();
   const { EvidenceForm } = await import("./EvidenceForm");
   render(
-    <MemoryRouter initialEntries={[`/evidence/soc2/${evidenceId}`]}>
+    <MemoryRouter initialEntries={[`/evidence/${framework}/${evidenceId}`]}>
+      {/* Another entry of the same framework, reached without a remount. */}
+      <Link to="/evidence/soc2/offboarding">Next entry</Link>
       <Routes>
         <Route path="/evidence/:framework/:evidenceId" element={<EvidenceForm />} />
       </Routes>
@@ -76,6 +79,7 @@ async function renderForm(
 
 describe("EvidenceForm", () => {
   beforeEach(() => {
+    vi.stubGlobal("scrollTo", vi.fn());
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(Date.UTC(2026, 4, 15, 12, 0, 0))); // 15 May 2026, UTC
     localStorage.clear();
@@ -175,15 +179,99 @@ describe("EvidenceForm", () => {
     expect(screen.queryByText(/secret\//)).toBeNull();
   });
 
-  it("explains an unknown entry", async () => {
+  it("explains an unknown entry: maybe new or renamed, with a way back", async () => {
     await renderForm("nope");
     expect(screen.getByText("Evidence entry not found")).toBeTruthy();
+    const alert = screen.getByText("Evidence entry not found").closest("[role=alert]")!;
+    expect(alert.textContent).toContain("“nope”");
+    expect(alert.textContent).toContain("SOC 2 Type II");
+    expect(alert.textContent).toMatch(/may be new/);
+    expect(alert.textContent).toMatch(/catalogs update daily from the latest CLI release/);
+    expect(alert.textContent).toMatch(/renamed/);
+    expect(alert.textContent).not.toContain("—");
+    expect(within(alert as HTMLElement).getByRole("link", { name: "Back to the list" }).getAttribute("href")).toBe("/");
+  });
+
+  it("names the available frameworks for an unknown one, not the raw error", async () => {
+    await renderForm("policy_ack", { frameworks: ["soc2", "iso27001"] }, "foo");
+    expect(screen.getByText("Framework not found")).toBeTruthy();
+    const alert = screen.getByText("Framework not found").closest("[role=alert]")!;
+    expect(alert.textContent).toContain("“foo”");
+    expect(alert.textContent).toContain("SOC 2 Type II and ISO 27001");
+    expect(screen.queryByText(/Unknown framework/)).toBeNull();
+    expect(within(alert as HTMLElement).getByRole("link", { name: "Back to the list" }).getAttribute("href")).toBe("/");
+  });
+
+  it("remembers the framework of a form opened directly, so the list shows it", async () => {
+    await renderForm("policy_ack");
+    await screen.findByRole("heading", { level: 1, name: "Policy acknowledgment" });
+    expect(localStorage.getItem("sigcomply:framework")).toBe("soc2");
+  });
+
+  it("names the entry in the document title and its framework in the chips", async () => {
+    await renderForm("policy_ack");
+    expect(document.title).toBe("Policy acknowledgment · SigComply Evidence");
+    expect(screen.getByText("SOC 2 Type II")).toBeTruthy();
+  });
+
+  it("moves focus to the first invalid field on a failed submit", async () => {
+    const user = userEvent.setup();
+    await renderForm("offboarding");
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    // The required item comes before the name field.
+    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: /revoke access/i }));
+
+    await user.click(screen.getByRole("checkbox", { name: /revoke access/i }));
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Completed by"));
+  });
+
+  it("scrolls up and focuses the heading when the upload screen replaces the form", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("checkbox"));
+    vi.mocked(window.scrollTo).mockClear();
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    const heading = await screen.findByRole("heading", { level: 1, name: "evidence.pdf downloaded" });
+    expect(document.activeElement).toBe(heading);
+    expect(heading.getAttribute("tabindex")).toBe("-1");
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
+  it("starts a fresh form when another entry opens without a remount", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("sigcomply:completed-by", "Sam");
+    await renderForm("policy_ack");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
+    await screen.findByText("evidence.pdf downloaded");
+
+    await user.click(screen.getByRole("link", { name: "Next entry" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Offboarding" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /download evidence\.pdf/i })).toBeTruthy();
+    expect(screen.getByText("0 of 2 ticked")).toBeTruthy();
+  });
+
+  it("shows the period and folder above the form for small screens", async () => {
+    await renderForm("policy_ack");
+    const compact = screen.getByTestId("period-compact");
+    expect(compact.className).toContain("lg:hidden");
+    expect(compact.textContent).toContain("2026-Q2");
+    expect(within(compact).getByText("manual/policy_ack/2026-Q2/evidence.pdf")).toBeTruthy();
+  });
+
+  it("takes checklist notes in a textarea", async () => {
+    await renderForm("offboarding");
+    const note = screen.getByLabelText("Optional notes for: Revoke access");
+    expect(note.tagName).toBe("TEXTAREA");
+    expect(note.getAttribute("placeholder")).toBe("Notes (optional)");
   });
 
   it("states the CLI's upload window instead of a retrospective claim", async () => {
     await renderForm("policy_ack");
     expect(
-      screen.getByText("Upload during this period: once it ends, scheduled runs read the next period’s folder."),
+      screen.getByText("Upload before this period ends. After that, scheduled runs read the next period’s folder."),
     ).toBeTruthy();
     expect(screen.getByText("Apr 1 – Jun 30, 2026 (UTC)")).toBeTruthy();
     expect(screen.queryByText(/retrospective|just ended|grace/)).toBeNull();
@@ -197,7 +285,7 @@ describe("EvidenceForm", () => {
     await user.click(screen.getByRole("button", { name: /download evidence\.pdf/i }));
     await screen.findByText("evidence.pdf downloaded");
 
-    expect(screen.getByText(/the CLI merges every file in the\s+folder into one PDF/)).toBeTruthy();
+    expect(screen.getByText(/The CLI merges every file in the\s+folder into one PDF, so delete/)).toBeTruthy();
     expect(screen.getByText("The CLI picks it up on the next scheduled run")).toBeTruthy();
     expect(screen.getByText("sigcomply check --scheduled")).toBeTruthy();
     expect(screen.getByText("sigcomply evidence due --all")).toBeTruthy();

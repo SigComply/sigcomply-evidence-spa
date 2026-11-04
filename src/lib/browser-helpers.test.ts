@@ -37,9 +37,13 @@ describe("copyText", () => {
 });
 
 describe("downloadBlob", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
-  it("clicks a temporary link with the file name and revokes the URL", () => {
+  it("clicks a temporary link with the file name and revokes the URL later", () => {
+    vi.useFakeTimers();
     const create = vi.fn(() => "blob:test/1");
     const revoke = vi.fn();
     Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
@@ -55,7 +59,13 @@ describe("downloadBlob", () => {
     const link = click.mock.contexts[0] as HTMLAnchorElement;
     expect(link.download).toBe("evidence.pdf");
     expect(link.href).toBe("blob:test/1");
-    expect(revoke).toHaveBeenCalledWith("blob:test/1");
     expect(document.querySelector("a")).toBeNull();
+    // Revoking at once can cancel a download the browser hasn't started
+    // reading yet (Safari, slow disks), so the URL lives a while.
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(29_000);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(revoke).toHaveBeenCalledWith("blob:test/1");
   });
 });
