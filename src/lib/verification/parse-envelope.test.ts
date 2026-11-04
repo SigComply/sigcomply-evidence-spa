@@ -5,6 +5,7 @@ import sampleRaw from "./__fixtures__/sample-envelope-v1.json?raw";
 import bignumRaw from "./__fixtures__/sample-envelope-v1-bignum.json?raw";
 import manualRaw from "./__fixtures__/golden/manual.json?raw";
 import fanoutRaw from "./__fixtures__/golden/fanout.json?raw";
+import manifestRaw from "./__fixtures__/cli-run/manifest.json?raw";
 
 describe("parseEnvelopeText", () => {
   it("treats blank input as empty, not as an error", () => {
@@ -57,6 +58,35 @@ describe("parseEnvelopeText", () => {
     expect(r.message).toMatch(/doesn't look like a SigComply signed-evidence file/);
     expect(r.message).toContain("policies/<policy_id>/envelopes/");
     expect(r.pretty).toBe('{\n  "hello": "world"\n}');
+  });
+
+  it("names a PDF dropped where the envelope goes, by its bytes or its name", () => {
+    const want =
+      "This is a PDF. Load the evidence envelope (.json) first, then check the PDF below it.";
+    for (const r of [
+      parseEnvelopeText("%PDF-1.7\n%\u00e2\u00e3\n1 0 obj"),
+      parseEnvelopeText("\n%PDF-1.4 junk"),
+      parseEnvelopeText("garbage", { name: "Evidence.PDF" }),
+    ]) {
+      expect(r.kind).toBe("invalid");
+      if (r.kind !== "invalid") return;
+      expect(r.message).toBe(want);
+    }
+  });
+
+  it("names a run manifest instead of listing envelope fields", () => {
+    const want =
+      "This is the run's manifest.json. This page checks one evidence envelope from the run's policies folder, and it doesn't verify the manifest.";
+    for (const raw of [
+      manifestRaw,
+      '{"schema_version":"run.v1"}',
+      '{"file_hashes":{"summary.json":"sha256:00"},"signature":{}}',
+    ]) {
+      const r = parseEnvelopeText(raw);
+      expect(r.kind).toBe("invalid");
+      if (r.kind !== "invalid") return;
+      expect(r.message).toBe(want);
+    }
   });
 
   it("refuses any format_version other than the supported one", () => {

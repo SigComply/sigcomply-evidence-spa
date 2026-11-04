@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { memberLabel } from "../src/lib/verification/manual";
 import type {
@@ -46,6 +46,7 @@ test("the wrong PDF is a mismatch, and a non-PDF is refused", async ({ page }) =
   await expect(page.getByText("Signature valid")).toBeVisible();
   await loadPdf(page, "notes.txt", Buffer.from("hello"), "text/plain");
   await expect(page.getByText(/doesn't look like a PDF/)).toBeVisible();
+  await expect(page.getByText("Not a PDF", { exact: true })).toBeVisible();
   await loadPdf(page, "other.pdf", fixture("sample-envelope-v1-fanout.acme_cloud.pdf"));
   await expect(page.getByText("mismatch", { exact: true })).toBeVisible();
 });
@@ -144,7 +145,7 @@ test("a tampered file_hash with its matching PDF never shows a match", async ({ 
     .replace(/"file_hash":"sha256:[0-9a-f]+"/, `"file_hash":"sha256:${sha256(pdf)}"`);
   await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
   await expect(page.getByText("Signature invalid")).toBeVisible();
-  await expect(page.getByText(/Hidden: the signature isn't valid/)).toBeVisible();
+  await expect(page.getByText(/Hidden because the signature isn't valid/)).toBeVisible();
   await expect(page.getByText("What the CLI recorded", { exact: true })).toHaveCount(0);
   await expect(page.locator('input[type=file][accept="application/pdf,.pdf"]')).toHaveCount(0);
   await expect(page.getByText("match", { exact: true })).toHaveCount(0);
@@ -292,5 +293,126 @@ test.describe("browsers without Ed25519", () => {
     await loadEnvelope(page, "sample-envelope-v1.json");
     await expect(page.getByText("Verification could not run")).toBeVisible();
     await expect(page.getByText(/does not support Ed25519 in Web Crypto/)).toBeVisible();
+  });
+});
+
+// Drops files on a target the way a browser does: a DataTransfer holding them.
+// e2e/ compiles without the DOM lib; the callback runs in the page.
+async function dropFiles(target: Locator, files: { name: string; type: string; body: Buffer }[]) {
+  type DT = { items: { add(f: unknown): void } };
+  const dt = await target.page().evaluateHandle((list) => {
+    const g = globalThis as unknown as {
+      DataTransfer: new () => DT;
+      File: new (bits: unknown[], name: string, opts: { type: string }) => unknown;
+    };
+    const t = new g.DataTransfer();
+    for (const f of list) t.items.add(new g.File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
+    return t;
+  }, files.map((f) => ({ name: f.name, type: f.type, bytes: [...f.body] })));
+  await target.dispatchEvent("dragenter", { dataTransfer: dt });
+  await target.dispatchEvent("dragover", { dataTransfer: dt });
+  await target.dispatchEvent("drop", { dataTransfer: dt });
+}
+
+test.describe("verify page polish", () => {
+  test("names the tab", async ({ page }) => {
+    await expect(page).toHaveTitle("Verify · SigComply Evidence");
+  });
+
+  test("checks another PDF after a match or a mismatch", async ({ page }) => {
+    const record = goldenPayload("manual.json");
+    await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
+    await expect(page.getByText("Signature valid")).toBeVisible();
+    await loadPdf(page, "evidence.pdf", fixture(`golden/manual.${record.evidence_id}.pdf`));
+    await expect(page.getByText("match", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Check another PDF" }).click();
+    await expect(page.getByRole("button", { name: "Choose PDF" })).toBeFocused();
+    await expect(page.getByText("match", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Signature valid")).toBeVisible();
+
+    await loadPdf(page, "other.pdf", Buffer.from("%PDF-1.4 not the one"));
+    await expect(page.getByText("mismatch", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(/merged PDF from the run's policies\/<policy_id>\/attachments\/ folder, since an original upload matches only when its folder held one PDF\./),
+    ).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(OVERCLAIM);
+    await page.getByRole("button", { name: "Check another PDF" }).click();
+    await expect(page.getByRole("button", { name: "Choose PDF" })).toBeFocused();
+  });
+
+  test("announces the verdict and the PDF result, and moves focus with the flow", async ({ page }) => {
+    const record = goldenPayload("manual.json");
+    await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
+    await expect(page.getByRole("heading", { name: "Signature valid" })).toBeFocused();
+    await expect(page.getByTestId("verdict")).toHaveAttribute("role", "status");
+    const result = page.getByTestId("pdf-result");
+    await expect(result).toHaveAttribute("role", "status");
+    await loadPdf(page, "evidence.pdf", fixture(`golden/manual.${record.evidence_id}.pdf`));
+    await expect(result).toContainText("evidence.pdf matches");
+    await page.getByRole("button", { name: "Verify another" }).click();
+    await expect(page.getByRole("button", { name: "Choose envelope file" })).toBeFocused();
+  });
+
+  test("names a PDF or a run manifest loaded as the envelope", async ({ page }) => {
+    await loadEnvelope(page, "evidence.pdf", fixture("sample-envelope-v1-fanout.acme_cloud.pdf"));
+    await expect(
+      page.getByText("This is a PDF. Load the evidence envelope (.json) first, then check the PDF below it."),
+    ).toBeVisible();
+    await expect(page.getByText(/Invalid JSON/)).toHaveCount(0);
+    await loadEnvelope(page, "manifest.json", fixture("cli-run/manifest.json"));
+    await expect(page.getByText(/^This is the run's manifest\.json\./)).toBeVisible();
+    await expect(page.getByText(/Expected fields/)).toHaveCount(0);
+  });
+
+  test("a file dropped outside the zones doesn't replace the page", async ({ page }) => {
+    await loadEnvelope(page, "sample-envelope-v1.json");
+    await expect(page.getByText("Signature valid")).toBeVisible();
+    const prevented = await page.evaluate(() => {
+      type Ev = { defaultPrevented: boolean };
+      const g = globalThis as unknown as {
+        DataTransfer: new () => { items: { add(f: unknown): void } };
+        File: new (bits: unknown[], name: string) => unknown;
+        DragEvent: new (type: string, init: object) => Ev;
+        document: { body: { dispatchEvent(e: Ev): void } };
+      };
+      const dataTransfer = new g.DataTransfer();
+      dataTransfer.items.add(new g.File(["{}"], "x.json"));
+      return ["dragover", "drop"].map((type) => {
+        const e = new g.DragEvent(type, { dataTransfer, bubbles: true, cancelable: true });
+        g.document.body.dispatchEvent(e);
+        return e.defaultPrevented;
+      });
+    });
+    expect(prevented).toEqual([true, true]);
+    await expect(page.getByText("Signature valid")).toBeVisible();
+  });
+
+  test("several files dropped: each zone uses its own kind and says so", async ({ page }) => {
+    const record = goldenPayload("manual.json");
+    const pdf = { name: "evidence.pdf", type: "application/pdf", body: fixture(`golden/manual.${record.evidence_id}.pdf`) };
+    const json = { name: "manual.json", type: "application/json", body: fixture("golden/manual.json") };
+    await dropFiles(page.getByRole("region", { name: "Drop the signed envelope JSON file here" }), [pdf, json]);
+    await expect(page.getByText("Signature valid")).toBeVisible();
+    await expect(page.getByText("This page checks one file at a time, so it used “manual.json”.")).toBeVisible();
+    await dropFiles(page.getByRole("region", { name: "Drop the matching evidence PDF here" }), [json, pdf]);
+    await expect(page.getByText("match", { exact: true })).toBeVisible();
+    await expect(page.getByText("This page checks one file at a time, so it used “evidence.pdf”.")).toBeVisible();
+  });
+
+  test("the raw view keeps 64-bit integers and scrolls", async ({ page }) => {
+    await loadEnvelope(page, "sample-envelope-v1-bignum.json");
+    await expect(page.getByText("Signature valid")).toBeVisible();
+    await page.getByText("Envelope details").click();
+    const pre = page.locator("main pre[data-raw]").first();
+    await expect(pre).toContainText('"max_int64": 9223372036854775807');
+    await expect(pre).toContainText('"epoch_nanos": 1700000000000000123');
+    await expect(pre).toHaveCSS("overflow-y", "auto");
+  });
+
+  test("labels member hashes and points the empty zone at attachments/", async ({ page }) => {
+    await expect(page.getByText("Once it verifies, you can check the merged PDF from the attachments/ folder.")).toBeVisible();
+    await loadEnvelope(page, "fanout.json", fixture("golden/fanout.json"));
+    await expect(page.getByText("Signature valid")).toBeVisible();
+    await expect(page.getByText("Merged PDF SHA-256").first()).toBeVisible();
   });
 });

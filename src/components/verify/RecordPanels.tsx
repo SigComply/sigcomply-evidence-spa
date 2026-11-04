@@ -99,8 +99,8 @@ export function MembersPanel({
           {satisfied} of {total} members satisfied
         </h2>
         <p className="mt-0.5 text-sm text-slate-400">
-          Each member has its own folder. The CLI signed these results; this
-          page doesn&apos;t re-check the folders.
+          Each member has its own folder. The CLI signed these results, and
+          this page doesn&apos;t re-check the folders.
         </p>
       </div>
       <ul className="divide-y divide-slate-700">
@@ -139,8 +139,9 @@ export function MembersPanel({
                 </p>
               ))}
               {m.file_hash && (
-                <p className="font-mono text-xs break-all text-slate-400">
-                  {m.file_hash}
+                <p className="text-xs break-all text-slate-400">
+                  <span>Merged PDF SHA-256</span>{" "}
+                  <span className="font-mono">{m.file_hash}</span>
                 </p>
               )}
             </li>

@@ -36,22 +36,30 @@ const TONE = {
 
 // The one-line verdict sits in the hue; the explanation under it stays
 // neutral, so the caveat on a valid signature doesn't read as more success.
+// The banner is a polite live region, and its title is a heading the page
+// focuses once the verdict lands.
 function Banner({
   tone,
   Icon,
   spin,
   title,
+  headingRef,
   children,
 }: {
   tone: keyof typeof TONE;
   Icon: LucideIcon;
   spin?: boolean;
   title: string;
+  headingRef?: React.Ref<HTMLHeadingElement>;
   children?: React.ReactNode;
 }) {
   const t = TONE[tone];
   return (
-    <div data-testid="verdict" className={cn("border-b px-5 py-4", t.box)}>
+    <div
+      data-testid="verdict"
+      role="status"
+      className={cn("border-b px-5 py-4", t.box)}
+    >
       <div className="flex items-start gap-4">
         <div
           className={cn(
@@ -62,14 +70,16 @@ function Banner({
           <Icon aria-hidden className={cn("size-5", spin && "animate-spin")} />
         </div>
         <div className="min-w-0 flex-1">
-          <p
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
             className={cn(
-              "flex min-h-10 items-center text-lg font-bold",
+              "flex min-h-10 items-center text-lg font-bold focus:outline-none",
               t.title,
             )}
           >
             {title}
-          </p>
+          </h2>
           {children && (
             <div className="space-y-3 text-sm text-slate-300">{children}</div>
           )}
@@ -79,7 +89,13 @@ function Banner({
   );
 }
 
-export function VerdictBanner({ status }: { status: SigStatus }) {
+export function VerdictBanner({
+  status,
+  headingRef,
+}: {
+  status: SigStatus;
+  headingRef?: React.Ref<HTMLHeadingElement>;
+}) {
   if (status.state === "verifying" || status.state === "idle") {
     return (
       <Banner
@@ -87,19 +103,22 @@ export function VerdictBanner({ status }: { status: SigStatus }) {
         Icon={Loader2}
         spin
         title="Verifying signature…"
+        headingRef={headingRef}
       />
     );
   }
 
   if (status.state === "valid") {
     return (
-      <Banner tone="valid" Icon={CheckCircle2} title="Signature valid">
+      <Banner tone="valid" Icon={CheckCircle2} title="Signature valid"
+        headingRef={headingRef}
+      >
         <p>
-          The file is self-consistent: its records match the signature and
-          the public key inside it. The CLI makes a new key for every file,
-          so a valid signature doesn&apos;t show who signed it. Ask whether
-          the vault is write-once storage; that is what stops a file being
-          replaced and signed again.
+          The file is self-consistent. Its records match the signature and
+          the public key inside this file. The CLI makes a new key for every
+          file, so a valid signature doesn&apos;t show who signed it. Only
+          write-once storage stops someone replacing a file and signing it
+          again. Ask whether the vault uses it.
         </p>
         {status.result.keyFingerprint && (
           <div>
@@ -115,14 +134,18 @@ export function VerdictBanner({ status }: { status: SigStatus }) {
 
   if (status.state === "invalid") {
     return (
-      <Banner tone="invalid" Icon={XCircle} title="Signature invalid">
+      <Banner tone="invalid" Icon={XCircle} title="Signature invalid"
+        headingRef={headingRef}
+      >
         <p>{status.result.reason}</p>
       </Banner>
     );
   }
 
   return (
-    <Banner tone="error" Icon={FileWarning} title="Verification could not run">
+    <Banner tone="error" Icon={FileWarning} title="Verification could not run"
+      headingRef={headingRef}
+    >
       <p>{status.message}</p>
     </Banner>
   );

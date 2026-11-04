@@ -99,6 +99,8 @@ describe("Verify page", () => {
       new File(["hello"], "notes.txt", { type: "text/plain" }),
     );
     expect(await screen.findByText(/doesn't look like a PDF/)).toBeTruthy();
+    expect(screen.getByText("Not a PDF")).toBeTruthy();
+    expect(screen.queryByText("Could not hash file")).toBeNull();
   });
 
   it("explains a malformed paste and an unsupported format_version", async () => {
@@ -160,7 +162,7 @@ describe("Verify page", () => {
     await loadEnvelope(container, "tampered.json", tampered);
     await screen.findByText("Signature invalid");
     expect(screen.queryByText(/members satisfied/)).toBeNull();
-    expect(screen.getByText(/Hidden: the signature isn't valid/)).toBeTruthy();
+    expect(screen.getByText(/Hidden because the signature isn't valid/)).toBeTruthy();
   });
 
   it("offers no PDF match or recorded results when the signature is invalid", async () => {
@@ -173,7 +175,7 @@ describe("Verify page", () => {
     const { container } = renderVerify();
     await loadEnvelope(container, "tampered.json", tampered);
     await screen.findByText("Signature invalid");
-    expect(screen.getByText(/Hidden: the signature isn't valid/)).toBeTruthy();
+    expect(screen.getByText(/Hidden because the signature isn't valid/)).toBeTruthy();
     // Neither the recorded verdicts nor the PDF check are offered.
     expect(screen.queryByText("What the CLI recorded")).toBeNull();
     expect(screen.queryByText("File in the folder")).toBeNull();
@@ -235,6 +237,155 @@ describe("Verify page", () => {
     expect(screen.getByRole("button", { name: "Choose envelope file" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Drop the signed envelope JSON file here" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Drop/ })).toBeNull();
+  });
+});
+
+function drop(target: HTMLElement, files: File[]) {
+  fireEvent.drop(target, { dataTransfer: { files, types: ["Files"] } });
+}
+
+const pdfFile = (name = "evidence.pdf") =>
+  new File([fixture("golden/manual.access_review_quarterly.pdf")], name, { type: "application/pdf" });
+
+describe("Verify page polish", () => {
+  afterEach(cleanup);
+
+  it("names the tab", () => {
+    renderVerify();
+    expect(document.title).toBe("Verify · SigComply Evidence");
+  });
+
+  it("checks another PDF after a match without reloading the envelope", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    await user.upload(fileInput(container, "application/pdf,.pdf"), pdfFile());
+    expect(await screen.findByText("match")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Check another PDF" }));
+    expect(screen.queryByText("match")).toBeNull();
+    expect(screen.getByText("Signature valid")).toBeTruthy();
+    const choose = screen.getByRole("button", { name: "Choose PDF" });
+    expect(document.activeElement).toBe(choose);
+
+    await user.upload(
+      fileInput(container, "application/pdf,.pdf"),
+      new File(["%PDF-1.4 other"], "other.pdf", { type: "application/pdf" }),
+    );
+    expect(await screen.findByText("mismatch")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check another PDF" })).toBeTruthy();
+  });
+
+  it("gives likely causes for a mismatch without suggesting tampering", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    await user.upload(
+      fileInput(container, "application/pdf,.pdf"),
+      new File(["%PDF-1.4 other"], "other.pdf", { type: "application/pdf" }),
+    );
+    await screen.findByText("mismatch");
+    const cause = screen.getByText(/merged PDF from the run's/);
+    expect(cause.textContent).toContain("policies/<policy_id>/attachments/");
+    expect(cause.textContent).toMatch(/original upload matches only when its folder held one PDF/);
+    expect(cause.textContent).not.toMatch(/tamper|alter|modif/i);
+    expect(cause.textContent).not.toMatch(OVERCLAIM);
+  });
+
+  it("announces the verdict and the PDF result, and moves focus with the flow", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    const verdict = screen.getByTestId("verdict");
+    expect(verdict.getAttribute("role")).toBe("status");
+    const heading = screen.getByRole("heading", { name: "Signature valid" });
+    expect(document.activeElement).toBe(heading);
+
+    const pdfStatus = screen.getByTestId("pdf-result");
+    expect(pdfStatus.getAttribute("role")).toBe("status");
+    await user.upload(fileInput(container, "application/pdf,.pdf"), pdfFile());
+    await screen.findByText("match");
+    expect(pdfStatus.textContent).toContain("evidence.pdf matches");
+
+    await user.click(screen.getByRole("button", { name: /verify another/i }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Choose envelope file" }));
+  });
+
+  it("names a PDF or a run manifest dropped on the envelope zone", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "evidence.pdf", "%PDF-1.7\n1 0 obj");
+    expect(await screen.findByText(/^This is a PDF\. Load the evidence envelope/)).toBeTruthy();
+    expect(screen.queryByText(/Invalid JSON/)).toBeNull();
+    await loadEnvelope(container, "manifest.json", text("cli-run/manifest.json"));
+    expect(await screen.findByText(/^This is the run's manifest\.json/)).toBeTruthy();
+    expect(screen.queryByText(/Expected fields/)).toBeNull();
+  });
+
+  it("keeps a drop outside the zones from opening the file, while mounted", () => {
+    const fire = () => {
+      const out: boolean[] = [];
+      for (const type of ["dragover", "drop"]) {
+        const ev = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, "dataTransfer", { value: { types: ["Files"], dropEffect: "copy" } });
+        document.body.dispatchEvent(ev);
+        out.push(ev.defaultPrevented);
+      }
+      return out;
+    };
+    const { unmount } = renderVerify();
+    expect(fire()).toEqual([true, true]);
+    unmount();
+    expect(fire()).toEqual([false, false]);
+  });
+
+  it("keeps the drag highlight while the pointer crosses the zone's children", () => {
+    renderVerify();
+    const zone = screen.getByRole("region", { name: "Drop the signed envelope JSON file here" });
+    fireEvent.dragEnter(zone);
+    fireEvent.dragEnter(zone.querySelector("p")!);
+    fireEvent.dragLeave(zone);
+    expect(zone.dataset.dragActive).toBe("true");
+    fireEvent.dragLeave(zone.querySelector("p")!);
+    expect(zone.dataset.dragActive).toBe("false");
+  });
+
+  it("uses the .json of several files dropped on the envelope zone, and says so", async () => {
+    renderVerify();
+    const zone = screen.getByRole("region", { name: "Drop the signed envelope JSON file here" });
+    drop(zone, [pdfFile(), new File([text("golden/manual.json")], "manual.json", { type: "application/json" })]);
+    expect(await screen.findByText("Signature valid")).toBeTruthy();
+    expect(screen.getByText("This page checks one file at a time, so it used “manual.json”.")).toBeTruthy();
+  });
+
+  it("uses the .pdf of several files dropped on the PDF zone, and says so", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    const zone = screen.getByRole("region", { name: "Drop the matching evidence PDF here" });
+    drop(zone, [new File(["{}"], "manual.json", { type: "application/json" }), pdfFile()]);
+    expect(await screen.findByText("match")).toBeTruthy();
+    expect(screen.getByText("This page checks one file at a time, so it used “evidence.pdf”.")).toBeTruthy();
+  });
+
+  it("shows big integers digit for digit in the raw view, in a scrolling block", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "sample-envelope-v1-bignum.json");
+    await screen.findByText("Signature valid");
+    await user.click(screen.getByText("Envelope details"));
+    const details = screen.getByText("Envelope details").closest("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    const pre = await screen.findByText(/"max_int64": 9223372036854775807/);
+    expect(pre.textContent).toContain('"epoch_nanos": 1700000000000000123');
+    expect(pre.className).toMatch(/max-h-/);
+    expect(pre.className).toMatch(/overflow-auto/);
+  });
+
+  it("labels fan-out member hashes and points the empty zone at attachments/", async () => {
+    const { container } = renderVerify();
+    expect(screen.getByText(/check the merged PDF from the attachments\/ folder/)).toBeTruthy();
+    await loadEnvelope(container, "golden/fanout.json");
+    await screen.findByText("Signature valid");
+    expect(screen.getAllByText("Merged PDF SHA-256").length).toBeGreaterThan(0);
   });
 });
 

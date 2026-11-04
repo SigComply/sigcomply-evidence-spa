@@ -1,8 +1,15 @@
-import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  RotateCcw,
+  Upload,
+  XCircle,
+} from "lucide-react";
 import { Callout } from "@/components/common/Callout";
 import { Pill } from "@/components/common/Pill";
 import { BUTTON_SECONDARY, INLINE_CODE } from "@/components/common/styles";
 import type { ExpectedPdfHash } from "@/lib/verification/manual";
+import type { DropHandlers } from "@/components/verify/useFileDrop";
 import { cn } from "@/lib/utils";
 
 export type PdfStatus =
@@ -15,25 +22,32 @@ export type PdfStatus =
       hash: string;
       expected: ExpectedPdfHash[];
     }
-  | { state: "error"; message: string };
+  | { state: "error"; message: string; title?: string };
 
 export function PdfCheck({
   status,
   fanout,
   dragActive,
-  setDragActive,
-  onDrop,
+  dropHandlers,
   inputRef,
+  chooseRef,
   onFile,
+  onReset,
+  note,
 }: {
   status: PdfStatus;
   fanout: boolean;
   dragActive: boolean;
-  setDragActive: (on: boolean) => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  dropHandlers: DropHandlers;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  /** The "Choose PDF" button, focused again after "Check another PDF". */
+  chooseRef: React.RefObject<HTMLButtonElement | null>;
   onFile: (file: File) => void;
+  onReset: () => void;
+  /** Says which file a multi-file drop used. */
+  note?: string | null;
 }) {
+  const done = status.state === "match" || status.state === "mismatch";
   const attachments = (
     <code className={INLINE_CODE}>policies/&lt;policy_id&gt;/attachments/</code>
   );
@@ -46,9 +60,9 @@ export function PdfCheck({
             {fanout ? (
               <>
                 Drop a member&apos;s PDF from the run folder&apos;s{" "}
-                {attachments} to check it against each member&apos;s hash. A
-                member folder that held one PDF also matches its original
-                upload.
+                {attachments} to check it against each member&apos;s hash. If a
+                member&apos;s folder held one PDF, that original upload matches
+                too.
               </>
             ) : (
               <>
@@ -73,14 +87,12 @@ export function PdfCheck({
         )}
       </div>
 
-      {status.state !== "match" && status.state !== "mismatch" && (
+      {!done && (
         <div
           role="region"
           aria-label="Drop the matching evidence PDF here"
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onDragEnter={() => setDragActive(true)}
-          onDragLeave={() => setDragActive(false)}
+          data-drag-active={dragActive}
+          {...dropHandlers}
           className={cn(
             "flex flex-wrap items-center justify-center gap-3 rounded-lg border-2 border-dashed p-4 text-sm text-slate-400 transition-colors",
             dragActive
@@ -97,6 +109,7 @@ export function PdfCheck({
             <>
               <span>Drop the PDF here, or</span>
               <button
+                ref={chooseRef}
                 type="button"
                 className={cn(BUTTON_SECONDARY, "px-3 py-1.5")}
                 onClick={() => inputRef.current?.click()}
@@ -120,46 +133,70 @@ export function PdfCheck({
         </div>
       )}
 
-      {status.state === "match" && (
-        // One text run, so the whole line reads (and is found) as one
-        // sentence; the hash alone may break anywhere.
-        <p className="text-sm break-words text-slate-400">
-          <span className="font-mono break-all text-slate-300">
-            {status.filename}
-          </span>{" "}
-          matches{" "}
-          <span className="font-medium text-slate-100">
-            {status.matched.label}
-          </span>{" "}
-          · SHA-256{" "}
-          <span className="mt-1 block font-mono text-xs break-all text-slate-300">
-            {status.hash}
-          </span>
-        </p>
-      )}
-      {status.state === "mismatch" && (
-        <div className="space-y-1 text-sm break-all">
-          <p>
-            <span className="text-slate-400">Got: </span>
-            <span className="font-mono text-xs text-slate-300">
+      {note && <p className="text-sm text-slate-400">{note}</p>}
+
+      {/* Always mounted, so a screen reader hears the result when it lands. */}
+      <div role="status" data-testid="pdf-result" className="space-y-3">
+        {status.state === "match" && (
+          // One text run, so the whole line reads (and is found) as one
+          // sentence; the hash alone may break anywhere.
+          <p className="text-sm break-words text-slate-400">
+            <span className="font-mono break-all text-slate-300">
+              {status.filename}
+            </span>{" "}
+            matches{" "}
+            <span className="font-medium text-slate-100">
+              {status.matched.label}
+            </span>{" "}
+            · SHA-256{" "}
+            <span className="mt-1 block font-mono text-xs break-all text-slate-300">
               {status.hash}
             </span>
           </p>
-          <p className="text-slate-400">
-            {status.expected.length === 1 ? "Expected:" : "Expected one of:"}
+        )}
+        {status.state === "mismatch" && (
+          <p className="text-sm text-slate-300">
+            Check that this is the merged PDF from the run&apos;s {attachments}{" "}
+            folder, since an original upload matches only when its folder held
+            one PDF.
           </p>
-          {status.expected.map((e) => (
-            <p key={`${e.label}-${e.hash}`}>
-              {status.expected.length > 1 && (
-                <span className="text-slate-400">{e.label}: </span>
-              )}
-              <span className="font-mono text-xs text-slate-300">{e.hash}</span>
+        )}
+        {status.state === "mismatch" && (
+          <div className="space-y-1 text-sm break-all">
+            <p>
+              <span className="text-slate-400">Got: </span>
+              <span className="font-mono text-xs text-slate-300">
+                {status.hash}
+              </span>
             </p>
-          ))}
-        </div>
+            <p className="text-slate-400">
+              {status.expected.length === 1 ? "Expected:" : "Expected one of:"}
+            </p>
+            {status.expected.map((e) => (
+              <p key={`${e.label}-${e.hash}`}>
+                {status.expected.length > 1 && (
+                  <span className="text-slate-400">{e.label}: </span>
+                )}
+                <span className="font-mono text-xs text-slate-300">
+                  {e.hash}
+                </span>
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+      {done && (
+        <button
+          type="button"
+          className={cn(BUTTON_SECONDARY, "px-3 py-1.5")}
+          onClick={onReset}
+        >
+          <RotateCcw aria-hidden />
+          Check another PDF
+        </button>
       )}
       {status.state === "error" && (
-        <Callout tone="error" title="Could not hash file">
+        <Callout tone="error" title={status.title ?? "Could not hash file"}>
           {status.message}
         </Callout>
       )}

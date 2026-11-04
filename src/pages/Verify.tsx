@@ -39,6 +39,14 @@ import {
   type ExpectedPdfHash,
 } from "@/lib/verification/manual";
 import { parseEnvelopeText } from "@/lib/verification/parse-envelope";
+import { parseJSONPreservingNumbers } from "@/lib/verification/canonical";
+import { prettyJSON } from "@/lib/verification/pretty";
+import {
+  pickFile,
+  useFileDrop,
+  useWindowDropGuard,
+} from "@/components/verify/useFileDrop";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 // The page's tests import these from here.
 export { VerdictBanner, type SigStatus };
@@ -68,15 +76,20 @@ function truncate(s: string, n = 20): string {
   return `${s.slice(0, n)}…${s.slice(-n)}`;
 }
 
-function previewPayload(p: unknown): string {
+// The raw records view, printed from a lexeme-preserving parse of the file's
+// own text, so integers above 2^53 show as written rather than rounded.
+function previewRecords(sourceText: string, fallback: unknown): string {
   try {
-    return JSON.stringify(p, null, 2);
+    const raw = parseJSONPreservingNumbers(sourceText) as { records?: unknown };
+    return prettyJSON(raw.records);
   } catch {
-    return String(p);
+    return JSON.stringify(fallback, null, 2);
   }
 }
 
 export function Verify() {
+  useDocumentTitle("Verify");
+  useWindowDropGuard();
   const [rawJson, setRawJson] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
   const [envelope, setEnvelope] = useState<EvidenceEnvelope | null>(null);
@@ -89,10 +102,17 @@ export function Verify() {
   const [loadedName, setLoadedName] = useState(PASTED);
   const [sigStatus, setSigStatus] = useState<SigStatus>({ state: "idle" });
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>({ state: "idle" });
-  const [envDragActive, setEnvDragActive] = useState(false);
-  const [pdfDragActive, setPdfDragActive] = useState(false);
+  // Which file a multi-file drop used, shown under the zone it was dropped on.
+  const [envNote, setEnvNote] = useState<string | null>(null);
+  const [pdfNote, setPdfNote] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const envChooseRef = useRef<HTMLButtonElement>(null);
+  const pdfChooseRef = useRef<HTMLButtonElement>(null);
+  const verdictRef = useRef<HTMLHeadingElement>(null);
+  // A reset unmounts the button that had focus; this names the button to
+  // focus once its zone is back on screen.
+  const pendingFocus = useRef<"envelope" | "pdf" | null>(null);
   // Bumped whenever the loaded envelope or PDF check starts over, so a hash
   // that finishes later can't report against the wrong record.
   const pdfRun = useRef(0);
@@ -132,8 +152,10 @@ export function Verify() {
       pdfRun.current++;
       setLoadedName(opts?.name ?? PASTED);
       setPdfStatus({ state: "idle" });
+      setPdfNote(null);
+      if (!opts?.name) setEnvNote(null);
 
-      const result = parseEnvelopeText(text);
+      const result = parseEnvelopeText(text, { name: opts?.name });
       if (result.kind === "empty") {
         setRawJson(text);
         setEnvelope(null);
@@ -167,7 +189,8 @@ export function Verify() {
   );
 
   const handleEnvelopeFile = useCallback(
-    async (file: File) => {
+    async (file: File, note: string | null = null) => {
+      setEnvNote(note);
       try {
         const text = await file.text();
         handleParse(text, { reformat: true, name: file.name });
@@ -223,8 +246,9 @@ export function Verify() {
   }, [envelope, sourceText]);
 
   const handlePdfFile = useCallback(
-    async (file: File) => {
+    async (file: File, note: string | null = null) => {
       if (!manualDoc || pdfHashes.length === 0) return;
+      setPdfNote(note);
       // Guard against an obviously-wrong file so a hash mismatch doesn't read
       // as "the evidence was tampered with" when the user simply dropped the
       // wrong file. The manifest hashes the merged evidence.pdf.
@@ -234,6 +258,7 @@ export function Verify() {
       if (!looksPdf) {
         setPdfStatus({
           state: "error",
+          title: "Not a PDF",
           message: `“${file.name}” doesn't look like a PDF. Drop the PDF from the run folder's attachments/, or the original upload if the folder held one PDF.`,
         });
         return;
@@ -265,27 +290,56 @@ export function Verify() {
     [manualDoc, pdfHashes],
   );
 
-  const onEnvelopeDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setEnvDragActive(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) void handleEnvelopeFile(file);
-    },
-    [handleEnvelopeFile],
+  // Several files dropped at once: each zone takes the one of its own kind.
+  const envDrop = useFileDrop(
+    useCallback(
+      (files: File[]) => {
+        const { file, note } = pickFile(files, ".json", "application/json");
+        if (file) void handleEnvelopeFile(file, note);
+      },
+      [handleEnvelopeFile],
+    ),
+  );
+  const pdfDrop = useFileDrop(
+    useCallback(
+      (files: File[]) => {
+        const { file, note } = pickFile(files, ".pdf", "application/pdf");
+        if (file) void handlePdfFile(file, note);
+      },
+      [handlePdfFile],
+    ),
   );
 
-  const onPdfDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setPdfDragActive(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) void handlePdfFile(file);
-    },
-    [handlePdfFile],
-  );
+  // Once the verdict lands, move focus to it: the drop zone that had focus
+  // is gone.
+  useEffect(() => {
+    const s = sigStatus.state;
+    if (s === "valid" || s === "invalid" || s === "error") {
+      verdictRef.current?.focus();
+    }
+  }, [sigStatus.state]);
+
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (!target) return;
+    const el = target === "envelope" ? envChooseRef.current : pdfChooseRef.current;
+    if (el) {
+      el.focus();
+      pendingFocus.current = null;
+    }
+  });
+
+  const resetPdf = useCallback(() => {
+    pdfRun.current++;
+    setPdfStatus({ state: "idle" });
+    setPdfNote(null);
+    pendingFocus.current = "pdf";
+  }, []);
 
   const reset = useCallback(() => {
+    pendingFocus.current = "envelope";
+    setEnvNote(null);
+    setPdfNote(null);
     pdfRun.current++;
     setRawJson("");
     setSourceText("");
@@ -309,7 +363,7 @@ export function Verify() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Verify signed evidence"
-        subtitle="For auditors: check the signature on an evidence file the SigComply CLI wrote to the vault. You can also check that a PDF matches the hash in the file. Everything runs in your browser; nothing is uploaded."
+        subtitle="For auditors. Check the signature on an evidence file the SigComply CLI wrote to the vault, and check a PDF against the hash it records. Everything runs in your browser, and nothing is uploaded."
       />
 
       {/* Input: prominent until an envelope is loaded, then a thin bar. */}
@@ -318,13 +372,11 @@ export function Verify() {
           <div
             role="region"
             aria-label="Drop the signed envelope JSON file here"
-            onDrop={onEnvelopeDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onDragEnter={() => setEnvDragActive(true)}
-            onDragLeave={() => setEnvDragActive(false)}
+            data-drag-active={envDrop.active}
+            {...envDrop.handlers}
             className={cn(
               "flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors",
-              envDragActive
+              envDrop.active
                 ? "border-indigo-500 bg-indigo-500/10"
                 : "border-slate-600 bg-slate-800/50",
             )}
@@ -342,8 +394,13 @@ export function Verify() {
                   <BreakablePath path={EXAMPLE_PATH} />
                 </code>
               </p>
+              <p className="text-sm text-slate-400">
+                Once it verifies, you can check the merged PDF from the
+                attachments/ folder.
+              </p>
             </div>
             <button
+              ref={envChooseRef}
               type="button"
               className={BUTTON_PRIMARY}
               onClick={() => fileInputRef.current?.click()}
@@ -385,6 +442,8 @@ export function Verify() {
             </div>
           </details>
 
+          {envNote && <p className="text-sm text-slate-400">{envNote}</p>}
+
           {parseError && (
             <Callout tone="error" title="Could not parse envelope">
               {parseError}
@@ -418,9 +477,13 @@ export function Verify() {
         </div>
       )}
 
+      {envelope && envNote && (
+        <p className="text-sm text-slate-400">{envNote}</p>
+      )}
+
       {envelope && (
         <div className={cn(CARD, "overflow-hidden")}>
-          <VerdictBanner status={sigStatus} />
+          <VerdictBanner status={sigStatus} headingRef={verdictRef} />
 
           {/* Identity and what the file holds */}
           <section className="space-y-3 px-5 py-4">
@@ -470,8 +533,8 @@ export function Verify() {
               </h2>
               <p className="mt-0.5 text-sm text-slate-400">
                 {sigStatus.state === "invalid" || sigStatus.state === "error"
-                  ? "Hidden: the signature isn't valid, so the results and hashes in this file can't be relied on."
-                  : "Shown once the signature is verified."}
+                  ? "Hidden because the signature isn't valid. Don't rely on the results or hashes in this file."
+                  : "Shown after the signature checks out."}
               </p>
             </section>
           )}
@@ -507,11 +570,13 @@ export function Verify() {
               <PdfCheck
                 status={pdfStatus}
                 fanout={!!members}
-                dragActive={pdfDragActive}
-                setDragActive={setPdfDragActive}
-                onDrop={onPdfDrop}
+                dragActive={pdfDrop.active}
+                dropHandlers={pdfDrop.handlers}
                 inputRef={pdfInputRef}
+                chooseRef={pdfChooseRef}
                 onFile={(f) => void handlePdfFile(f)}
+                onReset={resetPdf}
+                note={pdfNote}
               />
             </section>
           )}
@@ -577,9 +642,9 @@ export function Verify() {
                   )}
                   <pre
                     data-raw
-                    className="mt-2 overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-300"
+                    className="mt-2 max-h-96 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-300"
                   >
-                    {previewPayload(envelope.records)}
+                    {previewRecords(sourceText, envelope.records)}
                   </pre>
                 </>
               )}
