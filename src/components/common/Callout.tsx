@@ -40,6 +40,8 @@ export function Callout({
   const t = TONE[tone];
   return (
     <div
+      // An error appears in response to what the user did, so announce it.
+      role={tone === "error" ? "alert" : undefined}
       className={cn("flex items-start gap-3 rounded-lg border p-4", t.box, className)}
     >
       <t.Icon className={cn("mt-0.5 size-5 shrink-0", t.title)} aria-hidden />

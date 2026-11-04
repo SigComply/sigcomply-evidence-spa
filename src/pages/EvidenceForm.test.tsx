@@ -50,8 +50,8 @@ const catalog: Catalog = {
   ],
 };
 
-// The form's error messages; the info callouts (shadcn Alert) also carry
-// role="alert".
+// The form's error messages; an error Callout (catalog or entry not found)
+// also carries role="alert".
 function errorAlerts() {
   return screen.getAllByRole("alert").filter((el) => el.classList.contains("text-destructive"));
 }

@@ -471,8 +471,9 @@ function UploadHandoff({
             checked={acked}
             onChange={toggleAck}
             className={cn(
-              "mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-indigo-600",
-              FOCUS_RING,
+              // An outline, not FOCUS_RING's box-shadow: WebKit paints no
+              // shadow on a native checkbox.
+              "mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500",
             )}
           />
           <span className="text-sm">
@@ -524,7 +525,7 @@ function HandoffStep({
         {n}
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="font-semibold text-white">{title}</h3>
+        <h2 className="font-semibold text-white">{title}</h2>
         <div className="mt-1 text-sm text-slate-400">{children}</div>
       </div>
     </li>

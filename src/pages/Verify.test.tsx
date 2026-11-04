@@ -187,6 +187,8 @@ describe("Verify page", () => {
     await loadEnvelope(container, "bad.json", bad);
     expect(await screen.findByText("Could not parse envelope")).toBeTruthy();
     expect(screen.getByText(/file_hash should be a string/)).toBeTruthy();
+    // Announced to screen readers, not only drawn.
+    expect(screen.getByRole("alert").textContent).toContain("Could not parse envelope");
   });
 
   it("renders the records JSON only once Envelope details is opened", async () => {

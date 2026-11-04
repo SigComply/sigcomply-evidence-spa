@@ -23,8 +23,9 @@ test("the Attestations nav item is marked current on the list and on a form, not
 
   await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
   await expect(page.getByRole("heading", { name: "Code Of Conduct Acknowledgment" })).toBeVisible();
-  await expect(attestations).toHaveAttribute("aria-current", "page");
-  await expect(verify).not.toHaveAttribute("aria-current", "page");
+  // A form page is inside the Attestations section, not the list page itself.
+  await expect(attestations).toHaveAttribute("aria-current", "true");
+  await expect(verify).not.toHaveAttribute("aria-current");
 
   await page.goto("./");
   await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
@@ -33,7 +34,7 @@ test("the Attestations nav item is marked current on the list and on a form, not
   await page.goto("verify");
   await expect(page.getByRole("heading", { name: "Verify signed evidence" })).toBeVisible();
   await expect(verify).toHaveAttribute("aria-current", "page");
-  await expect(attestations).not.toHaveAttribute("aria-current", "page");
+  await expect(attestations).not.toHaveAttribute("aria-current");
 });
 
 test("an unknown route shows the in-app 404", async ({ page }) => {

@@ -346,6 +346,9 @@ export function Dashboard() {
 
       {!loading && !error && (
         <>
+          {/* Gives the group and empty-state h3s a parent, so they don't
+              read as part of the periods card. */}
+          <h2 className="sr-only">Attestations</h2>
           <EvidenceList entries={filteredEntries} framework={framework} />
 
           {filteredEntries.length === 0 && (

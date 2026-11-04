@@ -15,7 +15,8 @@ const navItemClass = (active: boolean) =>
 export function Header() {
   // A form page belongs to the attestation list it was opened from.
   const { pathname } = useLocation();
-  const onAttestations = pathname === "/" || pathname.startsWith("/evidence/");
+  const onList = pathname === "/";
+  const onAttestations = onList || pathname.startsWith("/evidence/");
 
   return (
     <header className="border-b border-slate-800">
@@ -30,7 +31,8 @@ export function Header() {
         <nav aria-label="Main" className="ml-auto flex items-center gap-1">
           <Link
             to="/"
-            aria-current={onAttestations ? "page" : undefined}
+            // "page" only on the list itself; a form page is inside that section.
+            aria-current={onList ? "page" : onAttestations ? "true" : undefined}
             className={navItemClass(onAttestations)}
           >
             Attestations
