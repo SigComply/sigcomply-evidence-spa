@@ -6,11 +6,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Shield } from "lucide-react";
-
-const frameworkLabels: Record<string, string> = {
-  soc2: "SOC 2 Type II",
-  iso27001: "ISO 27001",
-};
+import { cn } from "@/lib/utils";
+import { FOCUS_RING } from "@/components/common/styles";
+import { frameworkLabel } from "./framework-labels";
 
 interface FrameworkPickerDialogProps {
   open: boolean;
@@ -36,26 +34,30 @@ export function FrameworkPickerDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-white">
+            <Shield className="h-5 w-5 text-indigo-400" aria-hidden />
             Select your framework
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-400">
             You can change it later from the list.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
-          {frameworks.map((fw) => {
-            return (
-              <button
-                key={fw}
-                onClick={() => onSelect(fw)}
-                className="flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 hover:border-primary/50"
-              >
-                <span className="font-medium text-sm">{frameworkLabels[fw] ?? fw}</span>
-              </button>
-            );
-          })}
+          {frameworks.map((fw) => (
+            <button
+              key={fw}
+              type="button"
+              onClick={() => onSelect(fw)}
+              className={cn(
+                "flex cursor-pointer flex-col items-start gap-1 rounded-lg border border-slate-700 bg-slate-900/50 p-4 text-left transition-colors hover:border-indigo-500",
+                FOCUS_RING,
+              )}
+            >
+              <span className="text-sm font-medium text-white">
+                {frameworkLabel(fw)}
+              </span>
+            </button>
+          ))}
         </div>
       </DialogContent>
     </Dialog>

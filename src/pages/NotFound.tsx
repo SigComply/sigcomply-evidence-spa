@@ -1,12 +1,15 @@
 import { Link } from "react-router-dom";
-import { buttonVariants } from "@/components/ui/button";
+import { CARD, BUTTON_PRIMARY } from "@/components/common/styles";
 
 export function NotFound() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-      <h1 className="text-4xl font-bold">404</h1>
-      <p className="text-muted-foreground">Page not found</p>
-      <Link to="/" className={buttonVariants()}>
+    <div className={`${CARD} mx-auto max-w-xl px-6 py-16 text-center`}>
+      <p className="font-mono text-sm text-slate-500">404</p>
+      <h1 className="mt-2 text-2xl font-bold text-white">Page not found</h1>
+      <p className="mx-auto mt-2 mb-6 max-w-sm text-slate-400">
+        This address doesn’t match a page in the evidence tools.
+      </p>
+      <Link to="/" className={BUTTON_PRIMARY}>
         Back to list
       </Link>
     </div>

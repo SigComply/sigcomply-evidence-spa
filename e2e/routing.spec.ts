@@ -14,6 +14,28 @@ test("a deep link to an evidence form loads the app", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Code Of Conduct Acknowledgment" })).toBeVisible();
 });
 
+test("the Attestations nav item is marked current on the list and on a form, not on Verify", async ({ page }) => {
+  await pinCatalogs(page);
+  await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
+  const nav = page.getByRole("navigation", { name: "Main" });
+  const attestations = nav.getByRole("link", { name: "Attestations" });
+  const verify = nav.getByRole("link", { name: "Verify" });
+
+  await page.goto("evidence/soc2/code_of_conduct_acknowledgment");
+  await expect(page.getByRole("heading", { name: "Code Of Conduct Acknowledgment" })).toBeVisible();
+  await expect(attestations).toHaveAttribute("aria-current", "page");
+  await expect(verify).not.toHaveAttribute("aria-current", "page");
+
+  await page.goto("./");
+  await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();
+  await expect(attestations).toHaveAttribute("aria-current", "page");
+
+  await page.goto("verify");
+  await expect(page.getByRole("heading", { name: "Verify signed evidence" })).toBeVisible();
+  await expect(verify).toHaveAttribute("aria-current", "page");
+  await expect(attestations).not.toHaveAttribute("aria-current", "page");
+});
+
 test("an unknown route shows the in-app 404", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
   await page.goto("no/such/page");
@@ -25,7 +47,7 @@ test("an unknown route shows the in-app 404", async ({ page }) => {
 test("the framework picker asks once and Verify needs no framework", async ({ page }) => {
   await page.goto("./");
   await expect(page.getByText("Select your framework")).toBeVisible();
-  await page.getByRole("button", { name: /ISO 27001/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /ISO 27001/ }).click();
   await expect(page.getByText("Select your framework")).toBeHidden();
   await page.reload();
   await expect(page.getByRole("heading", { name: "User attestations" })).toBeVisible();

@@ -1,31 +1,33 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeclarationForm } from "@/components/forms/DeclarationForm";
 import { ChecklistForm } from "@/components/forms/ChecklistForm";
-import { SeverityBadge } from "@/components/dashboard/StatusBadge";
+import { INPUT_INVALID } from "@/components/forms/styles";
+import { SeverityBadge, OptionalBadge } from "@/components/dashboard/StatusBadge";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Callout } from "@/components/common/Callout";
+import { CopyField } from "@/components/common/CopyField";
+import {
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  CARD,
+  FOCUS_RING,
+  INLINE_CODE,
+  INPUT,
+  SECTION_LABEL,
+} from "@/components/common/styles";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useEvidenceForm } from "@/hooks/useEvidenceForm";
-import { currentPeriod, formatPeriodRange } from "@/lib/period";
+import { currentPeriod, formatPeriodRange, type Period } from "@/lib/period";
 import { computeUploadPath, EVIDENCE_PDF_FILENAME } from "@/lib/storage-path";
-import { copyText } from "@/lib/clipboard";
 import { getDeviceRecord, setUploadedAck } from "@/lib/device-memory";
 import { getConfig } from "@/config/runtime";
 import { UPLOAD_WINDOW_TEXT } from "@/lib/evidence-form";
-import {
-  ArrowLeft,
-  Download,
-  CheckCircle2,
-  Pencil,
-  Copy,
-  Check,
-  AlertCircle,
-  CalendarClock,
-} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Download, CheckCircle2, Pencil } from "lucide-react";
 import type { CatalogEntry } from "@/types/catalog";
 
 // SPA-renderable types: a user-attestation form the SPA produces a PDF for.
@@ -33,23 +35,28 @@ import type { CatalogEntry } from "@/types/catalog";
 // the PDF themselves and uploads it to the same storage path.
 const SPA_RENDERABLE_TYPES = new Set(["declaration", "checklist"]);
 
+const CARD_TITLE = "text-lg font-semibold text-white";
+
 export function EvidenceForm() {
   const { framework = "", evidenceId = "" } = useParams();
   const { catalog, loading, error } = useCatalog(framework);
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
-        <Skeleton className="h-9 w-28" />
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6" aria-busy="true">
+        <Skeleton className="h-5 w-28 bg-slate-800" />
+        <Skeleton className="h-16 w-full max-w-xl bg-slate-800" />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-72 w-full bg-slate-800 lg:col-span-2" />
+          <Skeleton className="h-48 w-full bg-slate-800" />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="max-w-3xl space-y-4">
         <BackButton />
         <Callout tone="error" title="Could not load the catalog">
           {error}
@@ -62,7 +69,7 @@ export function EvidenceForm() {
 
   if (!entry) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="max-w-3xl space-y-4">
         <BackButton />
         <Callout tone="error" title="Evidence entry not found">
           No catalog entry “{evidenceId}” in {framework}. It may have been
@@ -79,141 +86,48 @@ export function EvidenceForm() {
   return <EvidenceFormContent entry={entry} framework={framework} />;
 }
 
+// A button, not a link: it is an action back to the list, styled as the web
+// app's text back link.
 function BackButton() {
   const navigate = useNavigate();
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="-ml-2 gap-1.5 text-muted-foreground"
+    <button
+      type="button"
       onClick={() => navigate("/")}
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-1.5 rounded text-sm text-slate-400 transition-colors hover:text-white",
+        FOCUS_RING,
+      )}
     >
-      <ArrowLeft className="h-4 w-4" />
+      <span aria-hidden>←</span>
       Back to list
-    </Button>
+    </button>
   );
 }
 
-function Callout({
-  tone,
-  title,
-  children,
-}: {
-  tone: "error" | "info";
-  title: string;
-  children: React.ReactNode;
-}) {
-  const isError = tone === "error";
+// EntryChips is the metadata line under the entry's title.
+function EntryChips({ entry }: { entry: CatalogEntry }) {
   return (
-    <div
-      className={[
-        "flex items-start gap-3 rounded-lg border p-4 text-sm",
-        isError
-          ? "border-destructive/30 bg-destructive/5"
-          : "border-border bg-muted/40",
-      ].join(" ")}
-    >
-      <AlertCircle
-        className={[
-          "mt-0.5 h-4 w-4 shrink-0",
-          isError ? "text-destructive" : "text-muted-foreground",
-        ].join(" ")}
-      />
-      <div>
-        <p
-          className={[
-            "font-medium",
-            isError ? "text-destructive" : "text-foreground",
-          ].join(" ")}
-        >
-          {title}
-        </p>
-        <p className="mt-0.5 text-muted-foreground">{children}</p>
-      </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-400">
+      <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-xs text-slate-300">
+        {entry.control}
+      </span>
+      <span className="capitalize">{entry.type.replace(/_/g, " ")}</span>
+      <span aria-hidden className="text-slate-600">
+        ·
+      </span>
+      <span className="capitalize">{entry.frequency}</span>
+      {entry.optional && <OptionalBadge />}
+      <SeverityBadge severity={entry.severity} />
     </div>
   );
 }
 
-// Section wraps one step of the guided flow with a number + title.
-function Section({
-  step,
-  title,
-  description,
-  children,
-}: {
-  step: number;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
+function EntryHeader({ entry }: { entry: CatalogEntry }) {
   return (
-    <section className="rounded-lg border bg-card">
-      <div className="flex items-start gap-3 border-b px-5 py-3">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-          {step}
-        </span>
-        <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {description && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {description}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-// CopyField renders a monospace value with a one-click copy button. This is
-// the heart of "keep the upload hop, but make it obvious".
-function CopyField({
-  value,
-  label,
-  note,
-}: {
-  value: string;
-  label: string;
-  note?: React.ReactNode;
-}) {
-  const [copied, setCopied] = useState(false);
-  async function onCopy() {
-    if (await copyText(value)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    }
-  }
-  return (
-    <div>
-      <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="flex items-stretch gap-2">
-        <code className="min-w-0 flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
-          {value}
-        </code>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onCopy}
-          className="shrink-0"
-        >
-          {copied ? (
-            <>
-              <Check className="mr-1.5 h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="mr-1.5 h-3.5 w-3.5" />
-              Copy
-            </>
-          )}
-        </Button>
-      </div>
-      {note && (
-        <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>
-      )}
+    <div className="space-y-3">
+      <PageHeader title={entry.name} subtitle={entry.description} />
+      <EntryChips entry={entry} />
     </div>
   );
 }
@@ -226,12 +140,10 @@ function CalendarCaveat() {
   return (
     <>
       It assumes the default calendar. If your project uses a{" "}
-      <code className="font-mono">fiscal_year</code> or{" "}
-      <code className="font-mono">custom</code> calendar, run{" "}
-      <code className="rounded bg-muted px-1 py-0.5 font-mono">
-        sigcomply evidence due --all
-      </code>{" "}
-      for the exact folder.
+      <code className={INLINE_CODE}>fiscal_year</code> or{" "}
+      <code className={INLINE_CODE}>custom</code> calendar, run{" "}
+      <code className={INLINE_CODE}>sigcomply evidence due --all</code> for the
+      exact folder.
     </>
   );
 }
@@ -242,18 +154,15 @@ function pathNote(prefix: string): React.ReactNode {
   return (
     <>
       This path starts at the root of your manual evidence storage (the{" "}
-      <code className="font-mono">manual.pdf</code> source in{" "}
-      <code className="font-mono">.sigcomply.yaml</code>). It assumes the
-      prefix{" "}
-      <code className="rounded bg-muted px-1 py-0.5 font-mono">{prefix}</code>{" "}
-      and the default calendar. If your project sets another{" "}
-      <code className="font-mono">prefix</code>, or a{" "}
-      <code className="font-mono">fiscal_year</code> or{" "}
-      <code className="font-mono">custom</code> calendar, run{" "}
-      <code className="rounded bg-muted px-1 py-0.5 font-mono">
-        sigcomply evidence due --all
-      </code>{" "}
-      for the exact folder.
+      <code className={INLINE_CODE}>manual.pdf</code> source in{" "}
+      <code className={INLINE_CODE}>.sigcomply.yaml</code>). It assumes the
+      prefix <code className={INLINE_CODE}>{prefix}</code> and the default
+      calendar. If your project sets another{" "}
+      <code className={INLINE_CODE}>prefix</code>, or a{" "}
+      <code className={INLINE_CODE}>fiscal_year</code> or{" "}
+      <code className={INLINE_CODE}>custom</code> calendar, run{" "}
+      <code className={INLINE_CODE}>sigcomply evidence due --all</code> for the
+      exact folder.
     </>
   );
 }
@@ -270,18 +179,63 @@ function FixedLayoutOnly({
 }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-muted-foreground">
-        {PATH_LABEL}
-      </p>
-      <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
+      <p className="mb-1.5 text-sm font-medium text-slate-300">{PATH_LABEL}</p>
+      <code className="block rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-200 [overflow-wrap:anywhere]">
         {`${entry.id}/${periodKey}/${EVIDENCE_PDF_FILENAME}`}
       </code>
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        Put the <code className="font-mono">prefix</code> of your{" "}
-        <code className="font-mono">manual.pdf</code> source in front of this
+      <p className="mt-2 text-sm text-slate-400">
+        Put the <code className={INLINE_CODE}>prefix</code> of your{" "}
+        <code className={INLINE_CODE}>manual.pdf</code> source in front of this
         path. <CalendarCaveat />
       </p>
     </div>
+  );
+}
+
+// UploadFolder shows where the file goes: the full path with a copy button,
+// or only the fixed layout when the deployment hides its prefix.
+function UploadFolder({
+  entry,
+  periodKey,
+  uploadPath,
+}: {
+  entry: CatalogEntry;
+  periodKey: string;
+  uploadPath: string;
+}) {
+  const cfg = getConfig().storage;
+  return cfg.show_upload_path ? (
+    <CopyField value={uploadPath} label={PATH_LABEL} note={pathNote(cfg.prefix)} />
+  ) : (
+    <FixedLayoutOnly entry={entry} periodKey={periodKey} />
+  );
+}
+
+// PeriodDetails is the aside: the period the PDF will name, when to upload,
+// and the folder it goes to.
+function PeriodDetails({
+  entry,
+  period,
+  uploadPath,
+}: {
+  entry: CatalogEntry;
+  period: Period;
+  uploadPath: string;
+}) {
+  return (
+    <section className={cn(CARD, "p-6")} aria-labelledby="period-heading">
+      <h2 id="period-heading" className={SECTION_LABEL}>
+        Period this evidence covers
+      </h2>
+      <p className="mt-2 font-mono text-2xl font-semibold text-white">
+        {period.key}
+      </p>
+      <p className="mt-1 text-sm text-slate-300">{formatPeriodRange(period)}</p>
+      <p className="mt-3 text-sm text-slate-400">{UPLOAD_WINDOW_TEXT}</p>
+      <div className="mt-5 border-t border-slate-700 pt-5">
+        <UploadFolder entry={entry} periodKey={period.key} uploadPath={uploadPath} />
+      </div>
+    </section>
   );
 }
 
@@ -294,31 +248,17 @@ function ExternalEvidence({ entry }: { entry: CatalogEntry }) {
   const cfg = getConfig().storage;
   const uploadPath = computeUploadPath(cfg.prefix, entry.id, period.key);
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="max-w-3xl space-y-6">
       <BackButton />
-      <div className="rounded-lg border bg-card p-6 space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">{entry.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {entry.description}
-          </p>
-        </div>
-        <Callout tone="info" title="Uploaded directly to your storage">
-          This entry is a document you already have, such as an export, scan
-          or certificate. There’s no form for it: upload the file to the
-          folder below for period{" "}
-          <span className="font-mono">{period.key}</span> (
-          {formatPeriodRange(period)}).
-        </Callout>
-        {cfg.show_upload_path ? (
-          <CopyField
-            value={uploadPath}
-            label={PATH_LABEL}
-            note={pathNote(cfg.prefix)}
-          />
-        ) : (
-          <FixedLayoutOnly entry={entry} periodKey={period.key} />
-        )}
+      <EntryHeader entry={entry} />
+      <Callout tone="info" title="Uploaded directly to your storage">
+        This entry is a document you already have, such as an export, scan or
+        certificate. There’s no form for it: upload the file to the folder below
+        for period <span className="font-mono">{period.key}</span> (
+        {formatPeriodRange(period)}).
+      </Callout>
+      <div className={cn(CARD, "p-6")}>
+        <UploadFolder entry={entry} periodKey={period.key} uploadPath={uploadPath} />
       </div>
     </div>
   );
@@ -352,145 +292,100 @@ function EvidenceFormContent({
     );
   }
 
+  const completedByError = form.attempted ? form.fieldErrors.completedBy : undefined;
+
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="space-y-6">
       <BackButton />
+      <EntryHeader entry={entry} />
 
-      {/* Entry header */}
-      <div className="rounded-lg border bg-card p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold">{entry.name}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {entry.description}
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        <div className="min-w-0 space-y-6 lg:col-span-2 lg:col-start-1 lg:row-start-1">
+          <section className={cn(CARD, "p-6")} aria-labelledby="attestation-heading">
+            <h2 id="attestation-heading" className={cn(CARD_TITLE, "mb-4")}>
+              {entry.type === "declaration" ? "Review and accept" : "Confirm each step"}
+            </h2>
+            {entry.type === "declaration" ? (
+              <DeclarationForm
+                entry={entry}
+                accepted={form.accepted}
+                setAccepted={form.setAccepted}
+              />
+            ) : (
+              <ChecklistForm
+                entry={entry}
+                items={form.items}
+                setItem={form.setItem}
+                noteErrors={form.attempted ? form.fieldErrors.notes : undefined}
+              />
+            )}
+            {form.attempted && form.fieldErrors.attestation && (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {form.fieldErrors.attestation}
+              </p>
+            )}
+          </section>
+
+          <section className={cn(CARD, "p-6")} aria-labelledby="signoff-heading">
+            <h2 id="signoff-heading" className={CARD_TITLE}>
+              Sign-off
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Recorded in the PDF and remembered on this device for next time.
             </p>
-          </div>
-          <SeverityBadge severity={entry.severity} />
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Badge variant="outline" className="font-mono text-xs">
-            {entry.control}
-          </Badge>
-          <Badge variant="outline" className="text-xs capitalize">
-            {entry.type}
-          </Badge>
-          <Badge variant="outline" className="text-xs capitalize">
-            {entry.frequency}
-          </Badge>
-          {entry.optional && (
-            <Badge variant="outline" className="text-xs">
-              Optional
-            </Badge>
-          )}
-        </div>
-      </div>
+            <div className="mt-4 max-w-sm space-y-2">
+              <Label htmlFor="completed-by" className="text-slate-300">
+                Completed by
+              </Label>
+              <Input
+                id="completed-by"
+                value={form.completedBy}
+                onChange={(e) => form.setCompletedBy(e.target.value)}
+                placeholder="Jane Doe or jane@company.com"
+                className={cn(INPUT, INPUT_INVALID)}
+                aria-invalid={Boolean(completedByError)}
+                aria-describedby={completedByError ? "completed-by-error" : undefined}
+              />
+              {completedByError && (
+                <p id="completed-by-error" role="alert" className="text-sm text-destructive">
+                  {completedByError}
+                </p>
+              )}
+            </div>
 
-      {/* 1 — Period context */}
-      <Section
-        step={1}
-        title="Period this evidence covers"
-      >
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono font-medium">{form.period.key}</span>
-            <span className="text-muted-foreground">
-              {formatPeriodRange(form.period)}
-            </span>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {UPLOAD_WINDOW_TEXT}
-          </span>
+            <div className="mt-6 border-t border-slate-700 pt-6">
+              {/* A validation problem is announced next to its field only;
+                  this line is for what has no field, such as a render failure. */}
+              {error && (
+                <p role="alert" className="mb-3 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={form.submitting}
+                className={cn(BUTTON_PRIMARY, "w-full px-6 py-3 text-base sm:w-auto")}
+              >
+                <Download aria-hidden />
+                {form.submitting ? "Generating PDF…" : "Download evidence.pdf"}
+              </button>
+              <p className="mt-3 text-sm text-slate-400">
+                Renders in your browser and downloads. Nothing is uploaded.
+              </p>
+            </div>
+          </section>
         </div>
-      </Section>
 
-      {/* 2 — Attestation */}
-      <Section
-        step={2}
-        title={
-          entry.type === "declaration"
-            ? "Review and accept"
-            : "Confirm each step"
-        }
-      >
-        {entry.type === "declaration" ? (
-          <DeclarationForm
-            entry={entry}
-            accepted={form.accepted}
-            setAccepted={form.setAccepted}
-          />
-        ) : (
-          <ChecklistForm
-            entry={entry}
-            items={form.items}
-            setItem={form.setItem}
-            noteErrors={form.attempted ? form.fieldErrors.notes : undefined}
-          />
-        )}
-        {form.attempted && form.fieldErrors.attestation && (
-          <p role="alert" className="mt-3 text-sm text-destructive">
-            {form.fieldErrors.attestation}
-          </p>
-        )}
-      </Section>
-
-      {/* 3 — Sign-off */}
-      <Section
-        step={3}
-        title="Sign-off"
-        description="Recorded in the PDF and remembered on this device for next time."
-      >
-        <div className="max-w-sm space-y-2">
-          <Label htmlFor="completed-by">Completed by</Label>
-          <Input
-            id="completed-by"
-            value={form.completedBy}
-            onChange={(e) => form.setCompletedBy(e.target.value)}
-            placeholder="Jane Doe or jane@company.com"
-            aria-invalid={
-              form.attempted && Boolean(form.fieldErrors.completedBy)
-            }
-            aria-describedby={
-              form.attempted && form.fieldErrors.completedBy
-                ? "completed-by-error"
-                : undefined
-            }
-          />
-          {form.attempted && form.fieldErrors.completedBy && (
-            <p
-              id="completed-by-error"
-              role="alert"
-              className="text-sm text-destructive"
-            >
-              {form.fieldErrors.completedBy}
-            </p>
-          )}
-        </div>
-      </Section>
-
-      {/* 4 — Generate */}
-      <Section
-        step={4}
-        title="Generate evidence.pdf"
-        description="Renders in your browser and downloads. Nothing is uploaded."
-      >
-        {/* A validation problem is announced next to its field only;
-            this line is for what has no field, such as a render failure. */}
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <Button
-          onClick={handleSubmit}
-          size="lg"
-          disabled={form.submitting}
-          className="w-full sm:w-auto"
+        {/* After the form, so a phone reaches the task first; from lg it
+            sits in the right column and stays in view while scrolling. */}
+        <aside
+          className="min-w-0 lg:sticky lg:top-6 lg:col-start-3 lg:row-start-1"
+          aria-label="Details"
         >
-          <Download className="mr-2 h-4 w-4" />
-          {form.submitting ? "Generating PDF…" : "Download evidence.pdf"}
-        </Button>
-      </Section>
+          <PeriodDetails entry={entry} period={form.period} uploadPath={form.uploadPath} />
+        </aside>
+      </div>
     </div>
   );
 }
@@ -510,8 +405,6 @@ function UploadHandoff({
   uploadPath: string;
   onEdit: () => void;
 }) {
-  const cfg = getConfig().storage;
-
   const [acked, setAcked] = useState(
     Boolean(getDeviceRecord(framework, entry.id, period.key)?.uploadedAt),
   );
@@ -522,71 +415,47 @@ function UploadHandoff({
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="max-w-3xl space-y-6">
       <BackButton />
 
-      <div className="rounded-lg border bg-card p-6">
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-          </span>
-          <div>
-            <h2 className="text-lg font-semibold">
-              evidence.pdf downloaded
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Upload it to the folder below. The CLI can’t see it until you
-              do.
-            </p>
-          </div>
+      <div className="flex items-start gap-4">
+        <span
+          aria-hidden
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20"
+        >
+          <CheckCircle2 className="size-5 text-emerald-400" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            evidence.pdf downloaded
+          </h1>
+          <p className="mt-1 text-slate-400">
+            Upload it to the folder below. The CLI can’t see it until you do.
+          </p>
         </div>
       </div>
 
-      <ol className="space-y-3">
+      <ol className={cn(CARD, "divide-y divide-slate-700")}>
         <HandoffStep n={1} title="Find evidence.pdf in your downloads">
           Your browser saved it as{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            {EVIDENCE_PDF_FILENAME}
-          </code>
-          , or a numbered name such as{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            evidence (1).pdf
-          </code>
-          .
+          <code className={INLINE_CODE}>{EVIDENCE_PDF_FILENAME}</code>, or a
+          numbered name such as{" "}
+          <code className={INLINE_CODE}>evidence (1).pdf</code>.
         </HandoffStep>
 
-        <HandoffStep
-          n={2}
-          title="Upload it to this folder in your evidence storage"
-        >
-          {cfg.show_upload_path ? (
-            <div className="mt-2">
-              <CopyField
-                value={uploadPath}
-                label={PATH_LABEL}
-                note={pathNote(cfg.prefix)}
-              />
-            </div>
-          ) : (
-            <div className="mt-2">
-              <FixedLayoutOnly entry={entry} periodKey={period.key} />
-            </div>
-          )}
+        <HandoffStep n={2} title="Upload it to this folder in your evidence storage">
+          <div className="mt-3">
+            <UploadFolder entry={entry} periodKey={period.key} uploadPath={uploadPath} />
+          </div>
           <p className="mt-3">
             Any file name works, but the CLI merges every file in the folder
             into one PDF: if you’re replacing an earlier copy, delete it.
           </p>
         </HandoffStep>
 
-        <HandoffStep
-          n={3}
-          title="The CLI picks it up on the next scheduled run"
-          last
-        >
+        <HandoffStep n={3} title="The CLI picks it up on the next scheduled run">
           Your scheduled CI run,{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            sigcomply check --scheduled
-          </code>{" "}
+          <code className={INLINE_CODE}>sigcomply check --scheduled</code>{" "}
           (daily by default), checks the folder and signs a record of the file
           for period <span className="font-mono">{period.key}</span>.{" "}
           {UPLOAD_WINDOW_TEXT}
@@ -595,34 +464,40 @@ function UploadHandoff({
 
       {/* Local-only acknowledgement. Deliberately worded so it never reads
           as compliance status — the SPA cannot see the bucket. */}
-      <div className="rounded-lg border border-dashed bg-muted/30 p-4">
+      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-4">
         <label className="flex cursor-pointer items-start gap-3">
           <input
             type="checkbox"
             checked={acked}
             onChange={toggleAck}
-            className="mt-0.5 h-4 w-4 accent-primary"
+            className={cn(
+              "mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-indigo-600",
+              FOCUS_RING,
+            )}
           />
           <span className="text-sm">
-            <span className="font-medium">
+            <span className="font-medium text-slate-100">
               I’ve uploaded this to my evidence storage
             </span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Saved in <strong>this browser only</strong>, as a reminder. It
-              doesn’t check your evidence storage.
+            <span className="mt-0.5 block text-slate-400">
+              Saved in <strong className="text-slate-300">this browser only</strong>,
+              as a reminder. It doesn’t check your evidence storage.
             </span>
           </span>
         </label>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onEdit} className={BUTTON_SECONDARY}>
+          <Pencil aria-hidden />
           Edit &amp; re-download
-        </Button>
+        </button>
         <Link
           to="/"
-          className={buttonVariants({ variant: "ghost", size: "sm", className: "text-muted-foreground" })}
+          className={cn(
+            "rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white",
+            FOCUS_RING,
+          )}
         >
           Back to list
         </Link>
@@ -635,30 +510,23 @@ function HandoffStep({
   n,
   title,
   children,
-  last,
 }: {
   n: number;
   title: string;
   children: React.ReactNode;
-  last?: boolean;
 }) {
   return (
-    <li className="relative rounded-lg border bg-card p-5">
-      <div className="flex gap-4">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold">
-          {n}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="mt-1 text-sm text-muted-foreground">{children}</div>
-        </div>
+    <li className="flex gap-4 p-5 sm:p-6">
+      <span
+        aria-hidden
+        className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white"
+      >
+        {n}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold text-white">{title}</h3>
+        <div className="mt-1 text-sm text-slate-400">{children}</div>
       </div>
-      {!last && (
-        <span
-          aria-hidden
-          className="absolute left-[2.6rem] top-[3.5rem] h-[calc(100%-2rem)] w-px bg-border"
-        />
-      )}
     </li>
   );
 }

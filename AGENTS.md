@@ -207,6 +207,14 @@ replace `config.json` without a rebuild; the public site ships the committed fil
 
 - UI primitives: `npx shadcn@latest add <name>` into `src/components/ui/`. Never hand-edit that
   folder.
+- Visual design matches the SigComply web app: dark only (`<html class="dark">`), slate surfaces,
+  an indigo accent, flat `rounded-xl border-slate-700 bg-slate-800` cards and the system font
+  stack. The shadcn tokens in `src/index.css` carry that palette so the primitives fit; page markup
+  uses the slate and indigo utilities directly. Shared pieces live in `src/components/common/`:
+  `PageHeader` (one `h1` per page), `Callout`, `Pill`, `CopyField`, the logo, and the class strings
+  in `styles.ts`. Status hues mean one thing each: emerald passed, red failed, amber warning, slate
+  neutral. Severity has its own scale (`severityTone` in `src/lib/severity.ts`). Small text stays at
+  `slate-400` or lighter: `slate-500` fails contrast on these surfaces.
 - New PDF template: a `<Foo>Pdf.tsx` in `src/lib/pdf/`, wired in `renderEvidencePdf`. The PDF Info
   `keywords` string comes from `metadataKeywords()` in `src/lib/pdf/metadata.ts`; keep it stable.
   Values percent-encode `%`, `;` and `=` (`keywordValue`), so user text can't add a key.

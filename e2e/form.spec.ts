@@ -230,7 +230,7 @@ test("Edit & re-download keeps the answers", async ({ page }) => {
 
 test("marking it uploaded is remembered in this browser and shown on the list", async ({ page }) => {
   const row = page
-    .locator("div.group")
+    .locator('[data-testid="evidence-row"]')
     .filter({ has: page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }) });
   const uploaded = page.getByRole("checkbox", { name: /uploaded this to my evidence storage/ });
   async function fillAndSubmit() {

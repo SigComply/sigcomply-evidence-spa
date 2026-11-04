@@ -201,6 +201,33 @@ describe("Verify page", () => {
     expect(await screen.findByText(/"source_id": "aws.iam"/)).toBeTruthy();
   });
 
+  it("names the loaded file in the bar, and a paste as a pasted envelope", async () => {
+    const { container } = renderVerify();
+    await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    expect(screen.getByTestId("loaded-envelope").textContent).toContain("golden/manual.json");
+
+    await userEvent.click(screen.getByRole("button", { name: /verify another/i }));
+    fireEvent.change(screen.getByLabelText("Envelope JSON"), {
+      target: { value: text("sample-envelope-v1.json") },
+    });
+    await screen.findByText("Signature valid");
+    expect(screen.getByTestId("loaded-envelope").textContent).toContain("Pasted envelope");
+  });
+
+  it("never names an invalid file's evidence ID in the loaded bar", async () => {
+    const tampered = text("golden/manual.json").replace(/"file_size":1210/, '"file_size":1211');
+    expect(tampered).not.toBe(text("golden/manual.json"));
+    const evidenceId = (JSON.parse(tampered) as { records: { payload: { evidence_id: string } }[] })
+      .records[0].payload.evidence_id;
+    const { container } = renderVerify();
+    await loadEnvelope(container, "tampered.json", tampered);
+    await screen.findByText("Signature invalid");
+    const bar = screen.getByTestId("loaded-envelope").textContent ?? "";
+    expect(bar).toContain("tampered.json");
+    expect(bar).not.toContain(evidenceId);
+  });
+
   it("names the envelope button and labels the drop zone as a region", () => {
     renderVerify();
     expect(screen.getByRole("button", { name: "Choose envelope file" })).toBeTruthy();
@@ -239,6 +266,77 @@ describe("VerdictBanner copy", () => {
     );
     expect(container.textContent).toContain("ab".repeat(32));
     expect(container.textContent).toMatch(/self-consistent/);
+  });
+});
+
+// The same word list over everything the page renders in each state, with
+// every disclosure open: the copy around the verdict mustn't overclaim either.
+describe("Verify page copy", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  async function openAll(container: HTMLElement) {
+    for (const d of container.querySelectorAll("details")) {
+      d.open = true;
+      fireEvent(d, new Event("toggle"));
+    }
+    await screen.findAllByText(/"format_version"|"records"|"payload"/);
+  }
+
+  it("claims nothing beyond the signature with nothing loaded", () => {
+    const { container } = renderVerify();
+    for (const d of container.querySelectorAll("details")) {
+      d.open = true;
+      fireEvent(d, new Event("toggle"));
+    }
+    expect(container.textContent).not.toMatch(OVERCLAIM);
+  });
+
+  it.each([
+    ["valid", "sample-envelope-v1.json", "Signature valid", (t: string) => t],
+    [
+      "invalid",
+      "sample-envelope-v1.json",
+      "Signature invalid",
+      (t: string) => t.replace('"source_id": "aws.iam"', '"source_id": "aws.iaM"'),
+    ],
+    ["manual", "golden/manual.json", "Signature valid", (t: string) => t],
+    ["fanout", "golden/fanout.json", "Signature valid", (t: string) => t],
+  ] as const)("%s: the whole page claims nothing beyond the signature", async (_state, name, verdict, edit) => {
+    const body = edit(text(name));
+    const { container } = renderVerify();
+    await loadEnvelope(container, name, body);
+    await screen.findByText(verdict);
+    await openAll(container);
+    expect(container.textContent).not.toMatch(OVERCLAIM);
+  });
+
+  it("manual with a matched PDF: the whole page claims nothing beyond the signature", async () => {
+    const { container } = renderVerify();
+    const user = await loadEnvelope(container, "golden/manual.json");
+    await screen.findByText("Signature valid");
+    await user.upload(
+      fileInput(container, "application/pdf,.pdf"),
+      new File([fixture("golden/manual.access_review_quarterly.pdf")], "evidence.pdf", {
+        type: "application/pdf",
+      }),
+    );
+    expect(await screen.findByText("match")).toBeTruthy();
+    await openAll(container);
+    expect(container.textContent).not.toMatch(OVERCLAIM);
+  });
+
+  it("error: the whole page claims nothing beyond the signature", async () => {
+    vi.spyOn(crypto.subtle, "importKey").mockRejectedValue(
+      new DOMException("Unrecognized name.", "NotSupportedError"),
+    );
+    const { container } = renderVerify();
+    await loadEnvelope(container, "golden/manual.json");
+    expect(await screen.findByText("Verification could not run")).toBeTruthy();
+    await openAll(container);
+    expect(container.textContent).not.toMatch(OVERCLAIM);
   });
 });
 

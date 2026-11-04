@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import type { CatalogEntry, Frequency } from "@/types/catalog";
 import { currentPeriod, formatPeriodRange } from "@/lib/period";
-import { CalendarClock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CARD, FOCUS_RING, SECTION_LABEL } from "@/components/common/styles";
 
 const FREQUENCY_ORDER: Frequency[] = [
   "daily",
@@ -23,13 +24,14 @@ interface PeriodOverviewProps {
 // simply "how many entries in this (generic, our-built) catalog use this
 // cadence". This static helper has no bucket access — it cannot and must
 // not imply anything is owed, due, done, or overdue for a given customer.
-// Clicking a card filters the list to that frequency.
+// With more than one cadence a tile filters the list to it; with one, a
+// filter would change nothing, so the tile is plain text.
 export function PeriodOverview({
   entries,
   activeFrequency,
   onSelectFrequency,
 }: PeriodOverviewProps) {
-  const cards = useMemo(() => {
+  const tiles = useMemo(() => {
     const byFreq = new Map<Frequency, number>();
     for (const e of entries) {
       byFreq.set(e.frequency, (byFreq.get(e.frequency) ?? 0) + 1);
@@ -45,48 +47,66 @@ export function PeriodOverview({
     });
   }, [entries]);
 
-  if (cards.length === 0) return null;
+  if (tiles.length === 0) return null;
+  const filterable = tiles.length > 1;
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        The current period for each frequency. Counts are catalog entries, not
-        what you still need to upload: this page can’t see your storage.
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      {cards.map((c) => {
-        const active = activeFrequency === c.frequency;
-        return (
-          <button
-            key={c.frequency}
-            type="button"
-            onClick={() =>
-              onSelectFrequency(active ? null : c.frequency)
-            }
-            aria-pressed={active}
-            className={[
-              "rounded-lg border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-              active
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "bg-card hover:bg-muted/50",
-            ].join(" ")}
-          >
-            <div className="flex items-center gap-1.5 text-xs font-medium capitalize text-muted-foreground">
-              <CalendarClock className="h-3.5 w-3.5" />
-              {c.frequency}
-            </div>
-            <div className="mt-1.5 font-mono text-sm font-semibold">
-              {c.key}
-            </div>
-            <div className="text-xs text-muted-foreground">{c.range}</div>
-            <div className="mt-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{c.count}</span>{" "}
-              attestation{c.count === 1 ? "" : "s"} in catalog
-            </div>
-          </button>
-        );
-      })}
+    <section className={cn(CARD, "p-5")} aria-labelledby="current-periods">
+      <h2 id="current-periods" className="text-base font-semibold text-white">
+        Current periods
+      </h2>
+      <div className="mt-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-5">
+        {tiles.map((t) => {
+          const active = activeFrequency === t.frequency;
+          const body = (
+            <>
+              <span className={cn(SECTION_LABEL, "block")}>{t.frequency}</span>
+              <span className="mt-2 block font-mono text-xl font-semibold text-white">
+                {t.key}
+              </span>
+              <span className="mt-0.5 block text-sm text-slate-400">{t.range}</span>
+              <span className="mt-3 block text-sm text-slate-300">
+                <span className="font-semibold text-white">{t.count}</span>{" "}
+                attestation{t.count === 1 ? "" : "s"} in catalog
+              </span>
+            </>
+          );
+          const tileClass = "rounded-lg border p-4 text-left";
+          if (!filterable) {
+            return (
+              <div
+                key={t.frequency}
+                className={cn(tileClass, "border-transparent bg-slate-900/50")}
+              >
+                {body}
+              </div>
+            );
+          }
+          return (
+            <button
+              key={t.frequency}
+              type="button"
+              onClick={() => onSelectFrequency(active ? null : t.frequency)}
+              aria-pressed={active}
+              className={cn(
+                tileClass,
+                "cursor-pointer transition-colors",
+                FOCUS_RING,
+                active
+                  ? "border-indigo-500 bg-indigo-500/10"
+                  : "border-transparent bg-slate-900/50 hover:border-slate-600",
+              )}
+            >
+              {body}
+            </button>
+          );
+        })}
       </div>
-    </div>
+      <p className="mt-3 text-sm text-slate-400">
+        {filterable && "Select a period to filter the list. "}
+        Counts are catalog entries, not what you still need to upload: this
+        page can’t see your storage.
+      </p>
+    </section>
   );
 }

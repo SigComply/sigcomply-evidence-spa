@@ -28,19 +28,21 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-          <h1 className="text-2xl font-bold">Something went wrong</h1>
-          <p className="max-w-md text-sm text-muted-foreground">
-            The page hit an unexpected error. Nothing was sent anywhere. Reload
-            to try again.
-          </p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            Reload
-          </button>
+        <div className="flex min-h-screen items-center justify-center bg-slate-900 p-6">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-800 px-6 py-12 text-center">
+            <h1 className="text-2xl font-bold text-white">Something went wrong</h1>
+            <p className="mx-auto mt-2 mb-6 max-w-sm text-slate-400">
+              The page hit an unexpected error. Nothing was sent anywhere. Reload
+              to try again.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800"
+            >
+              Reload
+            </button>
+          </div>
         </div>
       );
     }

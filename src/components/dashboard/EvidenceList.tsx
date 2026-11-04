@@ -16,16 +16,17 @@ import {
   FileText,
   ListChecks,
 } from "lucide-react";
-import { TSCBadge, OptionalBadge } from "./StatusBadge";
-import { severityRailClass } from "@/lib/severity";
+import { CARD, FOCUS_RING, SECTION_LABEL } from "@/components/common/styles";
+import { Pill } from "@/components/common/Pill";
+import { SeverityBadge, TSCBadge, OptionalBadge } from "./StatusBadge";
 
 function formatCategory(raw: string): string {
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const META_DOT = (
-  <span aria-hidden className="text-muted-foreground/40">
-    •
+  <span aria-hidden className="text-slate-600">
+    ·
   </span>
 );
 
@@ -57,21 +58,18 @@ export function EvidenceList({ entries, framework }: EvidenceListProps) {
   const showHeadings = grouped.length > 1;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       {grouped.map((group) => (
         <section key={group.category}>
           {showHeadings && (
-            <div className="mb-2.5 flex items-center gap-3">
-              <h3 className="text-sm font-semibold tracking-tight">
-                {group.label}
-              </h3>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            <div className="mb-2 flex items-center gap-2">
+              <h3 className={SECTION_LABEL}>{group.label}</h3>
+              <span className="text-xs font-medium text-slate-400">
                 {group.entries.length}
               </span>
-              <span className="h-px flex-1 bg-border" />
             </div>
           )}
-          <div className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className={cn(CARD, "divide-y divide-slate-700 overflow-hidden")}>
             {group.entries.map((entry) => (
               <EvidenceRow
                 key={entry.id}
@@ -112,34 +110,37 @@ function EvidenceRow({
   const TypeIcon = entry.type === "checklist" ? ListChecks : FileText;
 
   return (
-    <div className="group relative flex items-stretch transition-colors hover:bg-muted/40">
-      {/* Severity accent rail — the primary at-a-glance cue. The severity
-          word is still in the meta line so this never relies on colour. */}
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-0 left-0 w-[3px]",
-          severityRailClass(entry.severity),
-        )}
-      />
-
+    <div
+      data-testid="evidence-row"
+      className="group relative flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-900/30"
+    >
       {/* Stretched link: whole-row navigation + middle-click, kept out of
           the anchor so the copy button is valid + independently clickable. */}
       <Link
         to={`/evidence/${framework}/${entry.id}`}
         aria-label={`Open ${entry.name}`}
-        className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+        className={cn("absolute inset-0 z-0 focus-visible:ring-inset", FOCUS_RING)}
       />
 
-      <div className="pointer-events-none flex min-w-0 flex-1 items-start gap-3.5 py-3.5 pl-4 pr-3 sm:items-center">
-        {/* Type glyph */}
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:mt-0">
-          <TypeIcon className="size-4" />
+      <div className="pointer-events-none flex min-w-0 flex-1 items-start gap-3">
+        <span className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-slate-900/50 text-slate-400 sm:flex">
+          <TypeIcon className="size-4" aria-hidden />
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="truncate text-sm font-medium">{entry.name}</span>
+          <p className="text-sm font-medium break-words text-white">{entry.name}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-400">
+            <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-xs text-slate-300">
+              {entry.control}
+            </span>
+            {META_DOT}
+            <span className="capitalize">{entry.frequency}</span>
+            {META_DOT}
+            {/* The range is in the periods card; here it is a tooltip so
+                every row doesn't repeat it. */}
+            <span className="font-mono" title={formatPeriodRange(period)}>
+              {period.key}
+            </span>
             {entry.tsc && <TSCBadge tsc={entry.tsc} />}
             {entry.optional && <OptionalBadge />}
             {device?.generatedAt && (
@@ -152,48 +153,45 @@ function EvidenceRow({
                     : "") +
                   ". Saved on this device only; it doesn’t show what is in your storage."
                 }
-                className="pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
+                // Above the stretched link so its tooltip shows on hover.
+                className="pointer-events-auto relative z-[1]"
               >
-                <PencilLine className="size-2.5" />
-                {device.uploadedAt ? "marked uploaded here" : "drafted here"}
+                <Pill tone="indigo">
+                  <PencilLine aria-hidden />
+                  {device.uploadedAt ? "marked uploaded here" : "drafted here"}
+                </Pill>
               </span>
             )}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            <span className="font-mono">{entry.control}</span>
-            {META_DOT}
-            <span className="capitalize">{entry.frequency}</span>
-            {META_DOT}
-            <span className="font-mono">{period.key}</span>
-            <span className="hidden items-center gap-x-2 sm:flex">
-              {META_DOT}
-              <span>{formatPeriodRange(period)}</span>
-            </span>
-            {META_DOT}
-            <span className="capitalize">{entry.severity}</span>
           </div>
         </div>
       </div>
 
-      {/* Right actions */}
-      <div className="z-[1] flex shrink-0 items-center gap-1 pr-3">
+      <div className="flex shrink-0 items-center gap-1">
+        <span className="pointer-events-none mr-1">
+          <SeverityBadge severity={entry.severity} />
+        </span>
         {cfg.show_upload_path && (
           <button
             type="button"
             onClick={handleCopy}
             title={`Copy ${uploadPath}`}
             aria-label={`Copy upload path for ${entry.name}`}
-            className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:opacity-0 sm:group-hover:opacity-100"
+            className={cn(
+              "relative z-[1] flex size-8 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-700 hover:text-white",
+              FOCUS_RING,
+            )}
           >
             {copied ? (
-              <Check className="size-4 text-green-600 dark:text-green-400" />
+              <Check className="size-4 text-emerald-400" aria-hidden />
             ) : (
-              <Copy className="size-3.5" />
+              <Copy className="size-4" aria-hidden />
             )}
           </button>
         )}
-        <ChevronRight className="pointer-events-none size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+        <ChevronRight
+          aria-hidden
+          className="pointer-events-none size-4 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-300"
+        />
       </div>
     </div>
   );

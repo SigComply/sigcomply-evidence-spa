@@ -3,21 +3,28 @@ import { FrameworkSelector } from "@/components/dashboard/FrameworkSelector";
 import { FrameworkPickerDialog } from "@/components/dashboard/FrameworkPickerDialog";
 import { PeriodOverview } from "@/components/dashboard/PeriodOverview";
 import { EvidenceList } from "@/components/dashboard/EvidenceList";
+import { HowItWorks } from "@/components/dashboard/HowItWorks";
 import { useCatalog } from "@/hooks/useCatalog";
 import { getConfig } from "@/config/runtime";
 import { readPref, writePref } from "@/lib/local-prefs";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, X, FileText, AlertCircle } from "lucide-react";
-import { GUIDE_LINKS } from "@/lib/guide-links";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Callout } from "@/components/common/Callout";
+import {
+  BUTTON_SECONDARY,
+  CARD,
+  FOCUS_RING,
+  INPUT,
+  SECTION_LABEL,
+} from "@/components/common/styles";
+import { Search, X, FileText } from "lucide-react";
 
 const STORAGE_KEY = "sigcomply:framework";
 
 // FilterChip is a real toggle button (keyboard-operable, state announced via
-// aria-pressed) wrapping the visual Badge. A bare Badge is a <span> — not
-// focusable and invisible to assistive tech — so filtering the list would be
-// unavailable to keyboard and screen-reader users.
+// aria-pressed), so filtering works for keyboard and screen-reader users.
 function FilterChip({
   active,
   onToggle,
@@ -34,14 +41,16 @@ function FilterChip({
       type="button"
       aria-pressed={active}
       onClick={onToggle}
-      className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className={cn(
+        "inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors",
+        FOCUS_RING,
+        active
+          ? "border-indigo-600 bg-indigo-600 text-white"
+          : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500",
+        className,
+      )}
     >
-      <Badge
-        variant={active ? "default" : "outline"}
-        className={["cursor-pointer", className].filter(Boolean).join(" ")}
-      >
-        {children}
-      </Badge>
+      {children}
     </button>
   );
 }
@@ -154,26 +163,30 @@ export function Dashboard() {
   ]);
 
   const activeFilters = useMemo(() => {
-    const f: { label: string; clear: () => void }[] = [];
+    // Only enum labels are capitalised; a search chip shows the query as typed.
+    const f: { label: string; enumLabel: boolean; clear: () => void }[] = [];
     if (search)
-      f.push({ label: `“${search}”`, clear: () => setSearch("") });
+      f.push({ label: `“${search}”`, enumLabel: false, clear: () => setSearch("") });
     if (frequencyFilter)
       f.push({
         label: frequencyFilter,
+        enumLabel: true,
         clear: () => setFrequencyFilter(null),
       });
     if (severityFilter)
       f.push({
         label: severityFilter,
+        enumLabel: true,
         clear: () => setSeverityFilter(null),
       });
     if (categoryFilter)
       f.push({
         label: categoryFilter.replace(/_/g, " "),
+        enumLabel: true,
         clear: () => setCategoryFilter(null),
       });
     if (requiredOnly)
-      f.push({ label: "required only", clear: () => setRequiredOnly(false) });
+      f.push({ label: "required only", enumLabel: true, clear: () => setRequiredOnly(false) });
     return f;
   }, [
     search,
@@ -187,6 +200,8 @@ export function Dashboard() {
   const hasOptional = attestations.some((e) => e.optional);
   const hasRequired = attestations.some((e) => !e.optional);
 
+  const ready = !loading && !error && attestations.length > 0;
+
   return (
     <div className="space-y-6">
       <FrameworkPickerDialog
@@ -196,49 +211,21 @@ export function Dashboard() {
         onDismiss={handlePickerDismiss}
       />
 
-      {/* Title + framework */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            User attestations
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Declarations and checklists that need a person to sign off. Fill
-            one in to download an{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">
-              evidence.pdf
-            </code>
-            , then upload it to your evidence storage. Nothing is sent
-            anywhere. The SigComply CLI picks it up on its next scheduled run
-            (daily by default).
-          </p>
-          <p className="mt-2 max-w-2xl text-xs text-muted-foreground">
-            Other manual evidence, such as training certificates and HR
-            exports, has no form: upload those files to your evidence storage
-            yourself. To list the entries whose folder is still empty, with each path, see{" "}
-            <a
-              href={GUIDE_LINKS[0].href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              the manual evidence guide
-            </a>{" "}
-            or run{" "}
-            <code className="font-mono">sigcomply evidence due --all</code>,
-            which also gives the folder for a custom prefix or calendar.
-            Auditors checking a signed evidence file: use{" "}
-            <span className="font-medium text-foreground">Verify</span>.
-          </p>
-        </div>
-        <FrameworkSelector
-          value={framework}
-          onChange={handleFrameworkChange}
-          frameworks={config.frameworks}
-        />
-      </div>
+      <PageHeader
+        title="User attestations"
+        subtitle="Declarations and checklists that need a person to sign off."
+        actions={
+          <FrameworkSelector
+            value={framework}
+            onChange={handleFrameworkChange}
+            frameworks={config.frameworks}
+          />
+        }
+      />
 
-      {!loading && !error && attestations.length > 0 && (
+      <HowItWorks />
+
+      {ready && (
         <PeriodOverview
           entries={attestations}
           activeFrequency={frequencyFilter}
@@ -247,32 +234,36 @@ export function Dashboard() {
       )}
 
       {/* Filter bar */}
-      {!loading && !error && attestations.length > 0 && (
+      {ready && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[16rem] flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-auto sm:min-w-[16rem] sm:flex-1">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+              />
               <Input
                 aria-label="Search attestations by name, control, or ID"
                 placeholder="Search by name, control, or ID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className={cn(INPUT, "pl-9")}
               />
             </div>
 
-            {severities.length > 1 && severities.map((s) => (
-              <FilterChip
-                key={s}
-                active={severityFilter === s}
-                onToggle={() =>
-                  setSeverityFilter(severityFilter === s ? null : s)
-                }
-                className="capitalize"
-              >
-                {s}
-              </FilterChip>
-            ))}
+            {severities.length > 1 &&
+              severities.map((s) => (
+                <FilterChip
+                  key={s}
+                  active={severityFilter === s}
+                  onToggle={() =>
+                    setSeverityFilter(severityFilter === s ? null : s)
+                  }
+                  className="capitalize"
+                >
+                  {s}
+                </FilterChip>
+              ))}
 
             {hasOptional && hasRequired && (
               <FilterChip
@@ -285,10 +276,8 @@ export function Dashboard() {
           </div>
 
           {categories.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs text-muted-foreground">
-                Category
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn(SECTION_LABEL, "mr-1")}>Category</span>
               {categories.map((c) => (
                 <FilterChip
                   key={c}
@@ -296,7 +285,7 @@ export function Dashboard() {
                   onToggle={() =>
                     setCategoryFilter(categoryFilter === c ? null : c)
                   }
-                  className="text-xs"
+                  className="capitalize"
                 >
                   {c.replace(/_/g, " ")}
                 </FilterChip>
@@ -305,8 +294,8 @@ export function Dashboard() {
           )}
 
           {activeFilters.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-slate-400">
                 {filteredEntries.length} of {attestations.length} ·
               </span>
               {activeFilters.map((f) => (
@@ -315,16 +304,24 @@ export function Dashboard() {
                   type="button"
                   aria-label={`Remove filter ${f.label}`}
                   onClick={f.clear}
-                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs capitalize text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className={cn(
+                    "inline-flex max-w-full cursor-pointer items-center gap-1 rounded-full bg-slate-700 px-2.5 py-1 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-600 hover:text-white",
+                    FOCUS_RING,
+                  )}
                 >
-                  {f.label}
-                  <X className="h-3 w-3" />
+                  <span className={cn("truncate", f.enumLabel && "capitalize")}>
+                    {f.label}
+                  </span>
+                  <X className="size-3 shrink-0" aria-hidden />
                 </button>
               ))}
               <button
                 type="button"
                 onClick={clearAll}
-                className="rounded text-xs text-muted-foreground underline hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className={cn(
+                  "cursor-pointer rounded text-sm text-slate-400 underline underline-offset-2 hover:text-white",
+                  FOCUS_RING,
+                )}
               >
                 Clear all
               </button>
@@ -333,59 +330,44 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full" />
-            ))}
-          </div>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-48 w-full" />
+        <div className="space-y-3" aria-hidden>
+          <Skeleton className="h-40 w-full rounded-xl bg-slate-800" />
+          <Skeleton className="h-9 w-full rounded-lg bg-slate-800" />
+          <Skeleton className="h-64 w-full rounded-xl bg-slate-800" />
         </div>
       )}
 
-      {/* Error */}
       {error && (
-        <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-destructive">
-              Could not load the {framework} catalog
-            </p>
-            <p className="mt-0.5 text-muted-foreground">{error}</p>
-          </div>
-        </div>
+        <Callout tone="error" title={`Could not load the ${framework} catalog`}>
+          {error}
+        </Callout>
       )}
 
-      {/* Results */}
       {!loading && !error && (
         <>
           <EvidenceList entries={filteredEntries} framework={framework} />
 
           {filteredEntries.length === 0 && (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
-              <FileText className="h-8 w-8 text-muted-foreground/60" />
+            <div className={cn(CARD, "px-6 py-16 text-center")}>
+              <FileText className="mx-auto size-10 text-slate-500" aria-hidden />
               {attestations.length === 0 ? (
-                <div className="max-w-sm space-y-1">
-                  <p className="text-sm font-medium">
-                    This framework has no declarations or checklists.
-                  </p>
-                </div>
+                <h3 className="mt-4 text-lg font-medium text-white">
+                  This framework has no declarations or checklists.
+                </h3>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
+                <>
+                  <h3 className="mt-4 text-lg font-medium text-white">
                     No attestations match your filters.
-                  </p>
+                  </h3>
                   <button
                     type="button"
                     onClick={clearAll}
-                    className="rounded text-xs text-muted-foreground underline hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className={cn(BUTTON_SECONDARY, "mt-6")}
                   >
                     Clear all filters
                   </button>
-                </div>
+                </>
               )}
             </div>
           )}

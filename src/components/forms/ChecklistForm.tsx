@@ -1,8 +1,9 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ListChecks } from "lucide-react";
+import { INPUT } from "@/components/common/styles";
+import { CHECKBOX, INPUT_INVALID } from "@/components/forms/styles";
+import { cn } from "@/lib/utils";
 import type { CatalogEntry } from "@/types/catalog";
 import type { ChecklistItemState } from "@/lib/evidence-form";
 
@@ -23,28 +24,31 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
 
   if (catalogItems.length === 0) {
     return (
-      <Alert>
-        <ListChecks className="h-4 w-4" />
-        <AlertDescription className="text-sm">
-          This checklist has no items defined in the catalog.
-        </AlertDescription>
-      </Alert>
+      <p className="text-sm text-slate-400">
+        This checklist has no items defined in the catalog.
+      </p>
     );
   }
 
   const stateById = new Map(items.map((i) => [i.id, i]));
+  const ticked = catalogItems.filter((item) => stateById.get(item.id)?.checked).length;
 
   return (
-    <div className="space-y-3">
-      <Alert>
-        <ListChecks className="h-4 w-4" />
-        <AlertDescription className="text-sm leading-relaxed">
-          Tick each step you have completed. Optional notes are included in the
-          downloaded PDF.
-        </AlertDescription>
-      </Alert>
+    <div>
+      <p className="text-sm text-slate-400">
+        Tick each step you have completed. Optional notes are included in the
+        downloaded PDF.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
+        <span className="font-medium text-slate-300">
+          {ticked} of {catalogItems.length} ticked
+        </span>
+        <span className="text-slate-400">
+          <span className="text-red-400">*</span> required
+        </span>
+      </div>
 
-      <div className="space-y-2">
+      <ul className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
         {catalogItems.map((item) => {
           const state = stateById.get(item.id) ?? {
             id: item.id,
@@ -55,10 +59,7 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
           const noteError = noteErrors?.[item.id];
           const noteErrorId = `item-${item.id}-notes-error`;
           return (
-            <div
-              key={item.id}
-              className="rounded-md border p-3 space-y-2"
-            >
+            <li key={item.id} className="py-4">
               <div className="flex items-start gap-3">
                 <Checkbox
                   id={`item-${item.id}`}
@@ -66,36 +67,39 @@ export function ChecklistForm({ entry, items, setItem, noteErrors }: ChecklistFo
                   onCheckedChange={(checked: boolean) =>
                     setItem(item.id, { checked })
                   }
+                  className={CHECKBOX}
                 />
-                <Label
-                  htmlFor={`item-${item.id}`}
-                  className="text-sm leading-relaxed cursor-pointer flex-1"
-                >
-                  {item.text}
-                  {item.required ? (
-                    <span className="text-red-500"> *</span>
-                  ) : null}
-                </Label>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Label
+                    htmlFor={`item-${item.id}`}
+                    className="block cursor-pointer leading-relaxed break-words text-slate-100"
+                  >
+                    {item.text}
+                    {item.required ? (
+                      <span className="text-red-400"> *</span>
+                    ) : null}
+                  </Label>
+                  <Input
+                    id={`item-${item.id}-notes`}
+                    aria-label={`Optional notes for: ${item.text}`}
+                    value={state.notes}
+                    onChange={(e) => setItem(item.id, { notes: e.target.value })}
+                    placeholder="Optional notes…"
+                    className={cn(INPUT, INPUT_INVALID, "h-8")}
+                    aria-invalid={Boolean(noteError)}
+                    aria-describedby={noteError ? noteErrorId : undefined}
+                  />
+                  {noteError && (
+                    <p id={noteErrorId} role="alert" className="text-sm text-destructive">
+                      {noteError}
+                    </p>
+                  )}
+                </div>
               </div>
-              <Input
-                id={`item-${item.id}-notes`}
-                aria-label={`Optional notes for: ${item.text}`}
-                value={state.notes}
-                onChange={(e) => setItem(item.id, { notes: e.target.value })}
-                placeholder="Optional notes…"
-                className="text-xs"
-                aria-invalid={Boolean(noteError)}
-                aria-describedby={noteError ? noteErrorId : undefined}
-              />
-              {noteError && (
-                <p id={noteErrorId} role="alert" className="text-xs text-destructive">
-                  {noteError}
-                </p>
-              )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }

@@ -1,33 +1,28 @@
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { severityBadgeClass, tscBadgeClass } from "@/lib/severity";
+import { Pill } from "@/components/common/Pill";
+import { severityTone } from "@/lib/severity";
 
 export function SeverityBadge({ severity }: { severity: string }) {
   return (
-    <Badge
-      variant="secondary"
-      className={cn("capitalize", severityBadgeClass(severity))}
-    >
+    <Pill tone={severityTone(severity)} className="capitalize">
       {severity}
-    </Badge>
+    </Pill>
   );
 }
 
+// A TSC category is a label, not a status, so it stays neutral: a red
+// "security" tag would read as a failure.
 export function TSCBadge({ tsc }: { tsc: string }) {
   return (
-    <Badge
-      variant="secondary"
-      className={cn("capitalize", tscBadgeClass(tsc))}
-    >
+    <Pill tone="slate" className="capitalize">
       {tsc}
-    </Badge>
+    </Pill>
   );
 }
 
 export function OptionalBadge() {
   return (
-    <Badge variant="outline" className="text-xs">
+    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-600 px-2 py-0.5 text-xs font-medium text-slate-400">
       Optional
-    </Badge>
+    </span>
   );
 }

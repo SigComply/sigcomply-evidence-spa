@@ -1,15 +1,6 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const frameworkLabels: Record<string, string> = {
-  soc2: "SOC 2 Type II",
-  iso27001: "ISO 27001",
-};
+import { cn } from "@/lib/utils";
+import { FOCUS_RING } from "@/components/common/styles";
+import { frameworkLabel } from "./framework-labels";
 
 interface FrameworkSelectorProps {
   value: string;
@@ -17,38 +8,45 @@ interface FrameworkSelectorProps {
   frameworks: string[];
 }
 
+// A segmented switcher, as in the web app: with two or three frameworks one
+// click beats opening a dropdown.
 export function FrameworkSelector({ value, onChange, frameworks }: FrameworkSelectorProps) {
-  // With a single configured framework a dropdown that can't change anything
-  // is pure noise — show a static label instead.
+  // With a single configured framework a control that can't change anything
+  // is pure noise, so show a static label instead.
   if (frameworks.length <= 1) {
     return (
-      <span className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium text-muted-foreground">
-        {frameworkLabels[value] ?? value}
+      <span className="inline-flex h-9 items-center rounded-lg border border-slate-700 px-3 text-sm font-medium text-slate-300">
+        {frameworkLabel(value)}
       </span>
     );
   }
 
   return (
-    <Select
-      value={value}
-      onValueChange={(val: string | null) => {
-        if (val !== null) onChange(val);
-      }}
+    <div
+      role="group"
+      aria-label="Framework"
+      className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-700 bg-slate-800 p-1"
     >
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select framework">
-          {(fw: string | null) =>
-            fw ? (frameworkLabels[fw] ?? fw) : "Select framework"
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {frameworks.map((fw) => (
-          <SelectItem key={fw} value={fw}>
-            {frameworkLabels[fw] ?? fw}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      {frameworks.map((fw) => {
+        const active = fw === value;
+        return (
+          <button
+            key={fw}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(fw)}
+            className={cn(
+              "cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+              FOCUS_RING,
+              active
+                ? "bg-indigo-600 text-white"
+                : "text-slate-300 hover:bg-slate-700 hover:text-white",
+            )}
+          >
+            {frameworkLabel(fw)}
+          </button>
+        );
+      })}
+    </div>
   );
 }

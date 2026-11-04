@@ -50,8 +50,8 @@ test("the wrong PDF is a mismatch, and a non-PDF is refused", async ({ page }) =
   await expect(page.getByText("mismatch", { exact: true })).toBeVisible();
 });
 
-// The identity badges (evidence ID, flow, period) are the first monospace
-// badges on the page; member tier badges follow further down.
+// The identity badges (evidence ID, flow, period) are the only monospace
+// badges on the page; member tiers are pills, further down.
 async function expectIdentity(page: Page, parts: string[]) {
   const badges = page.locator('[data-slot="badge"].font-mono');
   for (const [i, part] of parts.entries()) {
@@ -182,6 +182,70 @@ test("no verdict overclaims, and a valid one shows the key fingerprint", async (
   await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
   await expect(verdict).toContainText("Signature invalid");
   await expect(verdict).not.toContainText(OVERCLAIM);
+});
+
+// The same word list over the whole page in each state, disclosures open.
+test.describe("the page around the verdict", () => {
+  async function expectNoOverclaim(page: Page, loaded = true) {
+    for (const summary of await page.locator("main summary").all()) {
+      // An open <details> has the attribute with an empty value.
+      if ((await summary.locator("xpath=..").getAttribute("open")) === null) await summary.click();
+    }
+    // The negative assertion passes at once, so wait for the opened bodies.
+    if (loaded) await expect(page.locator("main pre[data-raw]").first()).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(OVERCLAIM);
+  }
+
+  test("claims nothing beyond the signature in any state", async ({ page }) => {
+    await expectNoOverclaim(page, false);
+
+    const states: [string, Buffer, string][] = [
+      ["sample-envelope-v1.json", fixture("sample-envelope-v1.json"), "Signature valid"],
+      [
+        "tampered.json",
+        Buffer.from(
+          fixture("sample-envelope-v1.json")
+            .toString("utf-8")
+            .replace('"source_id": "aws.iam"', '"source_id": "aws.iaM"'),
+        ),
+        "Signature invalid",
+      ],
+      ["fanout.json", fixture("golden/fanout.json"), "Signature valid"],
+      ["manual.json", fixture("golden/manual.json"), "Signature valid"],
+    ];
+    for (const [name, body, verdict] of states) {
+      await page.goto("verify");
+      await loadEnvelope(page, name, body);
+      await expect(page.getByTestId("verdict")).toContainText(verdict);
+      await expectNoOverclaim(page);
+    }
+
+    const record = goldenPayload("manual.json");
+    await loadPdf(page, "evidence.pdf", fixture(`golden/manual.${record.evidence_id}.pdf`));
+    await expect(page.getByText("match", { exact: true })).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(OVERCLAIM);
+  });
+
+  test("an error state claims nothing beyond the signature", async ({ page }) => {
+    await page.addInitScript(() => {
+      SubtleCrypto.prototype.importKey = () =>
+        Promise.reject(new DOMException("Unrecognized name.", "NotSupportedError"));
+    });
+    await page.reload();
+    await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
+    await expect(page.getByText("Verification could not run")).toBeVisible();
+    await expectNoOverclaim(page);
+  });
+});
+
+test("the loaded bar names the file, never an unverified evidence ID", async ({ page }) => {
+  const record = goldenPayload("manual.json");
+  const tampered = fixture("golden/manual.json").toString("utf-8").replace(/"file_size":1210/, '"file_size":1211');
+  await loadEnvelope(page, "tampered.json", Buffer.from(tampered));
+  await expect(page.getByText("Signature invalid")).toBeVisible();
+  const bar = page.getByTestId("loaded-envelope");
+  await expect(bar).toContainText("tampered.json");
+  await expect(bar).not.toContainText(record.evidence_id!);
 });
 
 test("a manual record with a wrongly typed field is refused, not a crash", async ({ page }) => {

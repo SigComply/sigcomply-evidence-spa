@@ -1,60 +1,67 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FileJson, RotateCcw, Upload } from "lucide-react";
+import { Callout } from "@/components/common/Callout";
+import { PageHeader } from "@/components/common/PageHeader";
 import {
-  CheckCircle2,
-  FileJson,
-  FileWarning,
-  Loader2,
-  RotateCcw,
-  ShieldCheck,
-  Upload,
-  XCircle,
-} from "lucide-react";
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  CARD,
+  INLINE_CODE,
+  INPUT,
+} from "@/components/common/styles";
+import {
+  DisclosureSummary,
+  LazyDetails,
+} from "@/components/verify/Disclosure";
+import { PdfCheck, type PdfStatus } from "@/components/verify/PdfCheck";
+import { MembersPanel, RecordedPanel } from "@/components/verify/RecordPanels";
+import {
+  VerdictBanner,
+  type SigStatus,
+} from "@/components/verify/VerdictBanner";
+import { cn } from "@/lib/utils";
 import {
   getManualDocumentPayload,
   type EvidenceEnvelope,
   type ManualDocumentPayload,
-  type ManualInstancePayload,
 } from "@/types/envelope";
 import {
   sha256Hex,
   verifyEnvelopeSignature,
   WebCryptoUnsupportedError,
-  type VerifyResult,
 } from "@/lib/verification/verify";
 import {
   expectedPdfHashes,
   matchPdfHash,
-  memberLabel,
-  memberVerdict,
-  recordedChecks,
   type ExpectedPdfHash,
-  type MemberVerdict,
 } from "@/lib/verification/manual";
 import { parseEnvelopeText } from "@/lib/verification/parse-envelope";
 
-export type SigStatus =
-  | { state: "idle" }
-  | { state: "verifying" }
-  | { state: "valid"; result: VerifyResult }
-  | { state: "invalid"; result: VerifyResult }
-  | { state: "error"; message: string };
+// The page's tests import these from here.
+export { VerdictBanner, type SigStatus };
 
-type PdfStatus =
-  | { state: "idle" }
-  | { state: "hashing"; filename: string }
-  | { state: "match"; filename: string; hash: string; matched: ExpectedPdfHash }
-  | {
-      state: "mismatch";
-      filename: string;
-      hash: string;
-      expected: ExpectedPdfHash[];
-    }
-  | { state: "error"; message: string };
+const PASTED = "Pasted envelope";
+const EXAMPLE_PATH =
+  "policies/<policy_id>/envelopes/directory_user__aws.iam.json";
+
+// Lets a narrow screen break the example path after a "/" rather than inside
+// a name.
+function BreakablePath({ path }: { path: string }) {
+  const parts = path.split("/");
+  return parts.map((part, i) => (
+    <span key={i}>
+      {part}
+      {i < parts.length - 1 && (
+        <>
+          /<wbr />
+        </>
+      )}
+    </span>
+  ));
+}
 
 function truncate(s: string, n = 20): string {
   if (s.length <= n * 2 + 3) return s;
@@ -69,26 +76,6 @@ function previewPayload(p: unknown): string {
   }
 }
 
-// LazyDetails renders its body only while open: a large envelope's records
-// pretty-printed into the DOM took gigabytes of memory even when collapsed.
-function LazyDetails({
-  summary,
-  children,
-}: {
-  summary: string;
-  children: () => React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-        {summary}
-      </summary>
-      {open && children()}
-    </details>
-  );
-}
-
 export function Verify() {
   const [rawJson, setRawJson] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
@@ -97,6 +84,9 @@ export function Verify() {
   // bytes from a lexeme-preserving parse (so large integers aren't rounded).
   // Kept separate from `rawJson`, which may be pretty-printed for display.
   const [sourceText, setSourceText] = useState("");
+  // What the loaded bar names: the file's own name, never a payload field,
+  // which means nothing until the signature checks out.
+  const [loadedName, setLoadedName] = useState(PASTED);
   const [sigStatus, setSigStatus] = useState<SigStatus>({ state: "idle" });
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>({ state: "idle" });
   const [envDragActive, setEnvDragActive] = useState(false);
@@ -138,8 +128,9 @@ export function Verify() {
   // pretty-print it so a minified envelope is readable. It stays false
   // for keystrokes (reformatting mid-type would jump the caret).
   const handleParse = useCallback(
-    (text: string, opts?: { reformat?: boolean }) => {
+    (text: string, opts?: { reformat?: boolean; name?: string }) => {
       pdfRun.current++;
+      setLoadedName(opts?.name ?? PASTED);
       setPdfStatus({ state: "idle" });
 
       const result = parseEnvelopeText(text);
@@ -179,7 +170,7 @@ export function Verify() {
     async (file: File) => {
       try {
         const text = await file.text();
-        handleParse(text, { reformat: true });
+        handleParse(text, { reformat: true, name: file.name });
       } catch (err) {
         setParseError(`Could not read file: ${(err as Error).message}`);
       }
@@ -315,23 +306,15 @@ export function Verify() {
   }, [manualDoc, signedDoc]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <ShieldCheck className="h-6 w-6 text-primary" />
-          Verify signed evidence
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          For auditors: check the signature on an evidence file the SigComply
-          CLI wrote to the vault. You can also check that a PDF matches the
-          hash in the file. Everything runs in your browser; nothing is
-          uploaded.
-        </p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader
+        title="Verify signed evidence"
+        subtitle="For auditors: check the signature on an evidence file the SigComply CLI wrote to the vault. You can also check that a PDF matches the hash in the file. Everything runs in your browser; nothing is uploaded."
+      />
 
-      {/* Input — prominent until an envelope is loaded, then a thin bar. */}
+      {/* Input: prominent until an envelope is loaded, then a thin bar. */}
       {!envelope ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div
             role="region"
             aria-label="Drop the signed envelope JSON file here"
@@ -339,33 +322,35 @@ export function Verify() {
             onDragOver={(e) => e.preventDefault()}
             onDragEnter={() => setEnvDragActive(true)}
             onDragLeave={() => setEnvDragActive(false)}
-            className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground transition-colors ${
+            className={cn(
+              "flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors",
               envDragActive
-                ? "border-primary bg-primary/5"
-                : "border-input bg-muted/20 hover:bg-muted/40"
-            }`}
+                ? "border-indigo-500 bg-indigo-500/10"
+                : "border-slate-600 bg-slate-800/50",
+            )}
           >
-            <FileJson className="h-7 w-7 text-muted-foreground/70" />
-            <div>
-              <span className="font-medium text-foreground">
-                Drop the signed envelope JSON
-              </span>
-              <span className="block text-xs">
-                from the run folder in the vault, e.g.{" "}
-                <code className="font-mono break-all">
-                  policies/&lt;policy_id&gt;/envelopes/directory_user__aws.iam.json
-                </code>
-              </span>
+            <div className="flex size-12 items-center justify-center rounded-xl bg-slate-700 text-slate-300">
+              <FileJson aria-hidden className="size-6" />
             </div>
-            <Button
+            <div className="max-w-md space-y-1">
+              <p className="text-base font-semibold text-white">
+                Drop the signed envelope JSON
+              </p>
+              <p className="text-sm break-words text-slate-400">
+                from the run folder in the vault, e.g.{" "}
+                <code className={INLINE_CODE}>
+                  <BreakablePath path={EXAMPLE_PATH} />
+                </code>
+              </p>
+            </div>
+            <button
               type="button"
-              variant="outline"
-              size="sm"
+              className={BUTTON_PRIMARY}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="mr-2 h-4 w-4" />
+              <Upload aria-hidden />
               Choose envelope file
-            </Button>
+            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -379,15 +364,10 @@ export function Verify() {
             />
           </div>
 
-          <details className="text-sm">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              …or paste JSON
-            </summary>
-            <div className="mt-2">
-              <Label
-                htmlFor="envelope-json"
-                className="sr-only"
-              >
+          <details className="group">
+            <DisclosureSummary>…or paste JSON</DisclosureSummary>
+            <div className="mt-3">
+              <Label htmlFor="envelope-json" className="sr-only">
                 Envelope JSON
               </Label>
               <Textarea
@@ -396,98 +376,109 @@ export function Verify() {
                 onChange={(e) => handleParse(e.target.value)}
                 onPaste={handlePaste}
                 placeholder='{ "format_version": "envelope.v1", "produced_at": "...", "records": [ ... ], "signature": { "algorithm": "ed25519", "public_key": "...", "value": "..." } }'
-                className="mt-1 h-56 resize-y font-mono text-xs leading-relaxed"
+                className={cn(
+                  INPUT,
+                  "h-48 resize-y font-mono text-xs leading-relaxed",
+                )}
                 spellCheck={false}
               />
             </div>
           </details>
 
           {parseError && (
-            <Alert variant="destructive">
-              <FileWarning className="h-4 w-4" />
-              <AlertTitle>Could not parse envelope</AlertTitle>
-              <AlertDescription>{parseError}</AlertDescription>
-            </Alert>
+            <Callout tone="error" title="Could not parse envelope">
+              {parseError}
+            </Callout>
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-          <span className="flex items-center gap-2 truncate text-muted-foreground">
-            <FileJson className="h-4 w-4 shrink-0" />
-            <span className="truncate">
-              {signedDoc?.evidence_id ?? "Envelope loaded"}
+        <div
+          data-testid="loaded-envelope"
+          className={cn(CARD, "flex items-center justify-between gap-3 px-4 py-3")}
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-700 text-slate-300">
+              <FileJson aria-hidden className="size-4" />
+            </span>
+            <span
+              className="truncate font-mono text-sm text-slate-200"
+              title={loadedName}
+            >
+              {loadedName}
             </span>
           </span>
-          <Button type="button" variant="ghost" size="sm" onClick={reset}>
-            <RotateCcw className="mr-2 h-4 w-4" />
+          <button
+            type="button"
+            className={cn(BUTTON_SECONDARY, "shrink-0 px-3 py-1.5")}
+            onClick={reset}
+          >
+            <RotateCcw aria-hidden />
             Verify another
-          </Button>
+          </button>
         </div>
       )}
 
-      {/* Verdict */}
       {envelope && (
-        <div className="overflow-hidden rounded-xl border">
+        <div className={cn(CARD, "overflow-hidden")}>
           <VerdictBanner status={sigStatus} />
 
-          <div className="space-y-5 p-5">
-            {/* Identity */}
+          {/* Identity and what the file holds */}
+          <section className="space-y-3 px-5 py-4">
             <div className="flex flex-wrap items-center gap-1.5">
               {identityParts.map((p, i) => (
                 <Badge
                   key={`${p}-${i}`}
-                  variant={
+                  variant="outline"
+                  className={cn(
+                    "h-auto rounded-full px-2 py-0.5 font-mono text-xs",
                     p === "manual"
-                      ? "default"
-                      : p === "automated"
-                        ? "secondary"
-                        : "outline"
-                  }
-                  className="font-mono text-xs"
+                      ? "border-indigo-500/30 bg-indigo-500/15 text-indigo-300"
+                      : "border-slate-600 bg-slate-700/50 text-slate-200",
+                  )}
                 >
                   {p}
                 </Badge>
               ))}
             </div>
-
-            {/* Record summary — count + distinct types */}
             {recordSummary && (
-              <div className="rounded-lg border bg-muted/20 p-4">
-                <p className="text-sm font-medium">
+              <p className="text-sm text-slate-400">
+                <span className="font-medium text-slate-200">
                   {recordSummary.count}{" "}
                   {recordSummary.count === 1 ? "record" : "records"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Types:{" "}
-                  {recordSummary.types.length === 0 ? (
-                    <span className="italic">none</span>
-                  ) : (
-                    recordSummary.types.map((t, i) => (
-                      <span key={t}>
-                        <code className="font-mono">{t}</code>
-                        {i < recordSummary.types.length - 1 ? ", " : ""}
-                      </span>
-                    ))
-                  )}
-                </p>
-              </div>
+                </span>
+                {" · "}
+                {recordSummary.types.length === 0 ? (
+                  <span className="italic">no record types</span>
+                ) : (
+                  recordSummary.types.map((t, i) => (
+                    <span key={t}>
+                      <code className={INLINE_CODE}>{t}</code>
+                      {i < recordSummary.types.length - 1 ? ", " : ""}
+                    </span>
+                  ))
+                )}
+              </p>
             )}
+          </section>
 
-            {/* The CLI's signed verdicts and the PDF check mean something
-                only once the signature checks out. */}
-            {manualDoc && sigStatus.state !== "valid" && (
-              <div className="rounded-lg border bg-muted/20 p-4 text-xs text-muted-foreground">
-                <p className="text-sm font-medium text-foreground">
-                  Recorded results and PDF check
-                </p>
+          {/* The CLI's signed verdicts and the PDF check mean something
+              only once the signature checks out. */}
+          {manualDoc && sigStatus.state !== "valid" && (
+            <section className="border-t border-slate-700 px-5 py-4">
+              <h2 className="text-sm font-semibold text-white">
+                Recorded results and PDF check
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-400">
                 {sigStatus.state === "invalid" || sigStatus.state === "error"
                   ? "Hidden: the signature isn't valid, so the results and hashes in this file can't be relied on."
                   : "Shown once the signature is verified."}
-              </div>
-            )}
+              </p>
+            </section>
+          )}
 
-            {/* Fan-out members — the CLI's signed per-member verdicts */}
-            {sigStatus.state === "valid" && members && members.length > 0 && (
+          {/* Fan-out members: the CLI's signed per-member verdicts */}
+          {sigStatus.state === "valid" && members && members.length > 0 && (
+            <section className="border-t border-slate-700 px-5 py-4">
               <MembersPanel
                 members={members}
                 total={manualDoc?.instances_total ?? members.length}
@@ -498,426 +489,117 @@ export function Verify() {
                     : undefined
                 }
               />
-            )}
+            </section>
+          )}
 
-            {/* Single-folder record — the CLI's signed verdict fields */}
-            {sigStatus.state === "valid" &&
-              manualDoc &&
-              !(members && members.length > 0) && (
+          {/* Single-folder record: the CLI's signed verdict fields */}
+          {sigStatus.state === "valid" &&
+            manualDoc &&
+            !(members && members.length > 0) && (
+              <section className="border-t border-slate-700 px-5 py-4">
                 <RecordedPanel record={manualDoc} />
-              )}
-
-            {/* PDF hash check: only against hashes a valid signature vouches for */}
-            {pdfHashes.length > 0 && sigStatus.state === "valid" && (
-              <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">Evidence PDF</p>
-                    <p className="text-xs text-muted-foreground">
-                      {members ? (
-                        <>
-                          Drop a member&apos;s PDF from the run folder&apos;s{" "}
-                          <code className="font-mono">
-                            policies/&lt;policy_id&gt;/attachments/
-                          </code>{" "}
-                          to check it against each member&apos;s hash. A member folder that
-                          held one PDF also matches its original upload.
-                        </>
-                      ) : (
-                        <>
-                          Drop the PDF from the run folder&apos;s{" "}
-                          <code className="font-mono">
-                            policies/&lt;policy_id&gt;/attachments/
-                          </code>{" "}
-                          to check it against the hash in this file. If the
-                          evidence folder held one PDF, the original upload
-                          matches too.
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  {pdfStatus.state === "match" && (
-                    <Badge className="gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      match
-                    </Badge>
-                  )}
-                  {pdfStatus.state === "mismatch" && (
-                    <Badge variant="destructive" className="gap-1">
-                      <XCircle className="h-3 w-3" />
-                      mismatch
-                    </Badge>
-                  )}
-                </div>
-
-                {pdfStatus.state !== "match" &&
-                  pdfStatus.state !== "mismatch" && (
-                    <div
-                      role="region"
-                      aria-label="Drop the matching evidence PDF here"
-                      onDrop={onPdfDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDragEnter={() => setPdfDragActive(true)}
-                      onDragLeave={() => setPdfDragActive(false)}
-                      className={`flex items-center justify-center gap-3 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition-colors ${
-                        pdfDragActive
-                          ? "border-primary bg-primary/5"
-                          : "border-input hover:bg-muted/40"
-                      }`}
-                    >
-                      {pdfStatus.state === "hashing" ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Hashing {pdfStatus.filename}…
-                        </span>
-                      ) : (
-                        <>
-                          <span>Drop the PDF here, or</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => pdfInputRef.current?.click()}
-                          >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Choose PDF
-                          </Button>
-                        </>
-                      )}
-                      <input
-                        ref={pdfInputRef}
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void handlePdfFile(f);
-                          e.target.value = "";
-                        }}
-                      />
-                    </div>
-                  )}
-
-                {pdfStatus.state === "match" && (
-                  <p className="break-all text-xs text-muted-foreground">
-                    <span className="font-mono">{pdfStatus.filename}</span>{" "}
-                    matches{" "}
-                    <span className="font-medium text-foreground">
-                      {pdfStatus.matched.label}
-                    </span>{" "}
-                    · SHA-256{" "}
-                    <span className="font-mono">{pdfStatus.hash}</span>
-                  </p>
-                )}
-                {pdfStatus.state === "mismatch" && (
-                  <div className="space-y-1 break-all text-xs">
-                    <p>
-                      <span className="text-muted-foreground">Got: </span>
-                      <span className="font-mono">{pdfStatus.hash}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      {pdfStatus.expected.length === 1
-                        ? "Expected:"
-                        : "Expected one of:"}
-                    </p>
-                    {pdfStatus.expected.map((e) => (
-                      <p key={`${e.label}-${e.hash}`}>
-                        {pdfStatus.expected.length > 1 && (
-                          <span className="text-muted-foreground">
-                            {e.label}:{" "}
-                          </span>
-                        )}
-                        <span className="font-mono">{e.hash}</span>
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {pdfStatus.state === "error" && (
-                  <Alert variant="destructive">
-                    <FileWarning className="h-4 w-4" />
-                    <AlertTitle>Could not hash file</AlertTitle>
-                    <AlertDescription>{pdfStatus.message}</AlertDescription>
-                  </Alert>
-                )}
-              </div>
+              </section>
             )}
 
-            {/* Details — plumbing behind disclosure */}
-            <div className="space-y-2 border-t pt-4 text-sm">
-              <LazyDetails summary="Envelope details">
-                {() => (
+          {/* PDF hash check: only against hashes a valid signature vouches for */}
+          {pdfHashes.length > 0 && sigStatus.state === "valid" && (
+            <section className="border-t border-slate-700 px-5 py-4">
+              <PdfCheck
+                status={pdfStatus}
+                fanout={!!members}
+                dragActive={pdfDragActive}
+                setDragActive={setPdfDragActive}
+                onDrop={onPdfDrop}
+                inputRef={pdfInputRef}
+                onFile={(f) => void handlePdfFile(f)}
+              />
+            </section>
+          )}
+
+          {/* Details: plumbing behind disclosures */}
+          <section className="space-y-3 border-t border-slate-700 px-5 py-4 text-sm">
+            <LazyDetails summary="Envelope details">
+              {() => (
                 <>
-                <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-                  <span className="text-muted-foreground">Format</span>
-                  <span className="font-mono">{envelope.format_version}</span>
+                  <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2">
+                    <span className="text-slate-400">Format</span>
+                    <span className="font-mono text-slate-200">
+                      {envelope.format_version}
+                    </span>
 
-                  <span className="text-muted-foreground">Produced at</span>
-                  <span className="font-mono">{envelope.produced_at}</span>
+                    <span className="text-slate-400">Produced at</span>
+                    <span className="font-mono text-slate-200">
+                      {envelope.produced_at}
+                    </span>
 
-                  <span className="text-muted-foreground">Algorithm</span>
-                  <span className="font-mono">
-                    {envelope.signature.algorithm}
-                  </span>
+                    <span className="text-slate-400">Algorithm</span>
+                    <span className="font-mono text-slate-200">
+                      {envelope.signature.algorithm}
+                    </span>
 
-                  <span className="text-muted-foreground">Public key</span>
-                  <span className="font-mono break-all">
-                    {truncate(envelope.signature.public_key, 24)}
-                  </span>
+                    <span className="text-slate-400">Public key</span>
+                    <span className="font-mono break-all text-slate-200">
+                      {truncate(envelope.signature.public_key, 24)}
+                    </span>
 
-                  <span className="text-muted-foreground">Signature</span>
-                  <span className="font-mono break-all">
-                    {truncate(envelope.signature.value, 24)}
-                  </span>
+                    <span className="text-slate-400">Signature</span>
+                    <span className="font-mono break-all text-slate-200">
+                      {truncate(envelope.signature.value, 24)}
+                    </span>
 
-                  {signedDoc && (
-                    <>
-                      {signedDoc.expected_uri && (
-                        <>
-                          <span className="text-muted-foreground">
-                            Folder URI
-                          </span>
-                          <span className="font-mono break-all">
-                            {signedDoc.expected_uri}
-                          </span>
-                        </>
-                      )}
-                      {signedDoc.file_hash && (
-                        <>
-                          <span className="text-muted-foreground">
-                            Expected SHA-256
-                          </span>
-                          <span className="font-mono break-all">
-                            {signedDoc.file_hash}
-                          </span>
-                        </>
-                      )}
-                    </>
+                    {signedDoc && (
+                      <>
+                        {signedDoc.expected_uri && (
+                          <>
+                            <span className="text-slate-400">Folder URI</span>
+                            <span className="font-mono break-all text-slate-200">
+                              {signedDoc.expected_uri}
+                            </span>
+                          </>
+                        )}
+                        {signedDoc.file_hash && (
+                          <>
+                            <span className="text-slate-400">
+                              Expected SHA-256
+                            </span>
+                            <span className="font-mono break-all text-slate-200">
+                              {signedDoc.file_hash}
+                            </span>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {sigStatus.state !== "valid" && (
+                    <p className="mt-4 text-sm font-semibold text-red-400">
+                      Unverified file contents
+                    </p>
                   )}
-                </div>
-                {sigStatus.state !== "valid" && (
-                  <p className="mt-3 text-xs font-medium text-destructive">
-                    Unverified file contents
-                  </p>
-                )}
-                <pre
-                  data-raw
-                  className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs"
-                >
-                  {previewPayload(envelope.records)}
-                </pre>
+                  <pre
+                    data-raw
+                    className="mt-2 overflow-x-auto rounded-lg border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-300"
+                  >
+                    {previewPayload(envelope.records)}
+                  </pre>
                 </>
+              )}
+            </LazyDetails>
+
+            {(sigStatus.state === "valid" || sigStatus.state === "invalid") && (
+              <LazyDetails summary="Bytes the signature covers">
+                {() => (
+                  <pre
+                    data-raw
+                    className="mt-3 max-h-64 overflow-auto rounded-lg border border-slate-700 bg-slate-900 p-3 font-mono text-xs text-slate-300"
+                  >
+                    {sigStatus.result.signedBytes}
+                  </pre>
                 )}
               </LazyDetails>
-
-              {(sigStatus.state === "valid" ||
-                sigStatus.state === "invalid") && (
-                <LazyDetails summary="Bytes the signature covers">
-                  {() => (
-                    <pre
-                      data-raw
-                      className="mt-2 max-h-64 overflow-auto rounded bg-muted p-3 font-mono text-xs">
-                      {sigStatus.result.signedBytes}
-                    </pre>
-                  )}
-                </LazyDetails>
-              )}
-            </div>
-          </div>
+            )}
+          </section>
         </div>
       )}
-    </div>
-  );
-}
-
-const VERDICT_BADGE: Record<
-  MemberVerdict,
-  { text: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  satisfied: { text: "satisfied", variant: "default" },
-  exempt: { text: "exempt", variant: "secondary" },
-  missing: { text: "no evidence", variant: "destructive" },
-  failed: { text: "failed", variant: "destructive" },
-};
-
-const CHECK_BADGE = {
-  yes: { text: "yes", variant: "default" },
-  no: { text: "no", variant: "destructive" },
-  unknown: { text: "not checked", variant: "outline" },
-} as const;
-
-function RecordedPanel({ record }: { record: ManualDocumentPayload }) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-      <div>
-        <p className="text-sm font-medium">What the CLI recorded</p>
-        <p className="text-xs text-muted-foreground">
-          The CLI signed these results when it checked the folder. This page
-          doesn&apos;t re-check it.
-        </p>
-      </div>
-      <ul className="divide-y rounded-md border bg-background">
-        {recordedChecks(record).map((c) => {
-          const b = CHECK_BADGE[c.ok === undefined ? "unknown" : c.ok ? "yes" : "no"];
-          return (
-            <li
-              key={c.label}
-              className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
-            >
-              <span>{c.label}</span>
-              <Badge variant={b.variant}>{b.text}</Badge>
-            </li>
-          );
-        })}
-      </ul>
-      {record.validation_failures?.map((f) => (
-        <p key={f} className="text-xs text-destructive">
-          {f}
-        </p>
-      ))}
-      {record.source_files && record.source_files.length > 0 && (
-        <div className="text-xs">
-          <p className="text-muted-foreground">Files in the folder:</p>
-          <ul className="mt-1 space-y-0.5">
-            {record.source_files.map((f) => (
-              <li key={`${f.filename}-${f.sha256}`} className="break-all">
-                <span className="font-mono">{f.filename}</span>
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {f.type}
-                  {f.uploaded_at ? ` · uploaded ${f.uploaded_at}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MembersPanel({
-  members,
-  total,
-  satisfied,
-  matchedId,
-}: {
-  members: ManualInstancePayload[];
-  total: number;
-  satisfied: number;
-  matchedId?: string;
-}) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-      <div>
-        <p className="text-sm font-medium">
-          {satisfied} of {total} members satisfied
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Each member has its own folder. The CLI signed these results; this
-          page doesn&apos;t re-check the folders.
-        </p>
-      </div>
-      <ul className="divide-y rounded-md border bg-background">
-        {members.map((m) => {
-          const v = VERDICT_BADGE[memberVerdict(m)];
-          return (
-            <li key={m.id} className="space-y-1 px-3 py-2 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium">{memberLabel(m)}</span>
-                <span className="flex items-center gap-1.5">
-                  {m.id === matchedId && (
-                    <Badge variant="outline" className="gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      PDF matches
-                    </Badge>
-                  )}
-                  {m.tier && (
-                    <Badge variant="outline" className="font-mono">
-                      {m.tier}
-                    </Badge>
-                  )}
-                  <Badge variant={v.variant}>{v.text}</Badge>
-                </span>
-              </div>
-              {m.exemption_reason && (
-                <p className="text-muted-foreground">
-                  Exempt: {m.exemption_reason}
-                  {m.approved_by ? ` (approved by ${m.approved_by})` : ""}
-                </p>
-              )}
-              {m.validation_failures?.map((f) => (
-                <p key={f} className="text-destructive">
-                  {f}
-                </p>
-              ))}
-              {m.file_hash && (
-                <p className="break-all font-mono text-muted-foreground">
-                  {m.file_hash}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-export function VerdictBanner({ status }: { status: SigStatus }) {
-  if (status.state === "verifying" || status.state === "idle") {
-    return (
-      <div data-testid="verdict" className="flex items-center gap-3 bg-muted px-5 py-4 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
-        <span className="text-lg font-semibold">Verifying signature…</span>
-      </div>
-    );
-  }
-
-  if (status.state === "valid") {
-    return (
-      <div data-testid="verdict" className="flex items-center gap-3 bg-emerald-500/10 px-5 py-4 text-emerald-700 dark:text-emerald-400">
-        <CheckCircle2 className="h-6 w-6" />
-        <div>
-          <p className="text-lg font-bold">Signature valid</p>
-          <p className="text-sm opacity-80">
-            The file is self-consistent: its records match the signature and
-            the public key inside it. The CLI makes a new key for every file,
-            so a valid signature doesn&apos;t show who signed it. Ask whether
-            the vault is write-once storage; that is what stops a file being
-            replaced and signed again.
-          </p>
-          {status.result.keyFingerprint && (
-            <p className="mt-1 text-xs opacity-80">
-              Key fingerprint (SHA-256):{" "}
-              <span className="font-mono break-all">
-                {status.result.keyFingerprint}
-              </span>
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (status.state === "invalid") {
-    return (
-      <div data-testid="verdict" className="flex items-center gap-3 bg-destructive/10 px-5 py-4 text-destructive">
-        <XCircle className="h-6 w-6" />
-        <div>
-          <p className="text-lg font-bold">Signature invalid</p>
-          <p className="text-sm opacity-80">{status.result.reason}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div data-testid="verdict" className="flex items-center gap-3 bg-amber-500/10 px-5 py-4 text-amber-700 dark:text-amber-500">
-      <FileWarning className="h-6 w-6" />
-      <div>
-        <p className="text-lg font-bold">Verification could not run</p>
-        <p className="text-sm opacity-80">{status.message}</p>
-      </div>
     </div>
   );
 }

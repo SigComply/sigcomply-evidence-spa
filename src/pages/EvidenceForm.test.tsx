@@ -210,6 +210,19 @@ describe("EvidenceForm", () => {
     expect(screen.queryByRole("link", { name: /verify a signed envelope/i })).toBeNull();
   });
 
+  it("counts ticked checklist items and gives a declaration one checkbox", async () => {
+    const user = userEvent.setup();
+    await renderForm("offboarding");
+    expect(screen.getByText("0 of 2 ticked")).toBeTruthy();
+    await user.click(screen.getByRole("checkbox", { name: /revoke access/i }));
+    expect(screen.getByText("1 of 2 ticked")).toBeTruthy();
+    cleanup();
+
+    await renderForm("policy_ack");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Policy acknowledgment" })).toBeTruthy();
+  });
+
   it("shows a note the PDF can't draw beside that note, linked to its input", async () => {
     const user = userEvent.setup();
     localStorage.setItem("sigcomply:completed-by", "Sam");

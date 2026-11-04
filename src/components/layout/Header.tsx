@@ -1,33 +1,41 @@
-import { ShieldCheck } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { LogoMark } from "@/components/common/Logo";
+import { FOCUS_RING } from "@/components/common/styles";
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+const navItemClass = (active: boolean) =>
   cn(
-    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-    isActive
-      ? "bg-background text-foreground shadow-sm ring-1 ring-foreground/10"
-      : "text-muted-foreground hover:text-foreground",
+    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+    FOCUS_RING,
+    active
+      ? "bg-slate-800 text-white"
+      : "text-slate-400 hover:bg-slate-800/50 hover:text-white",
   );
 
 export function Header() {
+  // A form page belongs to the attestation list it was opened from.
+  const { pathname } = useLocation();
+  const onAttestations = pathname === "/" || pathname.startsWith("/evidence/");
+
   return (
-    <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:px-6">
-        <NavLink to="/" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <ShieldCheck className="h-4 w-4" />
-          </span>
-          <span className="font-semibold tracking-tight">SigComply</span>
-          <span className="hidden text-sm text-muted-foreground sm:inline">
+    <header className="border-b border-slate-800">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className={cn("flex items-center gap-2 rounded-lg", FOCUS_RING)}>
+          <LogoMark />
+          <span className="text-lg font-semibold text-white">SigComply</span>
+          <span className="hidden text-sm text-slate-400 sm:inline">
             Evidence tools
           </span>
-        </NavLink>
-        <nav className="ml-auto flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          <NavLink to="/" end className={navLinkClass}>
+        </Link>
+        <nav aria-label="Main" className="ml-auto flex items-center gap-1">
+          <Link
+            to="/"
+            aria-current={onAttestations ? "page" : undefined}
+            className={navItemClass(onAttestations)}
+          >
             Attestations
-          </NavLink>
-          <NavLink to="/verify" className={navLinkClass}>
+          </Link>
+          <NavLink to="/verify" className={({ isActive }) => navItemClass(isActive)}>
             Verify
           </NavLink>
         </nav>

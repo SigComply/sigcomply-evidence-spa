@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, pinCatalogs, test } from "./fixtures";
 import type { Catalog, CatalogEntry } from "../src/types/catalog";
 
@@ -51,6 +51,10 @@ async function serveCatalog(page: Page, storage = { show_upload_path: true, pref
 
 function openLinks(page: Page) {
   return page.getByRole("link", { name: /^Open / });
+}
+
+async function hrefs(links: Locator) {
+  return Promise.all((await links.all()).map((l) => l.getAttribute("href")));
 }
 
 test.beforeEach(async ({ page }) => {
@@ -129,18 +133,26 @@ test("one copy button per row, each named after its entry; categories group with
   await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
 });
 
-test("the shipped catalogs show no lone Uncategorized heading or dead chips, and the label in the dropdown", async ({ page }) => {
+test("the shipped catalogs show no lone Uncategorized heading or dead chips, and the labels in the switcher", async ({ page }) => {
   await pinCatalogs(page);
   await page.addInitScript(() => localStorage.setItem("sigcomply:framework", "soc2"));
   await page.goto("./");
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
   await expect(page.getByText(/uncategorized/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Required only" })).toHaveCount(0);
-  await expect(page.getByRole("combobox")).toHaveText(/SOC 2 Type II/);
+  const switcher = page.getByRole("group", { name: "Framework" });
+  await expect(switcher.getByRole("button", { name: "SOC 2 Type II" })).toHaveAttribute("aria-pressed", "true");
+  await expect(switcher.getByRole("button", { name: "ISO 27001" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText(/retrospective|grace/)).toHaveCount(0);
-  // Period card and row ranges are labelled UTC.
-  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)").first()).toBeVisible();
+  // The range is labelled UTC: shown once, in the periods card, and on each
+  // row as the period key's tooltip.
+  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)")).toHaveCount(1);
+  await expect(page.getByText("Jan 1 – Dec 31, 2026 (UTC)")).toBeVisible();
   await expect(page.getByText(/^Jan 1 – Dec 31, 2026$/)).toHaveCount(0);
+  const row = page
+    .getByTestId("evidence-row")
+    .filter({ has: page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" }) });
+  await expect(row.getByText("2026", { exact: true })).toHaveAttribute("title", /\(UTC\)$/);
 });
 
 test("switching framework clears the search", async ({ page }) => {
@@ -149,10 +161,57 @@ test("switching framework clears the search", async ({ page }) => {
   await page.goto("./");
   const search = page.getByRole("textbox", { name: /^Search attestations/ });
   await search.fill("conduct");
-  await page.getByRole("combobox").click();
-  await page.getByRole("option", { name: "ISO 27001" }).click();
-  await expect(page.getByRole("combobox")).toHaveText(/ISO 27001/);
+  const iso = page.getByRole("group", { name: "Framework" }).getByRole("button", { name: "ISO 27001" });
+  await iso.click();
+  await expect(iso).toHaveAttribute("aria-pressed", "true");
   await expect(search).toHaveValue("");
+});
+
+test("the framework switcher swaps the list and remembers the choice", async ({ page }) => {
+  await pinCatalogs(page);
+  // An init script runs again on reload, so seed the choice only once per tab;
+  // otherwise the reload below would reset it and hide what the app stored.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    localStorage.setItem("sigcomply:framework", "soc2");
+  });
+  await page.goto("./");
+  const switcher = page.getByRole("group", { name: "Framework" });
+  const soc2 = switcher.getByRole("button", { name: "SOC 2 Type II" });
+  const iso = switcher.getByRole("button", { name: "ISO 27001" });
+  await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
+  const socLinks = await hrefs(openLinks(page));
+  expect(socLinks.length).toBeGreaterThan(0);
+  expect(socLinks.every((h) => h?.includes("/evidence/soc2/"))).toBe(true);
+
+  await iso.click();
+  await expect(iso).toHaveAttribute("aria-pressed", "true");
+  await expect(soc2).toHaveAttribute("aria-pressed", "false");
+  await expect(openLinks(page).first()).toHaveAttribute("href", /\/evidence\/iso27001\//);
+  const isoLinks = await hrefs(openLinks(page));
+  expect(isoLinks.length).toBeGreaterThan(0);
+  expect(isoLinks.every((h) => h?.includes("/evidence/iso27001/"))).toBe(true);
+  expect(await page.evaluate(() => localStorage.getItem("sigcomply:framework"))).toBe("iso27001");
+
+  await page.reload();
+  await expect(page.getByRole("group", { name: "Framework" }).getByRole("button", { name: "ISO 27001" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+test("nothing scrolls sideways on a 360px phone", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await serveCatalog(page);
+  await page.goto("./");
+  await expect(openLinks(page)).toHaveCount(3);
+  const overflow = await page.evaluate(() => {
+    const el = (globalThis as unknown as { document: { documentElement: { scrollWidth: number; clientWidth: number } } })
+      .document.documentElement;
+    return el.scrollWidth - el.clientWidth;
+  });
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test("the footer links to the CLI guides and the license without loading them", async ({ page }) => {
@@ -182,6 +241,9 @@ test("Esc dismisses the framework picker and keeps the default", async ({ page }
   // The catalog models only a few processing-integrity and privacy criteria;
   // the picker must not claim which SOC 2 categories it covers.
   await expect(page.getByRole("dialog")).not.toContainText(/availability|confidentiality|processing integrity|privacy/i);
+  // The picker's options live in the dialog; the switcher behind it has
+  // buttons with the same names.
+  await expect(page.getByRole("dialog").getByRole("button", { name: "ISO 27001" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByText("Select your framework")).toBeHidden();
   await expect(page.getByRole("link", { name: "Open Code Of Conduct Acknowledgment" })).toBeVisible();
