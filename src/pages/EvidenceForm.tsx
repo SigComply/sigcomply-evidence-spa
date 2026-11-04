@@ -71,7 +71,8 @@ export function EvidenceForm() {
     return (
       <div className="max-w-3xl space-y-4">
         <BackButton />
-        <Callout tone="error" title="Framework not found">
+        <PageHeader title="Framework not found" />
+        <Callout tone="error">
           <p className="break-words">
             This site has no “{framework}” framework. It offers{" "}
             {new Intl.ListFormat("en", { type: "conjunction" }).format(
@@ -101,7 +102,8 @@ export function EvidenceForm() {
     return (
       <div className="max-w-3xl space-y-4">
         <BackButton />
-        <Callout tone="error" title="Could not load the catalog">
+        <PageHeader title="Could not load the catalog" />
+        <Callout tone="error">
           {error}
         </Callout>
       </div>
@@ -112,7 +114,8 @@ export function EvidenceForm() {
     return (
       <div className="max-w-3xl space-y-4">
         <BackButton />
-        <Callout tone="error" title="Evidence entry not found">
+        <PageHeader title="Evidence entry not found" />
+        <Callout tone="error">
           <p className="break-words">
             The {frameworkLabel(framework)} catalog on this site has no entry “
             {evidenceId}”. The entry may be new, since the catalogs update daily

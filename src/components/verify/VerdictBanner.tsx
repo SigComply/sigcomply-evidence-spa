@@ -36,8 +36,8 @@ const TONE = {
 
 // The one-line verdict sits in the hue; the explanation under it stays
 // neutral, so the caveat on a valid signature doesn't read as more success.
-// The banner is a polite live region, and its title is a heading the page
-// focuses once the verdict lands.
+// Its title is a heading the page focuses once the verdict lands; that focus
+// move is the announcement, so the banner is not also a live region.
 function Banner({
   tone,
   Icon,
@@ -57,7 +57,6 @@ function Banner({
   return (
     <div
       data-testid="verdict"
-      role="status"
       className={cn("border-b px-5 py-4", t.box)}
     >
       <div className="flex items-start gap-4">
@@ -116,9 +115,9 @@ export function VerdictBanner({
         <p>
           The file is self-consistent. Its records match the signature and
           the public key inside this file. The CLI makes a new key for every
-          file, so a valid signature doesn&apos;t show who signed it. Only
-          write-once storage stops someone replacing a file and signing it
-          again. Ask whether the vault uses it.
+          file, so a valid signature doesn&apos;t show who signed it.
+          Write-once storage for the vault stops someone replacing a file and
+          signing it again. Ask whether the vault uses it.
         </p>
         {status.result.keyFingerprint && (
           <div>

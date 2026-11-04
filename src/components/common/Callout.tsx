@@ -33,7 +33,8 @@ export function Callout({
   className,
 }: {
   tone: keyof typeof TONE;
-  title: React.ReactNode;
+  // Left out when a heading above already names the problem.
+  title?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }) {
@@ -46,8 +47,10 @@ export function Callout({
     >
       <t.Icon className={cn("mt-0.5 size-5 shrink-0", t.title)} aria-hidden />
       <div className="min-w-0 text-sm">
-        <p className={cn("font-medium", t.title)}>{title}</p>
-        {children && <div className="mt-1 text-slate-300">{children}</div>}
+        {title && <p className={cn("font-medium", t.title)}>{title}</p>}
+        {children && (
+          <div className={cn("text-slate-300", title && "mt-1")}>{children}</div>
+        )}
       </div>
     </div>
   );

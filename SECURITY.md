@@ -42,7 +42,7 @@ Out of scope:
 - A valid result shows the envelope is self-consistent. Its records match the Ed25519 public key
   embedded in it, and `/verify` shows that key's SHA-256 fingerprint. The CLI generates a new key
   for every evidence file, and anyone can sign an envelope with their own key, so a valid result
-  doesn't show who signed it. Only write-once storage for the vault stops someone rewriting a run
+  doesn't show who signed it. Write-once storage for the vault stops someone rewriting a run
   and signing it again.
 - For a single-folder manual record, `/verify` shows the result fields the CLI signed: file
   present, uploaded within the period or its grace window, passed the CLI's file checks, any

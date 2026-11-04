@@ -296,7 +296,9 @@ describe("Verify page polish", () => {
     const user = await loadEnvelope(container, "golden/manual.json");
     await screen.findByText("Signature valid");
     const verdict = screen.getByTestId("verdict");
-    expect(verdict.getAttribute("role")).toBe("status");
+    // The focus move announces the verdict; a live region on the banner too
+    // would make screen readers read it twice.
+    expect(verdict.getAttribute("role")).toBeNull();
     const heading = screen.getByRole("heading", { name: "Signature valid" });
     expect(document.activeElement).toBe(heading);
 
@@ -340,11 +342,23 @@ describe("Verify page polish", () => {
   it("keeps the drag highlight while the pointer crosses the zone's children", () => {
     renderVerify();
     const zone = screen.getByRole("region", { name: "Drop the signed envelope JSON file here" });
-    fireEvent.dragEnter(zone);
-    fireEvent.dragEnter(zone.querySelector("p")!);
-    fireEvent.dragLeave(zone);
+    const files = { dataTransfer: { types: ["Files"] } };
+    fireEvent.dragEnter(zone, files);
+    fireEvent.dragEnter(zone.querySelector("p")!, files);
+    fireEvent.dragLeave(zone, files);
     expect(zone.dataset.dragActive).toBe("true");
-    fireEvent.dragLeave(zone.querySelector("p")!);
+    fireEvent.dragLeave(zone.querySelector("p")!, files);
+    expect(zone.dataset.dragActive).toBe("false");
+  });
+
+  it("doesn't highlight or accept a drag that carries no files, like selected text", () => {
+    renderVerify();
+    const zone = screen.getByRole("region", { name: "Drop the signed envelope JSON file here" });
+    const textDrag = { dataTransfer: { types: ["text/plain"] } };
+    expect(fireEvent.dragEnter(zone, textDrag)).toBe(true);
+    expect(fireEvent.dragOver(zone, textDrag)).toBe(true);
+    expect(zone.dataset.dragActive).toBe("false");
+    fireEvent.dragLeave(zone, textDrag);
     expect(zone.dataset.dragActive).toBe("false");
   });
 

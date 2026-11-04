@@ -34,6 +34,16 @@ describe("parseEnvelopeText", () => {
     expect(r.sourceText).toContain("9223372036854775807");
   });
 
+  it("keeps a bignum's lexeme in the pretty copy shown in the textarea", () => {
+    // JSON.stringify(JSON.parse(..)) would round 9223372036854775807 to
+    // 9223372036854776000 in the reformatted text.
+    const r = parseEnvelopeText(bignumRaw);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.pretty).toContain("9223372036854775807");
+    expect(r.pretty).not.toContain("9223372036854776000");
+  });
+
   it("reports malformed JSON with a line and column", () => {
     const text = '{\n  "format_version": "envelope.v1",\n  records: []\n}';
     const r = parseEnvelopeText(text);

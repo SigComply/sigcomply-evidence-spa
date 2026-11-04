@@ -35,7 +35,7 @@ calendar, run `sigcomply evidence due --all` for the exact folders.
 
 A valid signature shows the file is self-consistent. Its records match the public key inside it.
 The CLI makes a new key for every file, so a valid signature doesn't show who signed it.
-Only write-once storage for the vault stops someone replacing a file and signing it again.
+Write-once storage for the vault stops someone replacing a file and signing it again.
 [SECURITY.md](SECURITY.md#what-verify-proves-and-does-not) lists everything `/verify` does and
 doesn't check.
 

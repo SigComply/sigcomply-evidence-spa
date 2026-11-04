@@ -169,9 +169,10 @@ type SourceReviver = (
  * 122+, Firefox 125+, Safari 17.5+). On engines without it, `context` is
  * undefined and numbers fall through as ordinary float64 — identical to the
  * previous behaviour, so nothing breaks (large-integer envelopes simply remain
- * unverifiable there, as they were before). This is used only to derive the
- * signed bytes; the parsed envelope shown in the UI still uses plain
- * `JSON.parse`.
+ * unverifiable there, as they were before). It derives the signed bytes, and
+ * the raw view uses it through `prettyJSON` (`pretty.ts`) so large integers
+ * show their exact digits; the typed envelope the UI reads is still parsed
+ * with plain `JSON.parse`.
  */
 export function parseJSONPreservingNumbers(text: string): unknown {
   const reviver: SourceReviver = (_key, value, context) => {

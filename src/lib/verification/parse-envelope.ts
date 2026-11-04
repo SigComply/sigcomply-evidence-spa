@@ -4,6 +4,8 @@ import {
   manualPayloadProblem,
   type EvidenceEnvelope,
 } from "@/types/envelope";
+import { parseJSONPreservingNumbers } from "./canonical";
+import { prettyJSON } from "./pretty";
 
 export type ParseEnvelopeResult =
   | { kind: "empty" }
@@ -61,11 +63,13 @@ function looksLikeManifest(v: unknown): boolean {
   );
 }
 
-function prettyPrint(parsed: unknown, fallback: string): string {
+// Reformats the text for the textarea from a lossless parse, so an integer
+// above 2^53 keeps its digits instead of being rounded by JSON.parse.
+function prettyPrint(text: string): string {
   try {
-    return JSON.stringify(parsed, null, 2);
+    return prettyJSON(parseJSONPreservingNumbers(text));
   } catch {
-    return fallback;
+    return text;
   }
 }
 
@@ -91,7 +95,7 @@ export function parseEnvelopeText(
     }
     return { kind: "invalid", message: describeJsonError(err as Error, text) };
   }
-  const pretty = prettyPrint(parsed, text);
+  const pretty = prettyPrint(text);
 
   if (!isEvidenceEnvelope(parsed) && looksLikeManifest(parsed)) {
     return { kind: "invalid", message: MANIFEST_MESSAGE, pretty };

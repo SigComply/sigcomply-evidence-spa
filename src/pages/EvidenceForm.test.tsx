@@ -181,8 +181,11 @@ describe("EvidenceForm", () => {
 
   it("explains an unknown entry: maybe new or renamed, with a way back", async () => {
     await renderForm("nope");
-    expect(screen.getByText("Evidence entry not found")).toBeTruthy();
-    const alert = screen.getByText("Evidence entry not found").closest("[role=alert]")!;
+    // The title is the page's one h1, so route-change focus has a target.
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Evidence entry not found",
+    ]);
+    const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("“nope”");
     expect(alert.textContent).toContain("SOC 2 Type II");
     expect(alert.textContent).toMatch(/may be new/);
@@ -194,8 +197,10 @@ describe("EvidenceForm", () => {
 
   it("names the available frameworks for an unknown one, not the raw error", async () => {
     await renderForm("policy_ack", { frameworks: ["soc2", "iso27001"] }, "foo");
-    expect(screen.getByText("Framework not found")).toBeTruthy();
-    const alert = screen.getByText("Framework not found").closest("[role=alert]")!;
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Framework not found",
+    ]);
+    const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("“foo”");
     expect(alert.textContent).toContain("SOC 2 Type II and ISO 27001");
     expect(screen.queryByText(/Unknown framework/)).toBeNull();

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const hasFiles = (e: DragEvent) =>
+// Selected text or a link dragged over the page carries no "Files" type;
+// neither the zones nor the window guard react to it.
+const hasFiles = (e: { dataTransfer: DataTransfer | null }) =>
   Array.from(e.dataTransfer?.types ?? []).includes("Files");
 
 // While /verify is mounted, a file dropped outside a drop zone must not make
@@ -66,15 +68,19 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
   const handlers: DropHandlers = useMemo(
     () => ({
       onDragEnter: (e) => {
+        if (!hasFiles(e)) return;
         e.preventDefault();
         depth.current++;
         setActive(true);
       },
-      onDragLeave: () => {
+      onDragLeave: (e) => {
+        if (!hasFiles(e)) return;
         depth.current = Math.max(0, depth.current - 1);
         if (depth.current === 0) setActive(false);
       },
-      onDragOver: (e) => e.preventDefault(),
+      onDragOver: (e) => {
+        if (hasFiles(e)) e.preventDefault();
+      },
       onDrop: (e) => {
         e.preventDefault();
         depth.current = 0;

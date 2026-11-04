@@ -344,7 +344,8 @@ test.describe("verify page polish", () => {
     const record = goldenPayload("manual.json");
     await loadEnvelope(page, "manual.json", fixture("golden/manual.json"));
     await expect(page.getByRole("heading", { name: "Signature valid" })).toBeFocused();
-    await expect(page.getByTestId("verdict")).toHaveAttribute("role", "status");
+    // Focus announces the verdict; a live region on the banner would repeat it.
+    await expect(page.getByTestId("verdict")).not.toHaveAttribute("role", /.*/);
     const result = page.getByTestId("pdf-result");
     await expect(result).toHaveAttribute("role", "status");
     await loadPdf(page, "evidence.pdf", fixture(`golden/manual.${record.evidence_id}.pdf`));
