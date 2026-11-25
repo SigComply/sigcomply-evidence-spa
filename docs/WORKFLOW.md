@@ -29,7 +29,7 @@ environment.
     copy `index.html` to `404.html` for client-side routes, then lint and
     `npm run test:coverage`. It hands `dist/` to the next job as an artifact.
   - `e2e` (in the `mcr.microsoft.com/playwright` image, so no apt mirror is involved; keep its tag
-    equal to `@playwright/test` in `package-lock.json`, here and in `ci.yml`): Playwright against
+    equal to `@playwright/test` in `package-lock.json`, here, in `smoke` and in `ci.yml`): Playwright against
     that exact `dist/` (`E2E_DIST=dist`). The image is pinned by digest (`AGENTS.md`
     "Supply-chain controls"). Only a green run uploads `dist/` as the Pages artifact.
   - `deploy` (`pages: write`, `id-token: write`): publishes that artifact. It checks out nothing
@@ -38,10 +38,21 @@ environment.
     verifies a CLI envelope, and every form link from the `form-links` artifact
     (`E2E_FORM_LINKS`) starts with the live URL and opens the form for its entry.
 
-  Two causes of a red or missing daily deploy that have nothing to do with a commit: a new
-  high or critical advisory makes `npm audit` fail the `build` job, and GitHub disables
-  scheduled workflows after 60 days without activity in the repo (re-enable it in the Actions
-  tab, or push).
+  Causes of a red or missing daily deploy that have nothing to do with a commit here:
+
+  - A new high or critical advisory makes `npm audit` fail the `build` job.
+  - A new CLI release whose failed `check` exits with anything but 1, or prints no form link
+    for a framework, fails `collect-form-links` in `build`, before anything deploys.
+  - A release whose form links don't open a form fails `smoke` after the site is already live.
+    The cause is usually the CLI's `FormURL` or a route change here.
+  - GitHub disables scheduled workflows after 60 days without activity in the repo (re-enable it
+    in the Actions tab, or push).
+- Outside this repo, both E2E repos clone this repo's `main` on every run, including each CLI
+  release gate. Both run `verify-envelopes`; the GitHub E2E release gate also runs
+  `render-evidence-pdf`. They run them in a Node image pinned to the `.nvmrc` version. A change
+  to those scripts' flags, input fields, output or exit codes turns their next run red and can
+  block a CLI promotion. Raising `.nvmrc` or `engines` breaks their `npm ci` until they move
+  their image.
 - `.github/workflows/security.yml` runs on push to `main`, on pull requests and weekly: npm-audit,
   OSV, Scorecard, CodeQL, Semgrep, Trivy, Retire.js, zizmor, secret scan, ZAP, SBOM. The
   `npm-audit`, `semgrep` and `secret-scan` jobs are hard gates (the summary job fails on them).
@@ -65,8 +76,10 @@ Deploy facts that matter when you change the build:
 
 - `prebuild` (`fetch-catalogs`) regenerates `public/data/catalogs/*.json` from the CLI on every
   deploy and fails the deploy on any error, including output that doesn't match
-  `src/types/catalog.ts`. A CLI catalog change reaches the live site on the next deploy without a
-  commit here: at the latest the daily run, sooner with `workflow_dispatch`.
+  `src/types/catalog.ts`. A CLI catalog change reaches the live site, without a commit here, on
+  the first deploy after its release becomes Latest: at the latest the next daily run, sooner
+  with `workflow_dispatch`. A CLI release candidate is a prerelease, which `releases/latest`
+  skips. The same run opens that release's form links.
 - Tests that name catalog entries use the pinned copies in `e2e/fixtures/catalogs/`, never
   `public/data/catalogs/`, which `npm run build` overwrites in deploy. Playwright specs serve them
   with `pinCatalogs` (`e2e/fixtures.ts`); `catalog-validate.test.ts` and
@@ -128,7 +141,7 @@ No git hook runs this gate (see "Commands" in `AGENTS.md`). CI runs it again (`c
 | Component (testing-library, jsdom) | `src/pages/*.test.tsx`, `src/hooks/*.test.ts`, first line `// @vitest-environment jsdom` | `npm run test` | A change to page state, validation messages or what a component renders for given data. |
 | E2E (Playwright, Pages-like `dist`) | `e2e/*.spec.ts`, Chromium and WebKit, served by `e2e/pages-server.ts` | `npm run test:e2e` | **Required for every user-visible flow**: a new or changed route, form, download, verdict, config option or catalog behaviour gets a spec in the same commit. |
 | Post-deploy smoke | `e2e/*.live.spec.ts`, run by `deploy.yml` after each deploy | `npm run test:e2e:live` (`E2E_FORM_LINKS` from `npm run collect-form-links` for the form-link spec) | A new page or flow whose absence on the live site would go unnoticed. Keep it small. |
-| Node entry points | `scripts/verify-envelopes.ts`, `scripts/render-evidence-pdf.ts` and their tests | `npm run test` | Any change to them or to the `src/lib/` modules they import; the E2E repos depend on their output and exit codes. |
+| Node entry points | `scripts/verify-envelopes.ts`, `scripts/render-evidence-pdf.ts` and their tests | `npm run test` | Any change to them or to the `src/lib/` modules they import; the E2E repos run them from `main` and depend on their flags, input fields, output and exit codes. |
 
 `docs/TESTING.md` has the fixture rules, the coverage floors, the Playwright conventions and the
 Web Crypto and PDF specifics. The automated layers are the proof that a flow works; the browser
@@ -263,4 +276,6 @@ There is no server, no log store and no error tracker. Errors show up in three p
   error shows the `ErrorBoundary` fallback instead of a blank page; the stack is in the console.
 - **Deploy failures**: `gh run view <run-id> --log-failed`. Reproduce with `npm run build` and the
   CLI on `PATH`; without the CLI, `npx tsc -b && npx vite build` covers everything but the catalog
-  refresh.
+  refresh. Reproduce a `collect-form-links` failure with
+  `npm run collect-form-links -- --out /tmp/form-links.json` (CLI on `PATH`), and a `smoke`
+  failure with `E2E_FORM_LINKS=/tmp/form-links.json npm run test:e2e:live`.

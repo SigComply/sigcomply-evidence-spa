@@ -101,7 +101,7 @@ byte-for-byte copies. The README in each `golden/` folder names the CLI source.
 
 | Golden | Here | Test |
 |---|---|---|
-| Envelopes `basic`, `bignum`, `manual`, `fanout`, their `.canonical.txt` and manual PDFs | `src/lib/verification/__fixtures__/golden/` | `golden.test.ts`: each envelope verifies, its signed bytes equal `.canonical.txt`, the file is the canonical JSON of the whole envelope plus a newline, each PDF matches its record's (or fan-out member's) hash, and a one-byte change to the envelope or the PDF fails |
+| Envelopes `basic`, `bignum`, `manual`, `fanout`, `unicodekeys`, their `.canonical.txt` and manual PDFs | `src/lib/verification/__fixtures__/golden/` | `golden.test.ts`: each envelope verifies, its signed bytes equal `.canonical.txt`, the file is the canonical JSON of the whole envelope plus a newline, each PDF matches its record's (or fan-out member's) hash, and a one-byte change to the envelope or the PDF fails |
 | `periods.json`: UTC instants × cadences → period ID, window, folder; prefix table | `src/lib/__fixtures__/golden/` | `period-golden.test.ts`: `currentPeriod` and `computeUploadPath` give the same period ID, window and folder for every row, and the same folder for every prefix |
 | `soc2_golden.json`, `iso27001_golden.json`: `sigcomply evidence catalog -o json` | `src/lib/__fixtures__/golden/` | `fetch-catalogs.test.ts`: no validator errors or warnings, and `prepareCatalog` keeps every renderable entry |
 
@@ -194,8 +194,9 @@ the script changes, so `"SOC2 · CC1.1"` is three runs. The "outside Latin-1" ca
 
 ## Node entry points for the E2E repos
 
-`scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts` let the E2E repos run this
-app's verifier and PDF renderer on a real CLI run, without a browser. They import the same
+Both E2E repos run `scripts/verify-envelopes.ts` on the vault a real CLI run wrote. The GitHub
+E2E release gate also makes its manual evidence with `scripts/render-evidence-pdf.ts`. Neither
+needs a browser. They import the same
 `src/lib/` modules the pages use; keep it that way, or the E2E check stops proving what `/verify`
 and the form do. Run them through the npm scripts (or `npx tsx --tsconfig tsconfig.app.json …`):
 `tsx` needs that file for the `@/` alias and JSX. Relative paths resolve against the caller's
@@ -225,7 +226,7 @@ travel in the files, so whoever can write the vault can rewrite a run and re-sig
 Write-once storage is what stops that (CLI `SECURITY.md`).
 
 `render-evidence-pdf` takes the period from `completed_at` in UTC, like the form and the CLI. It rejects input with an unknown field or a wrong type, a `framework`
-that isn't `[a-z0-9_]+` or (without `catalog`) isn't in `public/config.json`, notes for items the
+that doesn't match `FRAMEWORK_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`) or (without `catalog`) isn't in `public/config.json`, notes for items the
 entry doesn't have, and a `period` that doesn't match the entry's frequency (`2026-05-15`,
 `2026-W20`, `2026-05`, `2026-Q2`, `2026`).
 

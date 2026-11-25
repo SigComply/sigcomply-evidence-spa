@@ -114,7 +114,8 @@ Two independent client-side tools in one Vite bundle. The CLI never calls this a
 Code map: routes in `src/App.tsx`; pages in `src/pages/`; pure logic in `src/lib/` (`period.ts`,
 `storage-path.ts`, `pdf/`, `verification/`); shared types in `src/types/`; runtime config in
 `src/config/runtime.ts`; catalog prefetch in `scripts/fetch-catalogs.ts`; Node entry points for the
-E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
+E2E repos in `scripts/verify-envelopes.ts` (both repos) and `scripts/render-evidence-pdf.ts`
+(the GitHub E2E release gate only).
 
 ## Contracts with sigcomply-cli
 
@@ -132,7 +133,7 @@ E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 | Canonical JSON | `src/lib/verification/canonical.ts` | `internal/sign/canonical.go`; byte-equal |
 | Signature | Ed25519 via Web Crypto, base64 32-byte key and 64-byte signature | `internal/sign` |
 | Run manifest | `verifyManifest` in `scripts/verify-envelopes.ts`: `run.v1`, signed object = manifest minus `signature`, `file_hashes` keyed by run-relative path, values `sha256:<hex>` | `internal/core/manifest.go`, `internal/sign/manifest.go`, `writeManifest` in `internal/orchestrator/orchestrator.go` |
-| Form deep link | Route `/evidence/:framework/:evidenceId` in `src/App.tsx`, under the Pages base path; renders every `declaration` and `checklist` entry, and an unknown ID shows a "not found" page that links back | `manualcatalog.FormURL` and `DefaultFormBaseURL` in `internal/manualcatalog/formlink.go`; `check` and `evidence due` print it for failing or due `declaration`/`checklist` entries only. Checked live: deploy collects the latest release's `check` links (`scripts/collect-form-links.ts`) and the smoke opens each (`e2e/form-links.live.spec.ts`) |
+| Form deep link | Route `/evidence/:framework/:evidenceId` in `src/App.tsx`, under the Pages base path; renders every `declaration` and `checklist` entry, and an unknown ID shows a "not found" page that links back | `manualcatalog.FormURL` and `DefaultFormBaseURL` in `internal/manualcatalog/formlink.go`; `check` and `evidence due` print it for failing or due `declaration`/`checklist` entries only. Checked twice: the GitHub E2E release gate asserts that every link a CLI candidate prints is exactly `https://sigcomply.github.io/sigcomply-evidence-spa/evidence/<framework>/<id>` for a `declaration` or `checklist` entry; after each deploy the smoke opens every link the Latest release prints (`scripts/collect-form-links.ts`, `e2e/form-links.live.spec.ts`). A route or base-path change here breaks both |
 
 Rules:
 

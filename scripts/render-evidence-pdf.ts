@@ -1,13 +1,14 @@
 // Renders the evidence.pdf the form at /evidence/:framework/:evidenceId
 // produces, from a JSON file instead of clicks. Same catalog, same validation
 // (validateEvidence), same mapping (buildPdfInput) and same renderer
-// (renderEvidencePdf). Used by the E2E repos to seed manual evidence.
+// (renderEvidencePdf). Used by the GitHub E2E release gate to make its manual
+// evidence.
 //
 //   npm run render-evidence-pdf -- --input <json> --out <pdf>
 //
 // Input fields (example: scripts/examples/render-evidence-pdf.declaration.json).
 // Unknown fields and wrong types are errors:
-//   framework      catalog framework, e.g. "soc2" (required; [a-z0-9_]+, and
+//   framework      catalog framework, e.g. "soc2" (required; FRAMEWORK_PATTERN, and
 //                  listed in public/config.json unless `catalog` is given)
 //   evidence_id    catalog entry id, a declaration or checklist (required)
 //   completed_by   the "Completed by" field (required)
