@@ -34,7 +34,7 @@ test("every form link the CLI prints opens its form", async ({ page, baseURL }) 
   expect(linksFile, "E2E_FORM_LINKS must name the collected links file").toBeTruthy();
   const links = readLinks(linksFile!);
   expect(links.length, "form links in the file").toBeGreaterThan(0);
-  test.setTimeout(30_000 + links.length * 15_000);
+  test.setTimeout(30_000 + links.length * 10_000);
 
   const base = baseURL!;
   const basePath = new URL(base).pathname;

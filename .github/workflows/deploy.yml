@@ -261,7 +261,8 @@ jobs:
   smoke:
     needs: deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Three attempts (retries: 2) of the form-link test at 10 s per link.
+    timeout-minutes: 20
     permissions:
       contents: read
     container:
