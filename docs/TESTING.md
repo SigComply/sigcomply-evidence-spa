@@ -270,7 +270,13 @@ another session fails fast instead of testing someone else's build.
 - Time: `page.clock.setFixedTime(...)` pins the period. The config sets `timezoneId: "UTC"`; a
   spec that proves the period ignores the browser's zone overrides it with `test.use`. No sleeps: wait on locators, `waitForEvent("download")` or `waitForResponse`.
 - Config overrides: `page.route("**/config.json", ...)`.
-- `e2e/smoke.live.spec.ts` runs only under `playwright.live.config.ts`, against the live site.
+- `e2e/*.live.spec.ts` run only under `playwright.live.config.ts`, against the live site.
+  `e2e/form-links.live.spec.ts` opens every form link in the file `E2E_FORM_LINKS` names and
+  checks that each starts with the live URL, shows a form (not a "not found" page) and shows the
+  upload folder of the entry in the link. Without the variable it skips locally and fails in CI.
+  To run it locally, with `sigcomply` on `PATH`:
+  `npm run collect-form-links -- --out /tmp/form-links.json`, then
+  `E2E_FORM_LINKS=/tmp/form-links.json npm run test:e2e:live`.
 - Failures keep a trace in `test-results/`: `npx playwright show-trace <zip>`.
 
 ## Component tests

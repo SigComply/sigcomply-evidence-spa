@@ -20,6 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "verify-envelopes": "tsx --tsconfig tsconfig.app.json scripts/verify-envelopes.ts",
     "render-evidence-pdf": "tsx --tsconfig tsconfig.app.json scripts/render-evidence-pdf.ts",
+    "collect-form-links": "tsx scripts/collect-form-links.ts",
     "build:e2e": "vite build --base /sigcomply-evidence-spa/ --outDir dist-e2e && cp dist-e2e/index.html dist-e2e/404.html",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test -c playwright.live.config.ts"

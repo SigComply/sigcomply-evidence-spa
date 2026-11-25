@@ -23,6 +23,8 @@ environment.
     install the latest `sigcomply` CLI release (resolved from `releases/latest` at run time; the
     tarball's SHA-256 must match the release's `checksums.txt`, and `gh attestation verify` must
     accept its build provenance from the CLI's release workflow, before it is extracted),
+    collect the form links that CLI prints in a failed `check`
+    (`npm run collect-form-links`, uploaded as the `form-links` artifact, not part of the site),
     `npm run build` with `VITE_BASE_PATH=/<repo-name>/`,
     copy `index.html` to `404.html` for client-side routes, then lint and
     `npm run test:coverage`. It hands `dist/` to the next job as an artifact.
@@ -32,8 +34,9 @@ environment.
     "Supply-chain controls"). Only a green run uploads `dist/` as the Pages artifact.
   - `deploy` (`pages: write`, `id-token: write`): publishes that artifact. It checks out nothing
     and runs no repo code.
-  - `smoke`: runs `e2e/smoke.live.spec.ts` against the live URL (home loads a catalog, `/verify`
-    verifies a CLI envelope).
+  - `smoke`: runs `e2e/*.live.spec.ts` against the live URL: home loads a catalog, `/verify`
+    verifies a CLI envelope, and every form link from the `form-links` artifact
+    (`E2E_FORM_LINKS`) starts with the live URL and opens the form for its entry.
 
   Two causes of a red or missing daily deploy that have nothing to do with a commit: a new
   high or critical advisory makes `npm audit` fail the `build` job, and GitHub disables
@@ -124,7 +127,7 @@ No git hook runs this gate (see "Commands" in `AGENTS.md`). CI runs it again (`c
 | CLI contract | `src/lib/verification/{canonical,verify,golden}.test.ts`, `src/lib/period-golden.test.ts`, `scripts/fetch-catalogs.test.ts`, with CLI-produced fixtures and goldens (`__fixtures__/`, `__fixtures__/golden/`) | `npm run test`; `npm run check:goldens` for drift from the CLI | Any change to canonicalization, signature verification, the envelope type, periods, the upload folder or the catalog types. Never edit the fixtures by hand; refresh goldens as in `docs/TESTING.md` "CLI golden fixtures". |
 | Component (testing-library, jsdom) | `src/pages/*.test.tsx`, `src/hooks/*.test.ts`, first line `// @vitest-environment jsdom` | `npm run test` | A change to page state, validation messages or what a component renders for given data. |
 | E2E (Playwright, Pages-like `dist`) | `e2e/*.spec.ts`, Chromium and WebKit, served by `e2e/pages-server.ts` | `npm run test:e2e` | **Required for every user-visible flow**: a new or changed route, form, download, verdict, config option or catalog behaviour gets a spec in the same commit. |
-| Post-deploy smoke | `e2e/smoke.live.spec.ts`, run by `deploy.yml` after each deploy | `npm run test:e2e:live` | A new page or flow whose absence on the live site would go unnoticed. Keep it small. |
+| Post-deploy smoke | `e2e/*.live.spec.ts`, run by `deploy.yml` after each deploy | `npm run test:e2e:live` (`E2E_FORM_LINKS` from `npm run collect-form-links` for the form-link spec) | A new page or flow whose absence on the live site would go unnoticed. Keep it small. |
 | Node entry points | `scripts/verify-envelopes.ts`, `scripts/render-evidence-pdf.ts` and their tests | `npm run test` | Any change to them or to the `src/lib/` modules they import; the E2E repos depend on their output and exit codes. |
 
 `docs/TESTING.md` has the fixture rules, the coverage floors, the Playwright conventions and the

@@ -70,7 +70,8 @@ doc.
 | Unit tests | `npm run test` | `vitest run`. Node environment; a component test opts into jsdom per file. |
 | Coverage | `npm run test:coverage` | Fails below the floors in `vite.config.ts`. Report in `coverage/`. |
 | E2E | `npm run test:e2e` (`npx playwright test`) | Playwright, Chromium and WebKit, on a fresh `dist-e2e/` build served like GitHub Pages (`e2e/pages-server.ts`). Browsers: `npx playwright install chromium webkit` once. |
-| Live smoke | `npm run test:e2e:live` | `e2e/smoke.live.spec.ts` against the live site; deploy runs it after each deploy. |
+| Live smoke | `npm run test:e2e:live` | `e2e/*.live.spec.ts` against the live site; deploy runs it after each deploy. `form-links.live.spec.ts` needs `E2E_FORM_LINKS` (skips locally without it, fails in CI). |
+| Collect form links | `npm run collect-form-links -- --out <file>` | Runs `sigcomply check` (on `PATH`) in an empty offline project per framework and writes every printed form link to `<file>`, for `E2E_FORM_LINKS`. |
 | Lint | `npm run lint` | `eslint .`. No formatter. Security rules: `no-eval`, `no-implied-eval`, `no-new-func`, `no-script-url`, `eslint-plugin-no-unsanitized`, no `dangerouslySetInnerHTML`, network APIs only in `src/lib/static-fetch.ts`, no `in` on parsed data in `src/lib/verification/` and `scripts/`. `scripts/eslint-rules.test.ts` checks each still fires. |
 | Typecheck | `npx tsc -b` | No npm script. |
 | Build | `npm run build` | `prebuild` runs `fetch-catalogs` (needs `sigcomply` on `PATH`, fatal on any error), then `tsc -b && vite build`. |
@@ -131,7 +132,7 @@ E2E repos in `scripts/verify-envelopes.ts` and `scripts/render-evidence-pdf.ts`.
 | Canonical JSON | `src/lib/verification/canonical.ts` | `internal/sign/canonical.go`; byte-equal |
 | Signature | Ed25519 via Web Crypto, base64 32-byte key and 64-byte signature | `internal/sign` |
 | Run manifest | `verifyManifest` in `scripts/verify-envelopes.ts`: `run.v1`, signed object = manifest minus `signature`, `file_hashes` keyed by run-relative path, values `sha256:<hex>` | `internal/core/manifest.go`, `internal/sign/manifest.go`, `writeManifest` in `internal/orchestrator/orchestrator.go` |
-| Form deep link | Route `/evidence/:framework/:evidenceId` in `src/App.tsx`, under the Pages base path; renders every `declaration` and `checklist` entry, and an unknown ID shows a "not found" page that links back | `manualcatalog.FormURL` and `DefaultFormBaseURL` in `internal/manualcatalog/formlink.go`; `check` and `evidence due` print it for failing or due `declaration`/`checklist` entries only |
+| Form deep link | Route `/evidence/:framework/:evidenceId` in `src/App.tsx`, under the Pages base path; renders every `declaration` and `checklist` entry, and an unknown ID shows a "not found" page that links back | `manualcatalog.FormURL` and `DefaultFormBaseURL` in `internal/manualcatalog/formlink.go`; `check` and `evidence due` print it for failing or due `declaration`/`checklist` entries only. Checked live: deploy collects the latest release's `check` links (`scripts/collect-form-links.ts`) and the smoke opens each (`e2e/form-links.live.spec.ts`) |
 
 Rules:
 
